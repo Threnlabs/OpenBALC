@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useApp } from "benchrex/context/BenchrexContext";
-import { Topic, TopicSection, AIPersonality, Attachment } from "benchrex/types";
+import type { Topic, TopicSection, AIPersonality, Attachment } from "benchrex/types";
 import { Button } from "benchrex/components/ui/button";
 import { Badge } from "benchrex/components/ui/badge";
 import { Send, Settings2, X, ChevronRight, Hash, AtSign, Paperclip, FileText, Image as ImageIcon, Music, Trash2, Sparkles, Command } from "lucide-react";

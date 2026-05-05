@@ -5,7 +5,8 @@ import { Input } from "benchrex/components/ui/input";
 import { Textarea } from "benchrex/components/ui/textarea";
 import { X, Plus, Trash2, StickyNote, Maximize2, Minimize2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BoardNote, NOTE_COLORS } from "benchrex/types";
+import type { BoardNote } from "benchrex/types";
+import { NOTE_COLORS } from "benchrex/types";
 import {
   Dialog,
   DialogContent,

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Globe, ChevronDown, ExternalLink, Search, Zap } from "lucide-react";
-import { WebSearchMeta } from "benchrex/types";
+import type { WebSearchMeta } from "benchrex/types";
 
 interface SearchResultsCardProps {
   webSearch: WebSearchMeta;

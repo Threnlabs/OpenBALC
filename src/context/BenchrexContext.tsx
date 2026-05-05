@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { UserProfile, Conversation, Topic, ThemeName, BoardNote, Feedback, AIPersonality, DEFAULT_PERSONALITIES } from "../types";
+import type { UserProfile, Conversation, Topic, ThemeName, BoardNote, Feedback, AIPersonality } from "../types";
+import { DEFAULT_PERSONALITIES } from "../types";
 import { getDefaultTopics } from "../lib/mock-data";
 import { supabase } from "../lib/supabase";
 import { toast } from "sonner";
@@ -185,7 +186,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
           }
         }
 
-        if (profile) {
+        if (profile && profile.id !== state.user?.id) {
           console.log("Profile loaded:", profile.role);
           setState(s => ({
             ...s,
@@ -257,7 +258,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       let query = supabase
         
         .from("conversations")
-        .select("*, user:users(name, email), messages(*)")
+        .select("*, user:users!conversations_user_id_fkey(name, email), messages(*)")
         .order("updated_at", { ascending: false });
 
       if (teamId) {
@@ -356,7 +357,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       const { data: students, error: stuError } = await supabase
         
         .from("users")
-        .select("id, name, email, credits, role, grade, course, batch")
+        .select("id, name, email, role")
         .eq('team_id', teamId);
 
       if (stuError) throw stuError;
@@ -624,7 +625,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
   }));
   
 
-  const createConversation = async () => {
+  const createConversation = React.useCallback(async () => {
     const id = crypto.randomUUID();
     const conv: Conversation = {
       id,
@@ -636,41 +637,18 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       pinned: false,
     };
 
-    // Persist to Supabase if not mock user
-    if (state.user && !state.user.id.startsWith("mock-")) {
-      try {
-        const { error } = await supabase
-          
-          .from("conversations")
-          .insert({
-            id,
-            user_id: state.user.id,
-            title: conv.title,
-            pinned: conv.pinned,
-            team_id: state.user.team_id || null,
-          });
-        if (error) {
-          console.error("Supabase insert error:", error);
-          toast.error(`Failed to sync: ${error.message}`);
-          throw error;
-        }
-      } catch (err) {
-        console.error("Failed to persist conversation:", err);
-      }
-    }
-
     setState((s) => ({
       ...s,
       conversations: [conv, ...s.conversations],
       activeConversationId: id,
     }));
     return id;
-  };
+  }, []);
 
-  const setActiveConversation = (id: string | null) =>
-    setState((s) => ({ ...s, activeConversationId: id }));
+  const setActiveConversation = React.useCallback((id: string | null) =>
+    setState((s) => ({ ...s, activeConversationId: id })), []);
 
-  const addMessage = async (convId: string, msg: Conversation["messages"][0]) => {
+  const addMessage = React.useCallback(async (convId: string, msg: Conversation["messages"][0]) => {
     // 1. Update local state immediately for UI responsiveness
     setState((s) => ({
       ...s,
@@ -691,24 +669,40 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     // 2. Persist to Supabase if not mock user
     if (state.user && !state.user.id.startsWith("mock-")) {
       try {
-        // If this is the first message, the title might have changed
         const activeConv = state.conversations.find(c => c.id === convId);
-        if (activeConv && activeConv.messages.length === 0 && msg.role === "user") {
-          const newTitle = msg.content.slice(0, 50) + (msg.content.length > 50 ? "..." : "");
-          await supabase
+        
+        // If this is the first message, insert the conversation record first
+        if (activeConv && activeConv.messages.length === 0) {
+          const newTitle = msg.role === "user" 
+            ? msg.content.slice(0, 50) + (msg.content.length > 50 ? "..." : "")
+            : "New Chat";
             
+          const { error: convError } = await supabase
             .from("conversations")
-            .update({ title: newTitle, updated_at: new Date().toISOString() })
-            .eq("id", convId);
+            .insert({
+              id: convId,
+              user_id: state.user.id,
+              title: newTitle,
+              pinned: false,
+              team_id: state.user.team_id || null,
+              updated_at: new Date().toISOString()
+            });
+            
+          if (convError) {
+             console.error("Failed to create conversation in DB:", convError);
+             // If it's a conflict, it might already exist (e.g. race condition), so we can ignore it
+             if (convError.code !== '23505') throw convError;
+          }
+        } else if (activeConv && activeConv.messages.length === 1 && activeConv.messages[0].role === 'user' && msg.role === 'ai') {
+           // Optionally update title if needed, but usually the first message handles it
         }
 
         const { error } = await supabase
-          
           .from("messages")
           .insert({
             id: msg.id,
             conversation_id: convId,
-            role: msg.role === "ai" ? "ai" : (msg.role === "expert" ? "expert" : "user"), // Expert role supported
+            role: msg.role === "ai" ? "ai" : (msg.role === "expert" ? "expert" : "user"),
             content: msg.content,
             sources: msg.sources || [],
             attachments: msg.attachments || [],
@@ -727,7 +721,6 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
 
         // Update conversation updated_at
         await supabase
-          
           .from("conversations")
           .update({ updated_at: new Date().toISOString() })
           .eq("id", convId);
@@ -736,12 +729,13 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         console.error("Failed to persist message:", err);
       }
     }
-  };
+  }, [state.user?.id, state.conversations]);
 
   const updateTopics = (topics: Topic[]) => setState((s) => ({ ...s, topics }));
 
-  const togglePinConversation = async (id: string) => {
-    const newPinnedState = !state.conversations.find(c => c.id === id)?.pinned;
+  const togglePinConversation = React.useCallback(async (id: string) => {
+    const conv = state.conversations.find(c => c.id === id);
+    const newPinnedState = !conv?.pinned;
     
     // Update local state
     setState((s) => ({
@@ -751,11 +745,10 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       ),
     }));
 
-    // Persist to Supabase
-    if (state.user && !state.user.id.startsWith("mock-")) {
+    // Persist to Supabase only if the conversation exists in DB (has messages)
+    if (state.user && !state.user.id.startsWith("mock-") && conv && conv.messages.length > 0) {
       try {
         await supabase
-          
           .from("conversations")
           .update({ pinned: newPinnedState })
           .eq("id", id);
@@ -763,9 +756,11 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         console.error("Failed to toggle pin:", err);
       }
     }
-  };
+  }, [state.user?.id, state.conversations]);
 
-  const deleteConversation = async (id: string) => {
+  const deleteConversation = React.useCallback(async (id: string) => {
+    const conv = state.conversations.find(c => c.id === id);
+    
     // Update local state
     setState((s) => ({
       ...s,
@@ -773,11 +768,10 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       activeConversationId: s.activeConversationId === id ? null : s.activeConversationId,
     }));
 
-    // Persist to Supabase
-    if (state.user && !state.user.id.startsWith("mock-")) {
+    // Persist to Supabase only if it was already created in DB
+    if (state.user && !state.user.id.startsWith("mock-") && conv && conv.messages.length > 0) {
       try {
         await supabase
-          
           .from("conversations")
           .delete()
           .eq("id", id);
@@ -785,7 +779,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         console.error("Failed to delete conversation:", err);
       }
     }
-  };
+  }, [state.user?.id, state.conversations]);
 
   const setSelectedStudentId = (id: string | null) => setState(s => ({ ...s, selectedStudentId: id }));
 
@@ -956,20 +950,29 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     }
   };
 
-  const markAsRead = async (convId: string, role: 'user' | 'expert') => {
+  const markAsRead = React.useCallback(async (convId: string, role: 'user' | 'expert') => {
     // 1. Update local state
-    setState(s => ({
-      ...s,
-      conversations: s.conversations.map(c => 
-        c.id === convId 
-          ? { 
-              ...c, 
-              userHasUnread: role === 'user' ? false : c.userHasUnread,
-              expertHasUnread: role === 'expert' ? false : c.expertHasUnread 
-            } 
-          : c
-      )
-    }));
+    setState(s => {
+      const conv = s.conversations.find(c => c.id === convId);
+      if (!conv) return s;
+      
+      // Only update if unread status would actually change
+      const needsUpdate = (role === 'user' && conv.userHasUnread) || (role === 'expert' && conv.expertHasUnread);
+      if (!needsUpdate) return s;
+
+      return {
+        ...s,
+        conversations: s.conversations.map(c => 
+          c.id === convId 
+            ? { 
+                ...c, 
+                userHasUnread: role === 'user' ? false : c.userHasUnread,
+                expertHasUnread: role === 'expert' ? false : c.expertHasUnread 
+              } 
+            : c
+        )
+      };
+    });
 
     // 2. Persist to Supabase
     if (state.user && !state.user.id.startsWith("mock-")) {
@@ -979,7 +982,6 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         if (role === 'expert') update.expert_has_unread = false;
 
         await supabase
-          
           .from("conversations")
           .update(update)
           .eq("id", convId);
@@ -987,7 +989,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         console.error("Failed to mark as read:", err);
       }
     }
-  };
+  }, [state.user?.id]);
 
   const setGroqApiKey = (groqApiKey: string | null) => setState(s => ({ ...s, groqApiKey }));
   const setOpenaiApiKey = (openaiApiKey: string | null) => setState(s => ({ ...s, openaiApiKey }));
@@ -996,41 +998,72 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
   const setXaiApiKey = (xaiApiKey: string | null) => setState(s => ({ ...s, xaiApiKey }));
   const setActiveModel = (activeModel: string) => setState(s => ({ ...s, activeModel }));
 
+  const contextValue = React.useMemo(() => ({
+    ...state,
+    login,
+    logout,
+    completeSetup,
+    setTheme,
+    setDarkMode,
+    resetPassword,
+    setHistoryOpen,
+    setBoardOpen,
+    setKnowledgeOpen,
+    createConversation,
+    setActiveConversation,
+    addMessage,
+    updateTopics,
+    togglePinConversation,
+    deleteConversation,
+    setMessageFeedback,
+    decrementCredits,
+    addNote,
+    updateNote,
+    deleteNote,
+    requestExpert,
+    markAsRead,
+    setGroqApiKey,
+    setOpenaiApiKey,
+    setAnthropicApiKey,
+    setGoogleApiKey,
+    setXaiApiKey,
+    setActiveModel,
+    setSelectedStudentId,
+  }), [
+    state,
+    login,
+    logout,
+    completeSetup,
+    setTheme,
+    setDarkMode,
+    resetPassword,
+    setHistoryOpen,
+    setBoardOpen,
+    setKnowledgeOpen,
+    createConversation,
+    setActiveConversation,
+    addMessage,
+    updateTopics,
+    togglePinConversation,
+    deleteConversation,
+    setMessageFeedback,
+    decrementCredits,
+    addNote,
+    updateNote,
+    deleteNote,
+    requestExpert,
+    markAsRead,
+    setGroqApiKey,
+    setOpenaiApiKey,
+    setAnthropicApiKey,
+    setGoogleApiKey,
+    setXaiApiKey,
+    setActiveModel,
+    setSelectedStudentId,
+  ]);
+
   return (
-    <BenchrexContext.Provider
-      value={{
-        ...state,
-        login,
-        logout,
-        completeSetup,
-        setTheme,
-        setDarkMode,
-        resetPassword,
-        setHistoryOpen,
-        setBoardOpen,
-        setKnowledgeOpen,
-        createConversation,
-        setActiveConversation,
-        addMessage,
-        updateTopics,
-        togglePinConversation,
-        deleteConversation,
-        setMessageFeedback,
-        decrementCredits,
-        addNote,
-        updateNote,
-        deleteNote,
-        requestExpert,
-        markAsRead,
-        setGroqApiKey,
-        setOpenaiApiKey,
-        setAnthropicApiKey,
-        setGoogleApiKey,
-        setXaiApiKey,
-        setActiveModel,
-        setSelectedStudentId,
-      }}
-    >
+    <BenchrexContext.Provider value={contextValue}>
       {children}
     </BenchrexContext.Provider>
   );

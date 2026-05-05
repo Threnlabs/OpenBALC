@@ -6,7 +6,7 @@
  * curriculum-approved definitions, formulas, and examples.
  */
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) || "http://localhost:8000";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 

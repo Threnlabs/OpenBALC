@@ -1,6 +1,6 @@
 import { supabase } from "../supabase";
 
-const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8000/api/ai";
+const API_BASE = (import.meta.env.VITE_API_URL as string) || "http://localhost:8000/api/ai";
 
 /**
  * Interface for calendar tool definitions to be sent to Groq

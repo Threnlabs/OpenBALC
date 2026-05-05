@@ -1,5 +1,5 @@
-import { Source } from "../types";
-import { ModelProvider } from "./models";
+import type { Source } from "../types";
+import type { ModelProvider } from "./models";
 
 export async function sendAIQuestion(payload: {
   question: string;
@@ -13,6 +13,7 @@ export async function sendAIQuestion(payload: {
   userContext?: { name?: string; id?: string };
   apiKey?: string;
   tools?: any[];
+  signal?: AbortSignal;
 }): Promise<{ answer: string; reasoning?: string; sources: Source[]; tool_calls?: any[] }> {
   const activeKey = payload.apiKey;
 
@@ -66,6 +67,7 @@ export async function sendAIQuestion(payload: {
   
   const response = await fetch(payload.baseUrl, {
     method: "POST",
+    signal: payload.signal,
     headers: {
       "Content-Type": "application/json",
       ...(isAnthropic 

@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "benchrex/components/ui/alert-dialog";
-import { Conversation } from "benchrex/types";
+import type { Conversation } from "benchrex/types";
 
 interface HistorySidebarProps {
   onClose: () => void;
@@ -246,30 +246,31 @@ const HistorySidebar = ({ onClose }: HistorySidebarProps) => {
             </div>
           ) : (
             <>
-              {filteredConvs.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-20 text-center px-4">
-                  <MessageSquare className="h-10 w-10 text-muted-foreground/20 mb-3" />
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">No chats found</p>
-                </div>
-              )}
-
               {pinned.length > 0 && (
-                <div>
-                  <p className="px-2 mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-primary/70">
-                    📌 Pinned Threads
+                <div className="pb-4 mb-4 border-b border-border/30">
+                  <p className="px-2 mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-primary flex items-center gap-2">
+                    <Pin className="h-3 w-3 fill-primary/20" />
+                    Pinned Conversations
                   </p>
                   <div className="space-y-1">{pinned.map(renderItem)}</div>
                 </div>
               )}
 
-              {Object.entries(grouped).map(([date, convs]) => (
-                <div key={date}>
-                  <p className="px-2 mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
-                    📅 {date}
-                  </p>
-                  <div className="space-y-1">{convs.map(renderItem)}</div>
+              {filteredConvs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+                  <MessageSquare className="h-10 w-10 text-muted-foreground/20 mb-3" />
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">No chats found</p>
                 </div>
-              ))}
+              ) : (
+                Object.entries(grouped).map(([date, convs]) => (
+                  <div key={date}>
+                    <p className="px-2 mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
+                      📅 {date}
+                    </p>
+                    <div className="space-y-1">{convs.map(renderItem)}</div>
+                  </div>
+                ))
+              )}
             </>
           )}
         </div>

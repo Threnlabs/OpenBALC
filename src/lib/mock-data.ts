@@ -1,4 +1,4 @@
-import { Topic, Source } from "../types";
+import type { Topic, Source } from "../types";
 
 export function getDefaultTopics(): Topic[] {
   return [

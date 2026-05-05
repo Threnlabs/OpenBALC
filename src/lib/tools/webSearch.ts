@@ -12,7 +12,7 @@ export type { WebSearchMeta, WebSearchResult };
 
 export type WebSearchResponse = WebSearchMeta;
 
-const BRAVE_API_KEY = process.env.REACT_APP_BRAVE_SEARCH_API_KEY || "";
+const BRAVE_API_KEY = (import.meta.env.VITE_BRAVE_SEARCH_API_KEY as string) || "";
 const BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search";
 const DDG_INSTANT_URL = "https://api.duckduckgo.com/";
 

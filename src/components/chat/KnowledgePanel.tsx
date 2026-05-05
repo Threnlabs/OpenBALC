@@ -7,7 +7,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Badge } from "benchrex/components/ui/badge";
 import { Input } from "benchrex/components/ui/input";
-import { Message, Attachment, WebSearchResult, Source } from "benchrex/types";
+import type { Message, Attachment, WebSearchResult, Source } from "benchrex/types";
 import { supabase } from "@/lib/supabase";
 import { cn } from "benchrex/lib/utils";
 

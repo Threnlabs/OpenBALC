@@ -1,9 +1,10 @@
 import { sendAIQuestion } from "./groq";
 import { runWebSearch, formatSearchContextForPrompt } from "./tools/webSearch";
-import { autoFetchContentBankContext, ContentBankItem } from "./tools/contentBank";
+import { autoFetchContentBankContext } from "./tools/contentBank";
+import type { ContentBankItem } from "./tools/contentBank";
 import { getModelProvider, PROVIDER_BASE_URLS } from "./models";
 import { CALENDAR_TOOLS, executeCalendarTool } from "./tools/calendar";
-import { Attachment, Source, WebSearchMeta } from "../types";
+import type { Attachment, Source, WebSearchMeta } from "../types";
 
 async function fileToBase64(url: string): Promise<string> {
   const response = await fetch(url);
@@ -61,6 +62,10 @@ export async function sendQuestion(
         })
       )
     : undefined;
+
+  if (processedAttachments) {
+    console.log("Attachments processed for LLM:", processedAttachments.length);
+  }
 
   // ── Content Bank Tool ──────────────────────────────────────────────────────
   let contentBankItems: ContentBankItem[] = [];
@@ -126,6 +131,7 @@ export async function sendQuestion(
       userContext: { name: payload.student_name, id: payload.student_id },
       apiKey: activeKey || undefined,
       tools: tools,
+      signal: signal,
     });
 
     if (!result.tool_calls || result.tool_calls.length === 0) {

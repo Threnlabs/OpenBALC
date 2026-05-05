@@ -13,7 +13,7 @@ import { useIsMobile } from "../hooks/use-mobile";
 import { sendQuestion } from "../lib/api";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { AnimatePresence, motion } from "framer-motion";
-import { Message, Attachment, ContentBankItem } from "../types";
+import type { Message, Attachment, ContentBankItem } from "../types";
 import { toast } from "sonner";
 import { BrainCircuit, Loader2, Sparkles, MessageSquare, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
