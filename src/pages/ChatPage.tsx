@@ -11,6 +11,7 @@ import ExpertRequestDialog from "../components/chat/ExpertRequestDialog";
 import { useApp } from "../context/BenchrexContext";
 import { useIsMobile } from "../hooks/use-mobile";
 import { sendQuestion } from "../lib/api";
+import { KnowledgeService } from "../lib/knowledge-service";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Message, Attachment, ContentBankItem } from "../types";
@@ -101,6 +102,11 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
     }
   }, [activeConversationId, conversations, createConversation]);
 
+  // Sync knowledge lookup on mount
+  useEffect(() => {
+    KnowledgeService.syncLookup();
+  }, []);
+
   // Trigger handover after some messages
   useEffect(() => {
     if (messages.length >= 4 && !showHandover && !hasDismissedHandover) {
@@ -124,7 +130,9 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
     tags: string[],
     topicMentions: string[],
     systemInstructions: string,
-    attachments?: Attachment[]
+    attachments?: Attachment[],
+    knowledgeTags?: string[],
+    useKnowledgeRetrieval?: boolean
   ) => {
     let convId = activeConversationId;
     if (!convId) {
@@ -155,7 +163,20 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
 
     if (messageRole === "user") {
       try {
-        const personality = personalities.find(p => p.id === selectedPersonalityId);
+        // Retrieve content for knowledge tags
+        let enrichedInstructions = systemInstructions;
+        if (useKnowledgeRetrieval && knowledgeTags && knowledgeTags.length > 0) {
+          const lookup = KnowledgeService.getLookup();
+          const taggedFiles = lookup.filter(f => knowledgeTags.includes(f.name));
+          
+          if (taggedFiles.length > 0) {
+            enrichedInstructions += "\n\nRetrieved Context from Knowledge Base:\n";
+            for (const file of taggedFiles) {
+              const content = await KnowledgeService.getFileContent(file.id);
+              enrichedInstructions += `--- FILE: ${file.name} ---\n${content}\n\n`;
+            }
+          }
+        }
 
         const result = await sendQuestion({
           question: content,
@@ -164,7 +185,7 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
           mode: activeModel || personality?.model || "llama-3.3-70b-versatile",
           student_id: user?.id || "anon",
           student_name: user?.name || "Student",
-          systemInstructions,
+          systemInstructions: enrichedInstructions,
           history: messages.map(m => ({ role: m.role, content: m.content })),
           attachments,
           useWebSearch: personality?.tool_web_search,

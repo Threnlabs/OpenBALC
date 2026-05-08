@@ -9,6 +9,7 @@ export interface AIPersonality {
   tool_code_interpreter?: boolean;
   tool_image_gen?: boolean;
   tool_calendar_mgmt?: boolean;
+  tool_knowledge_retrieval?: boolean;
   data_access?: {
     tables: Record<string, boolean>;
     databases?: Record<string, boolean>;

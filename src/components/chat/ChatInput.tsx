@@ -3,9 +3,13 @@ import { useApp } from "benchrex/context/BenchrexContext";
 import type { Topic, TopicSection, AIPersonality, Attachment } from "benchrex/types";
 import { Button } from "benchrex/components/ui/button";
 import { Badge } from "benchrex/components/ui/badge";
-import { Send, Settings2, X, ChevronRight, Hash, AtSign, Paperclip, FileText, Image as ImageIcon, Music, Trash2, Sparkles, Command } from "lucide-react";
+import { Send, Settings2, X, ChevronRight, Hash, AtSign, Paperclip, FileText, Image as ImageIcon, Music, Trash2, Sparkles, Command, BookOpen } from "lucide-react";
 import { Textarea } from "benchrex/components/ui/textarea";
 import { Collapsible, CollapsibleContent } from "benchrex/components/ui/collapsible";
+import { KnowledgeService } from "../../lib/knowledge-service";
+import type { KnowledgeNode } from "../../lib/knowledge-service";
+import { Switch } from "benchrex/components/ui/switch";
+import { Label } from "benchrex/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -16,15 +20,15 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 
 interface ChatInputProps {
-  onSend: (question: string, tags: string[], topicMentions: string[], systemInstructions: string, attachments?: Attachment[]) => void;
+  onSend: (question: string, tags: string[], topicMentions: string[], systemInstructions: string, attachments?: Attachment[], knowledgeTags?: string[], useKnowledgeRetrieval?: boolean) => void;
   disabled: boolean;
   topics: Topic[];
   selectedPersonalityId: string;
   onPersonalityChange: (id: string) => void;
 }
 
-type PickerLevel = "subject" | "chapter" | "section";
-type TriggerChar = "@" | "/" | null;
+type PickerLevel = "subject" | "chapter" | "section" | "files";
+type TriggerChar = "@" | "/" | "@/" | null;
 
 const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonalityChange }: ChatInputProps) => {
   const { personalities } = useApp();
@@ -33,6 +37,8 @@ const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonal
   const [systemInstructions, setSystemInstructions] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [knowledgeTags, setKnowledgeTags] = useState<string[]>([]);
+  const [useKnowledgeRetrieval, setUseKnowledgeRetrieval] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [trigger, setTrigger] = useState<TriggerChar>(null);
@@ -68,9 +74,22 @@ const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonal
   const handleTextChange = (value: string, caret: number) => {
     setText(value);
     const before = value.slice(0, caret);
+    const atSlashIdx = before.lastIndexOf("@/");
     const atIdx = before.lastIndexOf("@");
     const slashIdx = before.lastIndexOf("/");
-    const idx = Math.max(atIdx, slashIdx);
+    
+    let idx = -1;
+    let t: TriggerChar = null;
+
+    if (atSlashIdx !== -1 && (atSlashIdx >= atIdx || atIdx === -1) && (atSlashIdx >= slashIdx || slashIdx === -1)) {
+      idx = atSlashIdx;
+      t = "@/";
+    } else {
+      idx = Math.max(atIdx, slashIdx);
+      if (idx !== -1) {
+        t = (before[idx] as TriggerChar)!;
+      }
+    }
 
     if (idx === -1) {
       closePicker();
@@ -81,15 +100,20 @@ const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonal
       closePicker();
       return;
     }
-    const afterTrigger = before.slice(idx + 1);
+    const afterTrigger = before.slice(idx + (t === "@/" ? 2 : 1));
     if (afterTrigger.includes(" ")) {
       closePicker();
       return;
     }
-    const t = (before[idx] as TriggerChar)!;
     setTrigger(t);
     setTriggerPos(idx);
     setQuery(afterTrigger);
+    
+    if (t === "@/") {
+      setLevel("files");
+    } else {
+      setLevel("subject");
+    }
   };
 
   const insertChipAtTrigger = (label: string) => {
@@ -137,9 +161,10 @@ const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonal
     const tags = personality ? [personality.name] : [];
     const personalityInstructions = personality ? personality.systemInstructions : "";
     
-    onSend(text.trim(), tags, topicMentions, systemInstructions || personalityInstructions, attachments);
+    onSend(text.trim(), tags, topicMentions, systemInstructions || personalityInstructions, attachments, knowledgeTags, useKnowledgeRetrieval);
     setText("");
     setTopicMentions([]);
+    setKnowledgeTags([]);
     setAttachments([]);
     setShowSettings(false);
   };
@@ -270,6 +295,29 @@ const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonal
               ))}
             </motion.div>
           )}
+
+          {knowledgeTags.length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="flex flex-wrap items-center gap-1.5 px-1"
+            >
+              {knowledgeTags.map((m) => (
+                <Badge 
+                  key={m} 
+                  variant="secondary"
+                  className="rounded-lg bg-emerald-500/10 text-emerald-500 border-emerald-500/20 flex items-center gap-1.5 py-1 px-2.5 transition-all hover:bg-emerald-500/20"
+                >
+                  <FileText className="h-3 w-3" />
+                  <span className="text-[10px] font-bold uppercase tracking-tight">{m}</span>
+                  <button onClick={() => setKnowledgeTags((p) => p.filter((x) => x !== m))}>
+                    <X className="h-3 w-3 hover:text-destructive transition-colors" />
+                  </button>
+                </Badge>
+              ))}
+            </motion.div>
+          )}
         </AnimatePresence>
 
         {/* Main Input Bar */}
@@ -324,7 +372,7 @@ const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonal
                 value={text}
                 onChange={(e) => handleTextChange(e.target.value, e.target.selectionStart ?? e.target.value.length)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask me anything... (use @ or / for topics)"
+                placeholder="Ask me anything... (use @ or / or @/ for files)"
                 disabled={disabled}
                 rows={1}
                 className="w-full resize-none bg-transparent py-2.5 text-sm outline-none placeholder:text-muted-foreground/60 disabled:opacity-50 font-medium"
@@ -378,6 +426,24 @@ const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonal
                           {sec.name}
                         </button>
                       ))}
+                      {level === "files" && KnowledgeService.getLookup().filter(f => f.name.toLowerCase().includes(lowerQ)).map((f) => (
+                        <button 
+                          key={f.id} 
+                          onClick={() => {
+                            if (!knowledgeTags.includes(f.name)) {
+                              setKnowledgeTags(prev => [...prev, f.name]);
+                            }
+                            closePicker();
+                          }} 
+                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-emerald-500/5 group transition-all"
+                        >
+                          <FileText className="h-4 w-4 text-emerald-500" />
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-foreground/90 group-hover:text-emerald-500 transition-colors">{f.name}</span>
+                            <span className="text-[8px] text-muted-foreground uppercase font-black">{f.path}</span>
+                          </div>
+                        </button>
+                      ))}
                     </div>
                   </motion.div>
                 )}
@@ -426,7 +492,7 @@ const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonal
                 className="overflow-hidden"
               >
                 <div className="p-3 border-t border-border/30 mt-1">
-                  <div className="relative">
+                  <div className="relative mb-3">
                     <div className="absolute left-3 top-3"><Sparkles className="h-3 w-3 text-primary" /></div>
                     <textarea
                       placeholder="Add system instructions for this specific doubt..."
@@ -437,6 +503,21 @@ const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonal
                     <div className="absolute right-3 bottom-3 flex items-center gap-1.5 text-[10px] text-muted-foreground">
                       <Command className="h-2.5 w-2.5" /> + Enter to send
                     </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-muted/30 rounded-2xl border border-border/20">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="h-4 w-4 text-emerald-500" />
+                      <div className="flex flex-col">
+                        <Label htmlFor="knowledge-retrieval" className="text-xs font-bold">Knowledge Retrieval</Label>
+                        <p className="text-[9px] text-muted-foreground">Enable AI to search curriculum bank for tagged items</p>
+                      </div>
+                    </div>
+                    <Switch 
+                      id="knowledge-retrieval" 
+                      checked={useKnowledgeRetrieval} 
+                      onCheckedChange={setUseKnowledgeRetrieval}
+                    />
                   </div>
                 </div>
               </motion.div>

@@ -88,24 +88,24 @@ const KnowledgePanel = ({ onClose }: KnowledgePanelProps) => {
       
       if (!last) {
         // Fetch Courses
-        const { data } = await supabase.from('courses').select('id, name').eq('team_id', teamId).order('name');
+        const { data } = await supabase.from('knowledge_courses').select('id, name').eq('team_id', teamId).order('name');
         setBrowseItems(data?.map((i: any) => ({...i, type: 'course'})) || []);
         setBrowseLevel("courses");
       } else if (last.type === 'course') {
         // Fetch Subjects
-        const { data } = await supabase.from('subjects').select('id, name').eq('course_id', last.id).eq('team_id', teamId).order('name');
+        const { data } = await supabase.from('knowledge_subjects').select('id, name').eq('course_id', last.id).eq('team_id', teamId).order('name');
         setBrowseItems(data?.map((i: any) => ({...i, type: 'subject'})) || []);
         setBrowseLevel("subjects");
       } else if (last.type === 'subject') {
         // Fetch Folders
-        const { data } = await supabase.from('folders').select('id, name').eq('subject_id', last.id).is('parent_id', null).eq('team_id', teamId).order('sort_order');
+        const { data } = await supabase.from('knowledge_folders').select('id, name').eq('subject_id', last.id).is('parent_id', null).eq('team_id', teamId).order('sort_order');
         setBrowseItems(data?.map((i: any) => ({...i, type: 'folder'})) || []);
         setBrowseLevel("folders");
       } else if (last.type === 'folder') {
         // Fetch Subfolders and Files
         const [fRes, subRes] = await Promise.all([
-          supabase.from('files').select('*').eq('folder_id', last.id).eq('team_id', teamId).order('name'),
-          supabase.from('folders').select('*').eq('parent_id', last.id).eq('team_id', teamId).order('sort_order')
+          supabase.from('knowledge_files').select('*').eq('folder_id', last.id).eq('team_id', teamId).order('name'),
+          supabase.from('knowledge_folders').select('*').eq('parent_id', last.id).eq('team_id', teamId).order('sort_order')
         ]);
         const combined = [
           ...(subRes.data?.map((i: any) => ({...i, type: 'folder'})) || []),
@@ -145,8 +145,7 @@ const KnowledgePanel = ({ onClose }: KnowledgePanelProps) => {
     setIsSaving(true);
     try {
       const { error } = await supabase
-        
-        .from('files')
+        .from('knowledge_files')
         .update({ body: editContent })
         .eq('id', selectedItem.id);
 

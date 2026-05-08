@@ -157,14 +157,13 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         // Fallback to benchrex_users if missing (especially for new portal users)
         if (!profile) {
           const { data: benchrexProfile } = await supabase
-            .schema("benchrex")
             .from("benchrex_users")
             .select("*")
             .eq("auth_id", session.user.id)
             .maybeSingle();
           if (benchrexProfile) {
             profile = benchrexProfile;
-            userSchema = 'public'; // Both are in public now
+            userSchema = 'public'; 
           }
         }
 
@@ -234,9 +233,8 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       const teamId = profile.team_id;
       
       let query = supabase
-        .schema("benchrex")
-        .from("conversations")
-        .select("*, user:users!conversations_user_id_fkey(name, email), messages(*)")
+        .from("benchrex_conversations")
+        .select("*, user:users!benchrex_conversations_user_id_fkey(name, email), messages:benchrex_messages(*)")
         .order("updated_at", { ascending: false });
 
       if (teamId) {
@@ -294,8 +292,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
   const loadPersonalities = async () => {
     try {
       const { data: personas, error } = await supabase
-        .schema("benchrex")
-        .from("personalities")
+        .from("benchrex_personalities")
         .select("id, name, model, system_instructions, description, icon, tool_web_search, tool_code_interpreter, tool_image_gen, tool_calendar_mgmt, api_key")
         .order("name", { ascending: true });
 
@@ -327,8 +324,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       const profile = JSON.parse(localStorage.getItem('admin_profile') || '{}');
       const teamId = profile.team_id;
       let query = supabase
-        .schema("benchrex")
-        .from("board_notes")
+        .from("benchrex_board_notes")
         .select("*")
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
@@ -403,7 +399,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
 
       // Check if user exists in benchrex_users or has benchrex_access in public.users
       const [bProfile, pProfile] = await Promise.all([
-        supabase.schema("benchrex").from("benchrex_users").select("id, team_id").eq("auth_id", data.user.id).maybeSingle(),
+        supabase.from("benchrex_users").select("id, team_id").eq("auth_id", data.user.id).maybeSingle(),
         supabase.from("users").select("id, team_id, benchrex_access").eq("auth_id", data.user.id).maybeSingle()
       ]);
 
@@ -503,7 +499,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       .channel('benchrex-realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'benchrex', table: 'conversations' },
+        { event: '*', schema: 'public', table: 'benchrex_conversations' },
         (payload) => {
           if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
             const updated = payload.new as any;
@@ -542,7 +538,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       )
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'benchrex', table: 'messages' },
+        { event: 'INSERT', schema: 'public', table: 'benchrex_messages' },
         async (payload) => {
           const newMsg = payload.new as any;
           // Check if this message belongs to one of our active conversations
@@ -694,8 +690,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
             : "New Chat";
             
           const { error: convError } = await supabase
-            .schema("benchrex")
-            .from("conversations")
+            .from("benchrex_conversations")
             .insert({
               id: convId,
               user_id: state.user.id,
@@ -715,8 +710,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         }
 
         const { error } = await supabase
-          .schema("benchrex")
-          .from("messages")
+          .from("benchrex_messages")
           .insert({
             id: msg.id,
             conversation_id: convId,
@@ -739,8 +733,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
 
         // Update conversation updated_at
         await supabase
-          .schema("benchrex")
-          .from("conversations")
+          .from("benchrex_conversations")
           .update({ updated_at: new Date().toISOString() })
           .eq("id", convId);
 
@@ -768,8 +761,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     if (state.user && !state.user.id.startsWith("mock-") && conv && conv.messages.length > 0) {
       try {
         await supabase
-          .schema("benchrex")
-          .from("conversations")
+          .from("benchrex_conversations")
           .update({ pinned: newPinnedState })
           .eq("id", id);
       } catch (err) {
@@ -790,8 +782,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     if (state.user && !state.user.id.startsWith("mock-")) {
       try {
         const { error } = await supabase
-          .schema("benchrex")
-          .from("conversations")
+          .from("benchrex_conversations")
           .delete()
           .eq("id", id);
         
@@ -831,16 +822,14 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       try {
         // Update message feedback column
         await supabase
-          .schema("benchrex")
-          .from("messages")
+          .from("benchrex_messages")
           .update({ feedback })
           .eq("id", msgId);
 
-        // Also insert into benchrex.message_feedback table
+        // Also insert into benchrex_message_feedback table
         if (feedback) {
           await supabase
-            .schema("benchrex")
-            .from("message_feedback")
+            .from("benchrex_message_feedback")
             .insert({
               message_id: msgId,
               user_id: state.user.id,
@@ -848,8 +837,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
             });
         } else {
           await supabase
-            .schema("benchrex")
-            .from("message_feedback")
+            .from("benchrex_message_feedback")
             .delete()
             .eq("message_id", msgId)
             .eq("user_id", state.user.id);
@@ -876,8 +864,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     if (state.user && !state.user.id.startsWith("mock-")) {
       try {
         await supabase
-          .schema("benchrex")
-          .from("board_notes")
+          .from("benchrex_board_notes")
           .insert({
             id: note.id,
             user_id: state.user.id,
@@ -910,8 +897,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         if (patch.color !== undefined) dbPatch.color = patch.color;
         
         await supabase
-          .schema("benchrex")
-          .from("board_notes")
+          .from("benchrex_board_notes")
           .update(dbPatch)
           .eq("id", id);
       } catch (err) {
@@ -928,8 +914,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     if (state.user && !state.user.id.startsWith("mock-")) {
       try {
         await supabase
-          .schema("benchrex")
-          .from("board_notes")
+          .from("benchrex_board_notes")
           .delete()
           .eq("id", id);
       } catch (err) {
@@ -951,8 +936,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     if (state.user && !state.user.id.startsWith("mock-")) {
       try {
         const { error } = await supabase
-          .schema("benchrex")
-          .from("conversations")
+          .from("benchrex_conversations")
           .update({ 
             is_expert_session: true,
             updated_at: new Date().toISOString() 
@@ -1009,8 +993,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         if (role === 'expert') update.expert_has_unread = false;
 
         await supabase
-          .schema("benchrex")
-          .from("conversations")
+          .from("benchrex_conversations")
           .update(update)
           .eq("id", convId);
       } catch (err) {
