@@ -4,6 +4,7 @@ import { Button } from "benchrex/components/ui/button";
 import { X, MessageSquare, Pin, Trash2, PinOff, Plus, Search, Calendar } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ScrollArea } from "benchrex/components/ui/scroll-area";
+import { cn } from "benchrex/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -73,37 +74,38 @@ const HistorySidebar = ({ onClose }: HistorySidebarProps) => {
           const role = (user?.role === 'doubt_expert' || user?.role === 'super_admin' || user?.role === 'faculty') ? 'expert' : 'user';
           markAsRead(c.id, role);
         }}
-        className="flex flex-1 items-center gap-3 text-left text-sm min-w-0"
+        className="flex flex-1 items-center gap-3 text-left text-sm min-w-0 group-hover:pr-2 transition-all"
       >
         <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${
           activeConversationId === c.id ? "bg-primary text-white shadow-md shadow-primary/30" : "bg-muted"
         }`}>
           <MessageSquare className="h-4 w-4" />
         </div>
-        <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="block truncate font-bold text-[13px]">{c.title || "Untitled Chat"}</span>
-              {c.pinned && <Pin className="h-2.5 w-2.5 text-primary shrink-0 fill-primary/20" />}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="block text-[10px] opacity-60 font-medium">
-                {new Date(c.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-              {isExpert && c.userName && c.userId !== user?.id && (
-                <span className="text-[9px] font-black uppercase tracking-wider text-primary/70 bg-primary/5 px-1.5 py-0.5 rounded-md">
-                  {c.userName}
-                </span>
-              )}
-            </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="block truncate font-bold text-[13px]">{c.title || "Untitled Chat"}</span>
+            {c.pinned && <Pin className="h-2.5 w-2.5 text-primary shrink-0 fill-primary/20" />}
           </div>
-          {(((user?.role === 'doubt_expert' || user?.role === 'super_admin' || user?.role === 'faculty') ? c.expertHasUnread : c.userHasUnread)) && (
-            <div className="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.6)] shrink-0 animate-pulse" />
-          )}
+          <div className="flex items-center gap-2">
+            <span className="block text-[10px] opacity-60 font-medium">
+              {new Date(c.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+            {isExpert && c.userName && c.userId !== user?.id && (
+              <span className="text-[9px] font-black uppercase tracking-wider text-primary/70 bg-primary/5 px-1.5 py-0.5 rounded-md">
+                {c.userName}
+              </span>
+            )}
+          </div>
         </div>
+        {(((user?.role === 'doubt_expert' || user?.role === 'super_admin' || user?.role === 'faculty') ? c.expertHasUnread : c.userHasUnread)) && (
+          <div className="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.6)] shrink-0 animate-pulse" />
+        )}
       </button>
 
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity absolute right-2 bg-gradient-to-l from-card via-card to-transparent pl-4 py-1">
+      <div className={cn(
+        "flex items-center gap-0.5 transition-all duration-200 shrink-0",
+        activeConversationId === c.id ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100 w-0 group-hover:w-auto overflow-hidden"
+      )}>
         <Button
           variant="ghost"
           size="icon"
@@ -114,11 +116,7 @@ const HistorySidebar = ({ onClose }: HistorySidebarProps) => {
           }}
           title={c.pinned ? "Unpin" : "Pin"}
         >
-          {c.pinned ? (
-            <PinOff className="h-3.5 w-3.5" />
-          ) : (
-            <Pin className="h-3.5 w-3.5" />
-          )}
+          {c.pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
         </Button>
         <Button
           variant="ghost"

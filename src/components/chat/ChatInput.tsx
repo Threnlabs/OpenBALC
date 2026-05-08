@@ -277,26 +277,41 @@ const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonal
           <div className="flex items-end gap-2 px-2">
             {/* Persona Selector */}
             <Select value={selectedPersonalityId} onValueChange={onPersonalityChange}>
-              <SelectTrigger className="h-10 w-[44px] sm:w-[160px] border-none bg-transparent hover:bg-accent/50 rounded-2xl px-0 sm:px-3 focus:ring-0">
+              <SelectTrigger 
+                className="h-10 w-[44px] sm:w-[160px] border-none bg-transparent hover:bg-accent/50 rounded-2xl px-0 sm:px-3 focus:ring-0 disabled:opacity-50"
+                disabled={personalities.length === 0}
+              >
                 <div className="flex items-center gap-2">
-                  <span className="text-lg">{personalities.find(p => p.id === selectedPersonalityId)?.icon}</span>
-                  <span className="hidden sm:inline-block text-xs font-bold truncate">
-                    {personalities.find(p => p.id === selectedPersonalityId)?.name}
-                  </span>
+                  {personalities.length > 0 ? (
+                    <>
+                      <span className="text-lg">{personalities.find(p => p.id === selectedPersonalityId)?.icon}</span>
+                      <span className="hidden sm:inline-block text-xs font-bold truncate">
+                        {personalities.find(p => p.id === selectedPersonalityId)?.name}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="hidden sm:inline-block text-[10px] font-bold text-muted-foreground uppercase">No personas</span>
+                  )}
                 </div>
               </SelectTrigger>
               <SelectContent className="rounded-2xl border-border/50 shadow-2xl backdrop-blur-xl">
-                {personalities.map((p) => (
-                  <SelectItem key={p.id} value={p.id} className="rounded-xl m-1">
-                    <div className="flex items-center gap-3 py-1">
-                      <span className="text-xl">{p.icon}</span>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-bold">{p.name}</span>
-                        {p.description && <span className="text-[10px] text-muted-foreground">{p.description}</span>}
+                {personalities.length > 0 ? (
+                  personalities.map((p) => (
+                    <SelectItem key={p.id} value={p.id} className="rounded-xl m-1">
+                      <div className="flex items-center gap-3 py-1">
+                        <span className="text-xl">{p.icon}</span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-sm font-bold">{p.name}</span>
+                          {p.description && <span className="text-[10px] text-muted-foreground">{p.description}</span>}
+                        </div>
                       </div>
-                    </div>
-                  </SelectItem>
-                ))}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-xs text-muted-foreground">
+                    No personas available
+                  </div>
+                )}
               </SelectContent>
             </Select>
 

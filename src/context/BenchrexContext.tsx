@@ -17,11 +17,6 @@ interface AppState {
   knowledgeOpen: boolean;
   notes: BoardNote[];
   personalities: AIPersonality[];
-  groqApiKey: string | null;
-  openaiApiKey: string | null;
-  anthropicApiKey: string | null;
-  googleApiKey: string | null;
-  xaiApiKey: string | null;
   activeModel: string;
   students: any[];
   selectedStudentId: string | null;
@@ -50,11 +45,7 @@ interface AppContextType extends AppState {
   deleteNote: (id: string) => Promise<void>;
   requestExpert: (convId: string, context: string) => Promise<void>;
   markAsRead: (convId: string, role: 'user' | 'expert') => Promise<void>;
-  setGroqApiKey: (key: string | null) => void;
-  setOpenaiApiKey: (key: string | null) => void;
-  setAnthropicApiKey: (key: string | null) => void;
-  setGoogleApiKey: (key: string | null) => void;
-  setXaiApiKey: (key: string | null) => void;
+  loadPersonalities: () => Promise<void>;
   setActiveModel: (model: string) => void;
   setSelectedStudentId: (id: string | null) => void;
 }
@@ -77,16 +68,11 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       topics: getDefaultTopics(),
       theme: (prefs.theme || "lavender") as ThemeName,
       darkMode: prefs.darkMode ?? false,
-      historyOpen: false,
+      historyOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : false,
       boardOpen: false,
       knowledgeOpen: false,
       notes: [],
       personalities: prefs.personalities || DEFAULT_PERSONALITIES,
-      groqApiKey: prefs.groqApiKey || null,
-      openaiApiKey: prefs.openaiApiKey || null,
-      anthropicApiKey: prefs.anthropicApiKey || null,
-      googleApiKey: prefs.googleApiKey || null,
-      xaiApiKey: prefs.xaiApiKey || null,
       activeModel: prefs.activeModel || "llama-3.3-70b-versatile",
       students: [],
       selectedStudentId: null,
@@ -108,11 +94,6 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       theme: state.theme,
       darkMode: state.darkMode,
       personalities: state.personalities,
-      groqApiKey: state.groqApiKey,
-      openaiApiKey: state.openaiApiKey,
-      anthropicApiKey: state.anthropicApiKey,
-      googleApiKey: state.googleApiKey,
-      xaiApiKey: state.xaiApiKey,
       activeModel: state.activeModel,
     };
     sessionStorage.setItem("doubt-solver-ui-prefs", JSON.stringify(uiPrefs));
@@ -176,6 +157,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         // Fallback to benchrex_users if missing (especially for new portal users)
         if (!profile) {
           const { data: benchrexProfile } = await supabase
+            .schema("benchrex")
             .from("benchrex_users")
             .select("*")
             .eq("auth_id", session.user.id)
@@ -204,11 +186,6 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
               team_id: profile.team_id || "",
               schema: userSchema
             },
-            groqApiKey: s.groqApiKey || profile.groq_api_key || null,
-            openaiApiKey: s.openaiApiKey || profile.openai_api_key || null,
-            anthropicApiKey: s.anthropicApiKey || profile.anthropic_api_key || null,
-            googleApiKey: s.googleApiKey || profile.google_api_key || null,
-            xaiApiKey: s.xaiApiKey || profile.xai_api_key || null,
           }));
 
           // Sync with legacy RBAC system
@@ -227,6 +204,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
           
           loadConversations(profile.id, profile.role);
           loadNotes(profile.id);
+          loadPersonalities();
 
           if (profile.role === 'doubt_expert' || profile.role === 'super_admin' || profile.role === 'faculty') {
             loadStudents();
@@ -256,7 +234,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       const teamId = profile.team_id;
       
       let query = supabase
-        
+        .schema("benchrex")
         .from("conversations")
         .select("*, user:users!conversations_user_id_fkey(name, email), messages(*)")
         .order("updated_at", { ascending: false });
@@ -313,12 +291,43 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     }
   };
 
+  const loadPersonalities = async () => {
+    try {
+      const { data: personas, error } = await supabase
+        .schema("benchrex")
+        .from("personalities")
+        .select("id, name, model, system_instructions, description, icon, tool_web_search, tool_code_interpreter, tool_image_gen, tool_calendar_mgmt, api_key")
+        .order("name", { ascending: true });
+
+      if (error) throw error;
+
+      if (personas) {
+        const mapped: AIPersonality[] = personas.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          model: p.model,
+          systemInstructions: p.system_instructions,
+          description: p.description,
+          icon: p.icon,
+          tool_web_search: p.tool_web_search,
+          tool_code_interpreter: p.tool_code_interpreter,
+          tool_image_gen: p.tool_image_gen,
+          tool_calendar_mgmt: p.tool_calendar_mgmt,
+          apiKey: p.api_key,
+        }));
+        setState(s => ({ ...s, personalities: mapped }));
+      }
+    } catch (err: any) {
+      console.error("Failed to load personalities:", err);
+    }
+  };
+
   const loadNotes = async (userId: string) => {
     try {
       const profile = JSON.parse(localStorage.getItem('admin_profile') || '{}');
       const teamId = profile.team_id;
       let query = supabase
-        
+        .schema("benchrex")
         .from("board_notes")
         .select("*")
         .eq("user_id", userId)
@@ -394,7 +403,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
 
       // Check if user exists in benchrex_users or has benchrex_access in public.users
       const [bProfile, pProfile] = await Promise.all([
-        supabase.from("benchrex_users").select("id, team_id").eq("auth_id", data.user.id).maybeSingle(),
+        supabase.schema("benchrex").from("benchrex_users").select("id, team_id").eq("auth_id", data.user.id).maybeSingle(),
         supabase.from("users").select("id, team_id, benchrex_access").eq("auth_id", data.user.id).maybeSingle()
       ]);
 
@@ -494,7 +503,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       .channel('benchrex-realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'conversations' },
+        { event: '*', schema: 'benchrex', table: 'conversations' },
         (payload) => {
           if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
             const updated = payload.new as any;
@@ -533,7 +542,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       )
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
+        { event: 'INSERT', schema: 'benchrex', table: 'messages' },
         async (payload) => {
           const newMsg = payload.new as any;
           // Check if this message belongs to one of our active conversations
@@ -610,18 +619,25 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
   };
 
   const setTheme = (theme: ThemeName) => setState((s) => ({ ...s, theme }));
-  const setHistoryOpen = (historyOpen: boolean) => setState((s) => ({ ...s, historyOpen }));
+  const setHistoryOpen = (open: boolean) => setState((s) => ({ 
+    ...s, 
+    historyOpen: open,
+    boardOpen: open ? false : s.boardOpen,
+    knowledgeOpen: open ? false : s.knowledgeOpen
+  }));
   
   const setBoardOpen = (open: boolean) => setState((s) => ({ 
     ...s, 
     boardOpen: open, 
-    knowledgeOpen: open ? false : s.knowledgeOpen
+    knowledgeOpen: open ? false : s.knowledgeOpen,
+    historyOpen: open ? false : s.historyOpen
   }));
   
   const setKnowledgeOpen = (open: boolean) => setState((s) => ({ 
     ...s, 
     knowledgeOpen: open, 
-    boardOpen: open ? false : s.boardOpen
+    boardOpen: open ? false : s.boardOpen,
+    historyOpen: open ? false : s.historyOpen
   }));
   
 
@@ -678,6 +694,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
             : "New Chat";
             
           const { error: convError } = await supabase
+            .schema("benchrex")
             .from("conversations")
             .insert({
               id: convId,
@@ -698,6 +715,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         }
 
         const { error } = await supabase
+          .schema("benchrex")
           .from("messages")
           .insert({
             id: msg.id,
@@ -721,6 +739,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
 
         // Update conversation updated_at
         await supabase
+          .schema("benchrex")
           .from("conversations")
           .update({ updated_at: new Date().toISOString() })
           .eq("id", convId);
@@ -749,6 +768,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     if (state.user && !state.user.id.startsWith("mock-") && conv && conv.messages.length > 0) {
       try {
         await supabase
+          .schema("benchrex")
           .from("conversations")
           .update({ pinned: newPinnedState })
           .eq("id", id);
@@ -759,8 +779,6 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
   }, [state.user?.id, state.conversations]);
 
   const deleteConversation = React.useCallback(async (id: string) => {
-    const conv = state.conversations.find(c => c.id === id);
-    
     // Update local state
     setState((s) => ({
       ...s,
@@ -768,15 +786,24 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       activeConversationId: s.activeConversationId === id ? null : s.activeConversationId,
     }));
 
-    // Persist to Supabase only if it was already created in DB
-    if (state.user && !state.user.id.startsWith("mock-") && conv && conv.messages.length > 0) {
+    // Persist to Supabase
+    if (state.user && !state.user.id.startsWith("mock-")) {
       try {
-        await supabase
+        const { error } = await supabase
+          .schema("benchrex")
           .from("conversations")
           .delete()
           .eq("id", id);
-      } catch (err) {
+        
+        if (error) {
+          console.error("Supabase delete error:", error);
+          toast.error(`Failed to delete conversation: ${error.message}`);
+          // Consider reverting local state if delete fails? 
+          // For now just log and toast.
+        }
+      } catch (err: any) {
         console.error("Failed to delete conversation:", err);
+        toast.error(`Delete failed: ${err.message || 'Unknown error'}`);
       }
     }
   }, [state.user?.id, state.conversations]);
@@ -804,16 +831,16 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       try {
         // Update message feedback column
         await supabase
-          
+          .schema("benchrex")
           .from("messages")
           .update({ feedback })
           .eq("id", msgId);
 
-        // Also insert into benchrex.feedback table
+        // Also insert into benchrex.message_feedback table
         if (feedback) {
           await supabase
-            
-            .from("feedback")
+            .schema("benchrex")
+            .from("message_feedback")
             .insert({
               message_id: msgId,
               user_id: state.user.id,
@@ -821,8 +848,8 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
             });
         } else {
           await supabase
-            
-            .from("feedback")
+            .schema("benchrex")
+            .from("message_feedback")
             .delete()
             .eq("message_id", msgId)
             .eq("user_id", state.user.id);
@@ -849,7 +876,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     if (state.user && !state.user.id.startsWith("mock-")) {
       try {
         await supabase
-          
+          .schema("benchrex")
           .from("board_notes")
           .insert({
             id: note.id,
@@ -883,7 +910,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         if (patch.color !== undefined) dbPatch.color = patch.color;
         
         await supabase
-          
+          .schema("benchrex")
           .from("board_notes")
           .update(dbPatch)
           .eq("id", id);
@@ -901,7 +928,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     if (state.user && !state.user.id.startsWith("mock-")) {
       try {
         await supabase
-          
+          .schema("benchrex")
           .from("board_notes")
           .delete()
           .eq("id", id);
@@ -924,7 +951,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     if (state.user && !state.user.id.startsWith("mock-")) {
       try {
         const { error } = await supabase
-          
+          .schema("benchrex")
           .from("conversations")
           .update({ 
             is_expert_session: true,
@@ -982,6 +1009,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         if (role === 'expert') update.expert_has_unread = false;
 
         await supabase
+          .schema("benchrex")
           .from("conversations")
           .update(update)
           .eq("id", convId);
@@ -991,11 +1019,6 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     }
   }, [state.user?.id]);
 
-  const setGroqApiKey = (groqApiKey: string | null) => setState(s => ({ ...s, groqApiKey }));
-  const setOpenaiApiKey = (openaiApiKey: string | null) => setState(s => ({ ...s, openaiApiKey }));
-  const setAnthropicApiKey = (anthropicApiKey: string | null) => setState(s => ({ ...s, anthropicApiKey }));
-  const setGoogleApiKey = (googleApiKey: string | null) => setState(s => ({ ...s, googleApiKey }));
-  const setXaiApiKey = (xaiApiKey: string | null) => setState(s => ({ ...s, xaiApiKey }));
   const setActiveModel = (activeModel: string) => setState(s => ({ ...s, activeModel }));
 
   const contextValue = React.useMemo(() => ({
@@ -1022,11 +1045,6 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     deleteNote,
     requestExpert,
     markAsRead,
-    setGroqApiKey,
-    setOpenaiApiKey,
-    setAnthropicApiKey,
-    setGoogleApiKey,
-    setXaiApiKey,
     setActiveModel,
     setSelectedStudentId,
   }), [
@@ -1053,11 +1071,6 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     deleteNote,
     requestExpert,
     markAsRead,
-    setGroqApiKey,
-    setOpenaiApiKey,
-    setAnthropicApiKey,
-    setGoogleApiKey,
-    setXaiApiKey,
     setActiveModel,
     setSelectedStudentId,
   ]);

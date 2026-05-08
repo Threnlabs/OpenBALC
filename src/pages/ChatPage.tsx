@@ -15,7 +15,7 @@ import { ScrollArea } from "../components/ui/scroll-area";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Message, Attachment, ContentBankItem } from "../types";
 import { toast } from "sonner";
-import { BrainCircuit, Loader2, Sparkles, MessageSquare, Shield } from "lucide-react";
+import { Loader2, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ChatPageProps {
@@ -42,23 +42,54 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
     setMessageFeedback,
     requestExpert,
     markAsRead,
-    groqApiKey,
     activeModel,
   } = useApp();
 
-  const [selectedPersonalityId, setSelectedPersonalityId] = useState("academic-tutor");
+  const [selectedPersonalityId, setSelectedPersonalityId] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const isResizing = React.useRef(false);
+
+  const startResizing = React.useCallback((e: React.MouseEvent) => {
+    isResizing.current = true;
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", stopResizing);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, []);
+
+  const handleMouseMove = React.useCallback((e: MouseEvent) => {
+    if (!isResizing.current) return;
+    const newWidth = e.clientX;
+    if (newWidth > 240 && newWidth < 500) {
+      setSidebarWidth(newWidth);
+    }
+  }, []);
+
+  const stopResizing = React.useCallback(() => {
+    isResizing.current = false;
+    document.removeEventListener("mousemove", handleMouseMove);
+    document.removeEventListener("mouseup", stopResizing);
+    document.body.style.cursor = "default";
+    document.body.style.userSelect = "auto";
+  }, [handleMouseMove]);
+
   const [expertDialogOpen, setExpertDialogOpen] = useState(false);
-  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [showHandover, setShowHandover] = useState(false);
   const [hasDismissedHandover, setHasDismissedHandover] = useState(false);
-  const [lastContentBankItems, setLastContentBankItems] = useState<ContentBankItem[]>([]);
   const isExpert = user?.role === 'doubt_expert' || user?.role === 'super_admin' || user?.role === 'faculty';
 
   const activeConversation = conversations.find((c) => c.id === activeConversationId);
   const messages = activeConversation?.messages || [];
 
   const creatingRef = React.useRef(false);
+
+  // Set initial personality if not set
+  useEffect(() => {
+    if (personalities.length > 0 && (!selectedPersonalityId || !personalities.find(p => p.id === selectedPersonalityId))) {
+      setSelectedPersonalityId(personalities[0].id);
+    }
+  }, [personalities, selectedPersonalityId]);
 
   // Create initial conversation if none active
   useEffect(() => {
@@ -125,13 +156,6 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
     if (messageRole === "user") {
       try {
         const personality = personalities.find(p => p.id === selectedPersonalityId);
-        const {
-          groqApiKey,
-          openaiApiKey,
-          anthropicApiKey,
-          googleApiKey,
-          xaiApiKey
-        } = useApp(); // Access all keys
 
         const result = await sendQuestion({
           question: content,
@@ -146,16 +170,12 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
           useWebSearch: personality?.tool_web_search,
           useContentBank: true,
           useCalendar: personality?.tool_calendar_mgmt,
-          groqApiKey,
-          openaiApiKey,
-          anthropicApiKey,
-          googleApiKey,
-          xaiApiKey,
+          personalityId: selectedPersonalityId,
         });
 
         // Track content bank items for the panel
         if (result.contentBankItems?.length) {
-          setLastContentBankItems(result.contentBankItems);
+          // Tracked in results now
         }
 
         const aiMsg: Message = {
@@ -195,7 +215,6 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
   };
 
   const handleAskExpert = (msg: Message) => {
-    setSelectedMessageId(msg.id);
     setExpertDialogOpen(true);
   };
 
@@ -260,14 +279,22 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
           {historyOpen && (
             <motion.div
               initial={isMobile ? { x: "-100%" } : { width: 0, opacity: 0 }}
-              animate={isMobile ? { x: 0 } : { width: 280, opacity: 1 }}
+              animate={isMobile ? { x: 0 } : { width: sidebarWidth, opacity: 1 }}
               exit={isMobile ? { x: "-100%" } : { width: 0, opacity: 0 }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              transition={isMobile ? { type: "spring", damping: 25, stiffness: 200 } : { duration: 0.2 }}
               className={isMobile
                 ? "absolute inset-y-0 left-0 z-50 w-[280px] max-w-[85vw] bg-card border-r border-border shadow-2xl flex flex-col"
-                : "h-full border-r border-border bg-card/50 backdrop-blur-md"}
+                : "h-full border-r border-border bg-card/50 backdrop-blur-md relative"}
             >
               <HistorySidebar onClose={() => setHistoryOpen(false)} />
+              {!isMobile && (
+                <div
+                  onMouseDown={startResizing}
+                  className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-primary/40 transition-colors z-50 group"
+                >
+                  <div className="absolute inset-y-0 right-0 w-[2px] bg-primary/0 group-hover:bg-primary/40 transition-colors" />
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

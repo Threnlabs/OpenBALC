@@ -4,8 +4,7 @@ import { useApp } from "benchrex/context/BenchrexContext";
 import { Button } from "benchrex/components/ui/button";
 import { THEMES } from "benchrex/types";
 import {
-  Menu, LogOut, Palette, LayoutGrid, Sparkles,
-  UserCircle2, Moon, Sun, ShieldCheck, User as UserIcon, FileText, Database, Settings, Key, Cpu
+  UserCircle2, Moon, Sun, ShieldCheck, User as UserIcon, FileText, LayoutGrid, Palette, LogOut, Sparkles, MessageSquare, Menu
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -35,15 +34,11 @@ const ChatHeader = ({ onNewChat: _onNewChat }: ChatHeaderProps) => {
     boardOpen, setBoardOpen, darkMode, setDarkMode,
     knowledgeOpen, setKnowledgeOpen,
     conversations, activeConversationId,
-    groqApiKey, setGroqApiKey,
     activeModel, setActiveModel,
     students,
   } = useApp();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [configOpen, setConfigOpen] = useState(false);
-  const [tempApiKey, setTempApiKey] = useState(groqApiKey || "");
-  const [tempModel, setTempModel] = useState(activeModel);
   const credits = user?.credits ?? 0;
   
   const isExpert = user?.role === 'doubt_expert' || user?.role === 'super_admin' || user?.role === 'faculty';
@@ -58,6 +53,7 @@ const ChatHeader = ({ onNewChat: _onNewChat }: ChatHeaderProps) => {
           size="icon"
           className="h-8 w-8"
           onClick={() => setHistoryOpen(!historyOpen)}
+          aria-label="Toggle chat history"
         >
           <Menu className="h-4 w-4" />
         </Button>
@@ -97,6 +93,7 @@ const ChatHeader = ({ onNewChat: _onNewChat }: ChatHeaderProps) => {
           <TooltipContent>Credits remaining for this period</TooltipContent>
         </Tooltip>
 
+
         {/* Knowledge toggle */}
         <Tooltip>
           <TooltipTrigger asChild>
@@ -130,78 +127,6 @@ const ChatHeader = ({ onNewChat: _onNewChat }: ChatHeaderProps) => {
           <TooltipContent>Notes Board</TooltipContent>
         </Tooltip>
         
-        {/* AI Configuration */}
-        <Dialog open={configOpen} onOpenChange={setConfigOpen}>
-          <DialogTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              aria-label="AI Configuration"
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]" aria-describedby="ai-config-description">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Cpu className="h-5 w-5 text-primary" />
-                AI Assistant Engine
-              </DialogTitle>
-              <DialogDescription id="ai-config-description" className="text-xs text-muted-foreground">
-                Configure your Groq API key and preferred LLM model for the calendar assistant.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="api-key" className="text-xs flex items-center gap-1.5">
-                  <Key className="h-3 w-3" /> Groq API Key
-                </Label>
-                <Input
-                  id="api-key"
-                  type="password"
-                  placeholder="gsk_..."
-                  value={tempApiKey}
-                  onChange={(e) => setTempApiKey(e.target.value)}
-                  className="h-9 text-xs"
-                />
-                <p className="text-[10px] text-muted-foreground italic">
-                  Leave blank to use the system default key.
-                </p>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="model" className="text-xs flex items-center gap-1.5">
-                  <Sparkles className="h-3 w-3" /> Default Model
-                </Label>
-                <Select value={tempModel} onValueChange={setTempModel}>
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Select a model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MODELS.filter(m => m.provider === 'groq').map(model => (
-                      <SelectItem key={model.id} value={model.id} className="text-xs">
-                        {model.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button 
-                className="w-full rounded-xl" 
-                onClick={() => {
-                  setGroqApiKey(tempApiKey || null);
-                  setActiveModel(tempModel);
-                  setConfigOpen(false);
-                  toast.success("AI Configuration updated");
-                }}
-              >
-                Save Settings
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         {/* Theme picker */}
         <DropdownMenu>
