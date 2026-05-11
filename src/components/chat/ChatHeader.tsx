@@ -40,7 +40,7 @@ const ChatHeader = ({ onNewChat: _onNewChat }: ChatHeaderProps) => {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const credits = user?.credits ?? 0;
-  
+
   const isExpert = user?.role === 'doubt_expert' || user?.role === 'super_admin' || user?.role === 'faculty';
   const activeConversation = conversations.find(c => c.id === activeConversationId);
   const activeStudent = isExpert ? students.find(s => s.id === activeConversation?.userId) : null;
@@ -70,16 +70,6 @@ const ChatHeader = ({ onNewChat: _onNewChat }: ChatHeaderProps) => {
 
       {/* Desktop Menu - hidden on mobile */}
       <div className="hidden md:flex items-center gap-1">
-        {/* Human Expert Status */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="mr-1 hidden sm:flex items-center gap-1.5 rounded-full border border-green-500/30 bg-green-500/10 px-2.5 py-1 text-[10px] font-medium text-green-600 dark:text-green-400">
-              <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-              <span>3 Experts Online</span>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>Human experts are available for deep dives</TooltipContent>
-        </Tooltip>
 
         {/* Credits */}
         <Tooltip>
@@ -126,7 +116,7 @@ const ChatHeader = ({ onNewChat: _onNewChat }: ChatHeaderProps) => {
           </TooltipTrigger>
           <TooltipContent>Notes Board</TooltipContent>
         </Tooltip>
-        
+
 
         {/* Theme picker */}
         <DropdownMenu>
@@ -223,7 +213,7 @@ const ChatHeader = ({ onNewChat: _onNewChat }: ChatHeaderProps) => {
             <SheetHeader className="text-left">
               <SheetTitle className="font-display text-xl font-bold">Menu</SheetTitle>
             </SheetHeader>
-            
+
             <div className="flex flex-col gap-6 mt-6 flex-1 overflow-y-auto pr-1">
               {/* Credits */}
               <div className="flex items-center justify-between rounded-2xl border border-border bg-secondary/40 px-4 py-3">

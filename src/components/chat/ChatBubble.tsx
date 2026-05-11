@@ -144,7 +144,7 @@ const ChatBubble = ({ message, index, onPin, onFeedback, onAskExpert, onAcceptAc
           }`}
         >
           {/* Topic mentions */}
-          {isUser && message.topicMentions && message.topicMentions.length > 0 && (
+          {isUser && message.topicMentions?.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-2">
               {message.topicMentions.map((t) => (
                 <Badge key={t} variant="secondary" className="text-[10px] font-medium bg-white/20 text-white border-none backdrop-blur-md">
@@ -155,7 +155,7 @@ const ChatBubble = ({ message, index, onPin, onFeedback, onAskExpert, onAcceptAc
           )}
 
           {/* Attachments */}
-          {message.attachments && message.attachments.length > 0 && (
+          {message.attachments?.length > 0 && (
             <div className="mb-4 flex flex-col gap-3">
               {message.attachments.map((a) => (
                 <div key={a.id} className="glass-card overflow-hidden rounded-2xl transition-transform hover:scale-[1.01]">
@@ -252,7 +252,7 @@ const ChatBubble = ({ message, index, onPin, onFeedback, onAskExpert, onAcceptAc
           )}
 
           {/* Web Search Results */}
-          {!isUser && message.webSearch && message.webSearch.results.length > 0 && (
+          {!isUser && message.webSearch?.results && message.webSearch.results.length > 0 && (
             <div className="mb-4">
               <SearchResultsCard webSearch={message.webSearch} />
             </div>
@@ -270,7 +270,7 @@ const ChatBubble = ({ message, index, onPin, onFeedback, onAskExpert, onAcceptAc
           </div>
 
           {/* Sources Citation */}
-          {!isUser && message.sources && message.sources.length > 0 && (
+          {!isUser && message.sources?.length > 0 && (
             <Collapsible className="mt-5 border-t border-border pt-3">
               <CollapsibleTrigger className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-tighter text-muted-foreground hover:text-primary transition-colors">
                 <BookOpen className="h-3 w-3" />

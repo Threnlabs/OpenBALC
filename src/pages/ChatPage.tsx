@@ -163,6 +163,14 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
 
     if (messageRole === "user") {
       try {
+        const personality = personalities.find(p => p.id === selectedPersonalityId);
+        console.log("[ChatPage] Sending message:", { 
+          content, 
+          selectedPersonalityId, 
+          personalityFound: !!personality,
+          model: activeModel || personality?.model 
+        });
+
         // Retrieve content for knowledge tags
         let enrichedInstructions = systemInstructions;
         if (useKnowledgeRetrieval && knowledgeTags && knowledgeTags.length > 0) {
@@ -186,7 +194,10 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
           student_id: user?.id || "anon",
           student_name: user?.name || "Student",
           systemInstructions: enrichedInstructions,
-          history: messages.map(m => ({ role: m.role, content: m.content })),
+          history: messages.map(m => ({ 
+            role: m.role === "ai" ? "assistant" : m.role, 
+            content: m.content 
+          })),
           attachments,
           useWebSearch: personality?.tool_web_search,
           useContentBank: true,

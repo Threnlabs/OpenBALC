@@ -88,82 +88,45 @@ export async function sendQuestion(
     webSearchContext = formatSearchContextForPrompt(searchResponse);
   }
 
-  // ── Route to LLM ──────────────────────────────────────────────────────────
-  const provider = getModelProvider(payload.mode);
-  const baseUrl = PROVIDER_BASE_URLS[provider];
+  // ── Route to Backend ──────────────────────────────────────────────────────
+  const API_URL = (import.meta.env.VITE_BACKEND_URL || "http://localhost:8000") + "/api/benchrex/chat";
   
-  // Pick the right key based on provider
-  let activeKey: string | null | undefined;
-  switch (provider) {
-    case "groq": activeKey = payload.groqApiKey; break;
-    case "openai": activeKey = payload.openaiApiKey; break;
-    case "anthropic": activeKey = payload.anthropicApiKey; break;
-    case "google": activeKey = payload.googleApiKey; break;
-    case "xai": activeKey = payload.xaiApiKey; break;
+  const requestBody = {
+    question: payload.question,
+    personality_id: (payload as any).personalityId || "",
+    history: payload.history,
+    subject: payload.subject,
+    system_instructions: payload.systemInstructions,
+    model_override: payload.mode,
+  };
+
+  console.log("[API] Sending request to backend:", { url: API_URL, body: requestBody });
+
+  const response = await fetch(API_URL, {
+    method: "POST",
+    signal: signal,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: "Chat failed" }));
+    console.error("[API] Backend error:", { status: response.status, err });
+    throw new Error(err.detail || `AI call failed: ${response.status}`);
   }
 
-  if (provider === "mock") {
-    return { answer: "I'm currently in maintenance mode.", sources: [] };
-  }
+  const result = await response.json();
+  console.log("[API] Backend response received:", result);
 
-  // ── Tool Calling Loop ─────────────────────────────────────────────────────
-  let currentHistory = payload.history ? [...payload.history] : [];
-  let tools = payload.useCalendar ? CALENDAR_TOOLS : undefined;
-  
-  let loopCount = 0;
-  const MAX_LOOPS = 3;
-
-  let finalResult: any;
-  let lastActionId: string | undefined;
-
-  while (loopCount < MAX_LOOPS) {
-    loopCount++;
-    
-    const result = await sendAIQuestion({
-      question: loopCount === 1 ? payload.question : "",
-      mode: payload.mode,
-      provider: provider,
-      baseUrl: baseUrl,
-      systemInstructions: payload.systemInstructions,
-      history: currentHistory,
-      contentBankContext,
-      webSearchContext,
-      userContext: { name: payload.student_name, id: payload.student_id },
-      apiKey: activeKey || undefined,
-      tools: tools,
-      signal: signal,
-    });
-
-    if (!result.tool_calls || result.tool_calls.length === 0) {
-      finalResult = result;
-      break;
-    }
-
-    // AI wants to use tools
-    currentHistory.push({ role: "assistant", content: result.answer, tool_calls: result.tool_calls } as any);
-
-    for (const toolCall of result.tool_calls) {
-      const name = toolCall.function.name;
-      const args = JSON.parse(toolCall.function.arguments);
-      
-      console.log(`[AI Tool Call] Executing ${name} with args:`, args);
-      const toolResult = await executeCalendarTool(name, args);
-      
-      if (toolResult?.action_id) {
-        lastActionId = toolResult.action_id;
-      }
-
-      currentHistory.push({
-        role: "tool",
-        tool_call_id: toolCall.id,
-        name: name,
-        content: JSON.stringify(toolResult)
-      } as any);
-    }
-    
-    // Continue loop to give LLM the results
-  }
-
-  return { ...finalResult, webSearch, contentBankItems, aiActionId: lastActionId };
+  return { 
+    answer: result.answer, 
+    reasoning: result.reasoning,
+    sources: result.sources || [], 
+    webSearch: result.webSearch, 
+    contentBankItems: result.contentBankItems, 
+    aiActionId: result.aiActionId 
+  };
 }
 
