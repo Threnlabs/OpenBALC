@@ -49,19 +49,30 @@ const KnowledgePanel = ({ onClose }: KnowledgePanelProps) => {
           }
         });
       }
+      if (msg.sources) {
+        msg.sources.forEach((src: any) => {
+          if (src.type === 'web_search' || (!src.type && src.url)) {
+            extracted.push({
+              id: `web-${msg.id}-${src.url}`, title: src.title, content: src.content, url: src.url,
+              type: "web", timestamp: msg.timestamp, source: "Web Search"
+            });
+          } else {
+            extracted.push({
+              id: `src-${src.id || src.chunk_id}`, 
+              title: src.title || `${src.subject}: ${src.chapter}`,
+              content: src.content || "", type: "source", timestamp: msg.timestamp, source: "Curriculum Bank"
+            });
+          }
+        });
+      }
       if (msg.webSearch && msg.webSearch.results) {
         msg.webSearch.results.forEach((res: WebSearchResult, i: number) => {
+          // Avoid duplicate if already in sources
+          if (extracted.some(item => item.url === res.url)) return;
+          
           extracted.push({
             id: `web-${msg.id}-${i}`, title: res.title, content: res.description, url: res.url,
             type: "web", timestamp: msg.timestamp, source: "Web Search"
-          });
-        });
-      }
-      if (msg.sources) {
-        msg.sources.forEach((src: Source) => {
-          extracted.push({
-            id: `src-${src.chunk_id}`, title: `${src.subject}: ${src.chapter}`,
-            content: src.content || "", type: "source", timestamp: msg.timestamp, source: "Curriculum Bank"
           });
         });
       }

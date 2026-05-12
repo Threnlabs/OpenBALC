@@ -278,19 +278,33 @@ const ChatBubble = ({ message, index, onPin, onFeedback, onAskExpert, onAcceptAc
                 <ChevronDown className="h-3 w-3 transition-transform [[data-state=open]>&]:rotate-180" />
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-3 space-y-2">
-                {message.sources.map((src) => (
+                {message.sources.map((src: any, idx: number) => (
                   <div
-                    key={src.chunk_id}
+                    key={src.id || src.chunk_id || `src-${idx}`}
                     className="rounded-xl bg-muted/30 p-3 text-[11px] border border-border/30 hover:border-primary/20 transition-colors"
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-bold text-primary">{src.subject}</span>
-                      <div className="h-1 w-1 rounded-full bg-muted-foreground/30" />
-                      <span className="text-muted-foreground">{src.chapter}</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-primary">
+                          {src.type === 'web_search' ? 'Web Result' : (src.subject || 'Reference')}
+                        </span>
+                        {src.chapter && (
+                          <>
+                            <div className="h-1 w-1 rounded-full bg-muted-foreground/30" />
+                            <span className="text-muted-foreground">{src.chapter}</span>
+                          </>
+                        )}
+                      </div>
+                      {src.url && (
+                        <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                          Visit <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                      )}
                     </div>
+                    <p className="font-medium mb-1 line-clamp-1">{src.title}</p>
                     {src.content && (
                       <p className="text-muted-foreground line-clamp-2 italic">
-                        "{src.content.slice(0, 100)}..."
+                        "{src.content.slice(0, 150)}..."
                       </p>
                     )}
                   </div>

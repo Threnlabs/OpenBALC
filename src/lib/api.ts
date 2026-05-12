@@ -91,8 +91,17 @@ export async function sendQuestion(
   // ── Route to Backend ──────────────────────────────────────────────────────
   const API_URL = (import.meta.env.VITE_BACKEND_URL || "http://localhost:8000") + "/api/benchrex/chat";
   
+  // Combine contexts for the prompt
+  let enrichedQuestion = payload.question;
+  if (contentBankContext) {
+    enrichedQuestion = `${contentBankContext}\n\nQUESTION: ${enrichedQuestion}`;
+  }
+  if (webSearchContext) {
+    enrichedQuestion = `${webSearchContext}\n\nQUESTION: ${enrichedQuestion}`;
+  }
+
   const requestBody = {
-    question: payload.question,
+    question: enrichedQuestion,
     personality_id: (payload as any).personalityId || "",
     history: payload.history,
     subject: payload.subject,
@@ -123,9 +132,9 @@ export async function sendQuestion(
   return { 
     answer: result.answer, 
     reasoning: result.reasoning,
-    sources: result.sources || [], 
-    webSearch: result.webSearch, 
-    contentBankItems: result.contentBankItems, 
+    sources: result.sources || contentBankItems || [], 
+    webSearch: result.webSearch || webSearch, 
+    contentBankItems: result.contentBankItems || contentBankItems, 
     aiActionId: result.aiActionId 
   };
 }

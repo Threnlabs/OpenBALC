@@ -187,6 +187,39 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
            // Optionally update title if needed
         }
 
+        // Prepare unified sources for DB storage (deduplicated)
+        const dbSources = [];
+        const seenIds = new Set();
+
+        // 1. Add Knowledge/Content Bank items
+        const knowledgeItems = [...(msg.sources || []), ...(msg.contentBankItems || [])];
+        for (const item of knowledgeItems) {
+          const id = (item as any).id || (item as any).chunk_id;
+          if (id && !seenIds.has(id)) {
+            seenIds.add(id);
+            dbSources.push({
+              type: 'knowledge',
+              id: id,
+              title: (item as any).title || `${item.subject}: ${item.chapter}`,
+              subject: item.subject,
+              chapter: item.chapter,
+              content: item.content
+            });
+          }
+        }
+
+        // 2. Add Web Search results
+        if (msg.webSearch?.results) {
+          for (const r of msg.webSearch.results) {
+            dbSources.push({
+              type: 'web_search',
+              title: r.title,
+              url: r.url,
+              content: r.description
+            });
+          }
+        }
+
         const { error } = await supabase
           .from("messages")
           .insert({
@@ -194,7 +227,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
             conversation_id: convId,
             role: msg.role === "ai" ? "ai" : (msg.role === "expert" ? "expert" : "user"),
             content: msg.content,
-            sources: msg.sources || [],
+            sources: dbSources,
             attachments: msg.attachments || [],
             tags: msg.tags || [],
             topic_mentions: msg.topicMentions || [],
