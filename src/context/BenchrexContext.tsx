@@ -132,6 +132,95 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
 
   const isInitializing = React.useRef(false);
 
+  const addMessage = React.useCallback(async (convId: string, msg: Conversation["messages"][0]) => {
+    // We need the ACTUAL current state of the conversation to know if it's the first message
+    let isFirstMessage = false;
+    let currentConv: Conversation | undefined;
+    
+    // 1. Update local state immediately for UI responsiveness
+    setState((s) => {
+      currentConv = s.conversations.find((c) => c.id === convId);
+      isFirstMessage = currentConv ? currentConv.messages.length === 0 : true;
+      
+      return {
+        ...s,
+        conversations: s.conversations.map((c) =>
+          c.id === convId
+            ? {
+                ...c,
+                messages: [...c.messages, msg],
+                title: isFirstMessage && msg.role === "user"
+                  ? msg.content.slice(0, 50) + (msg.content.length > 50 ? "..." : "")
+                  : c.title,
+                updatedAt: Date.now(),
+              }
+            : c
+        ),
+      };
+    });
+
+    // 2. Persist to Supabase if not mock user
+    if (state.user && !state.user.id.startsWith("mock-")) {
+      try {
+        // If this is the first message, insert the conversation record first
+        if (isFirstMessage) {
+          const newTitle = msg.role === "user" 
+            ? msg.content.slice(0, 50) + (msg.content.length > 50 ? "..." : "")
+            : "New Chat";
+            
+          const { error: convError } = await supabase
+            .from("conversations")
+            .insert({
+              id: convId,
+              user_id: state.user.id,
+              title: newTitle,
+              pinned: false,
+              team_id: state.user.team_id || null,
+              updated_at: new Date().toISOString()
+            });
+            
+          if (convError) {
+             console.error("Failed to create conversation in DB:", convError);
+             if (convError.code !== '23505') throw convError;
+          }
+        } else if (currentConv && currentConv.messages.length === 1 && currentConv.messages[0].role === 'user' && msg.role === 'ai') {
+           // Optionally update title if needed
+        }
+
+        const { error } = await supabase
+          .from("messages")
+          .insert({
+            id: msg.id,
+            conversation_id: convId,
+            role: msg.role === "ai" ? "ai" : (msg.role === "expert" ? "expert" : "user"),
+            content: msg.content,
+            sources: msg.sources || [],
+            attachments: msg.attachments || [],
+            tags: msg.tags || [],
+            topic_mentions: msg.topicMentions || [],
+            web_search: msg.webSearch || {},
+            personality_id: msg.personalityId || null,
+            created_at: new Date(msg.timestamp).toISOString(),
+          });
+        
+        if (error) {
+          console.error("Supabase message error:", error);
+          throw error;
+        }
+
+        // Update conversation updated_at
+        await supabase
+          .from("conversations")
+          .update({ updated_at: new Date().toISOString() })
+          .eq("id", convId);
+
+      } catch (err) {
+        console.error("Failed to persist message:", err);
+      }
+    }
+  }, [state.user?.id, state.conversations]);
+
+
   // Sync auth state with Supabase
   useEffect(() => {
     if (isInitializing.current) return;
@@ -303,7 +392,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     }
   }, []);
 
-  const loadNotes = async (userId: string) => {
+  const loadNotes = React.useCallback(async (userId: string) => {
     try {
       const profile = JSON.parse(localStorage.getItem('admin_profile') || '{}');
       const teamId = profile.team_id;
@@ -335,9 +424,9 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     } catch (err) {
       console.error("Failed to load notes:", err);
     }
-  };
+  }, [addMessage, state.user]);
 
-  const loadStudents = async () => {
+  const loadStudents = React.useCallback(async () => {
     console.log("Loading students list...");
     try {
       const profile = JSON.parse(localStorage.getItem('admin_profile') || '{}');
@@ -357,15 +446,15 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     } catch (err) {
       console.error("Failed to load students:", err);
     }
-  };
+  }, [addMessage, state.user]);
 
   useEffect(() => {
     if (state.user) {
       loadStudents();
     }
-  }, [state.user]);
+  }, [addMessage, state.user]);
 
-  const login = async (
+  const login = React.useCallback(async (
     email: string,
     password: string,
   ) => {
@@ -401,7 +490,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       toast.error(err.message || "An unexpected error occurred during login");
       return false;
     }
-  };
+  }, [addMessage, state.user]);
 
   const logout = async (clearSession = true) => {
     const userId = state.user?.id;
@@ -564,15 +653,15 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     };
   }, [state.user?.id, state.user?.role]);
 
-  const setDarkMode = (darkMode: boolean) => {
+  const setDarkMode = React.useCallback((darkMode: boolean) => {
     setState((s) => ({ ...s, darkMode }));
     onDarkModeChange?.(darkMode);
-  };
+  }, [onDarkModeChange]);
 
   // Mock password reset — just acknowledges. No real auth in demo.
-  const resetPassword = (_current: string, _next: string) => true;
+  const resetPassword = React.useCallback((_current: string, _next: string) => true, []);
 
-  const completeSetup = async (grade: string, course: string, batch: string) => {
+  const completeSetup = React.useCallback(async (grade: string, course: string, batch: string) => {
     if (!state.user) return;
     
     if (!state.user.id.startsWith("mock-")) {
@@ -595,7 +684,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       user: s.user ? { ...s.user, grade, course, batch, setupComplete: true } : null,
     }));
     toast.success("Profile updated locally!");
-  };
+  }, [state.user]);
 
   const setTheme = (theme: ThemeName) => setState((s) => ({ ...s, theme }));
   const setHistoryOpen = (open: boolean) => setState((s) => ({ 
@@ -643,93 +732,6 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
   const setActiveConversation = React.useCallback((id: string | null) =>
     setState((s) => ({ ...s, activeConversationId: id })), []);
 
-  const addMessage = React.useCallback(async (convId: string, msg: Conversation["messages"][0]) => {
-    // We need the ACTUAL current state of the conversation to know if it's the first message
-    let isFirstMessage = false;
-    let currentConv: Conversation | undefined;
-    
-    // 1. Update local state immediately for UI responsiveness
-    setState((s) => {
-      currentConv = s.conversations.find((c) => c.id === convId);
-      isFirstMessage = currentConv ? currentConv.messages.length === 0 : true;
-      
-      return {
-        ...s,
-        conversations: s.conversations.map((c) =>
-          c.id === convId
-            ? {
-                ...c,
-                messages: [...c.messages, msg],
-                title: isFirstMessage && msg.role === "user"
-                  ? msg.content.slice(0, 50) + (msg.content.length > 50 ? "..." : "")
-                  : c.title,
-                updatedAt: Date.now(),
-              }
-            : c
-        ),
-      };
-    });
-
-    // 2. Persist to Supabase if not mock user
-    if (state.user && !state.user.id.startsWith("mock-")) {
-      try {
-        // If this is the first message, insert the conversation record first
-        if (isFirstMessage) {
-          const newTitle = msg.role === "user" 
-            ? msg.content.slice(0, 50) + (msg.content.length > 50 ? "..." : "")
-            : "New Chat";
-            
-          const { error: convError } = await supabase
-            .from("conversations")
-            .insert({
-              id: convId,
-              user_id: state.user.id,
-              title: newTitle,
-              pinned: false,
-              team_id: state.user.team_id || null,
-              updated_at: new Date().toISOString()
-            });
-            
-          if (convError) {
-             console.error("Failed to create conversation in DB:", convError);
-             if (convError.code !== '23505') throw convError;
-          }
-        } else if (currentConv && currentConv.messages.length === 1 && currentConv.messages[0].role === 'user' && msg.role === 'ai') {
-           // Optionally update title if needed
-        }
-
-        const { error } = await supabase
-          .from("messages")
-          .insert({
-            id: msg.id,
-            conversation_id: convId,
-            role: msg.role === "ai" ? "ai" : (msg.role === "expert" ? "expert" : "user"),
-            content: msg.content,
-            sources: msg.sources || [],
-            attachments: msg.attachments || [],
-            tags: msg.tags || [],
-            topic_mentions: msg.topicMentions || [],
-            web_search: msg.webSearch || {},
-            personality_id: msg.personalityId || null,
-            created_at: new Date(msg.timestamp).toISOString(),
-          });
-        
-        if (error) {
-          console.error("Supabase message error:", error);
-          throw error;
-        }
-
-        // Update conversation updated_at
-        await supabase
-          .from("conversations")
-          .update({ updated_at: new Date().toISOString() })
-          .eq("id", convId);
-
-      } catch (err) {
-        console.error("Failed to persist message:", err);
-      }
-    }
-  }, [state.user?.id, state.conversations]);
 
   const updateTopics = (topics: Topic[]) => setState((s) => ({ ...s, topics }));
 
@@ -789,7 +791,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
 
   const setSelectedStudentId = (id: string | null) => setState(s => ({ ...s, selectedStudentId: id }));
 
-  const setMessageFeedback = async (convId: string, msgId: string, feedback: Feedback) => {
+  const setMessageFeedback = React.useCallback(async (convId: string, msgId: string, feedback: Feedback) => {
     // Update local state
     setState((s) => ({
       ...s,
@@ -834,7 +836,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         console.error("Failed to set feedback:", err);
       }
     }
-  };
+  }, [addMessage, state.user]);
 
   const decrementCredits = (n = 1) =>
     setState((s) => ({
@@ -844,7 +846,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         : null,
     }));
 
-  const addNote = async (note: BoardNote) => {
+  const addNote = React.useCallback(async (note: BoardNote) => {
     // Update local state
     setState((s) => ({ ...s, notes: [note, ...s.notes] }));
 
@@ -867,9 +869,9 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         console.error("Failed to persist note:", err);
       }
     }
-  };
+  }, [addMessage, state.user]);
 
-  const updateNote = async (id: string, patch: Partial<BoardNote>) => {
+  const updateNote = React.useCallback(async (id: string, patch: Partial<BoardNote>) => {
     // Update local state
     setState((s) => ({
       ...s,
@@ -892,9 +894,9 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         console.error("Failed to update note:", err);
       }
     }
-  };
+  }, [addMessage, state.user]);
 
-  const deleteNote = async (id: string) => {
+  const deleteNote = React.useCallback(async (id: string) => {
     // Update local state
     setState((s) => ({ ...s, notes: s.notes.filter((n) => n.id !== id) }));
 
@@ -947,7 +949,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         toast.error(`Expert request failed: ${err.message}`);
       }
     }
-  };
+  }, [addMessage, state.user]);
 
   const markAsRead = React.useCallback(async (convId: string, role: 'user' | 'expert') => {
     // 1. Update local state

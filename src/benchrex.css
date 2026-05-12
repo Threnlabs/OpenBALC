@@ -81,7 +81,7 @@
   }
 
   .bg-bubble-ai {
-    @apply bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm rounded-2xl rounded-tl-none backdrop-blur-md bg-opacity-80 dark:bg-opacity-80;
+    @apply bg-white/80 dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-800 shadow-sm rounded-2xl rounded-tl-none backdrop-blur-md;
   }
 }
 

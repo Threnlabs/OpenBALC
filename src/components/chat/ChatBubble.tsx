@@ -103,12 +103,12 @@ const ChatBubble = ({ message, index, onPin, onFeedback, onAskExpert, onAcceptAc
 
         {/* User Tag bar (Outside padding) */}
         {isUser && (
-          <div className="mb-2 flex items-center gap-2 px-1 text-primary-foreground/70">
-            <span className="text-[10px] font-bold uppercase tracking-widest">
+          <div className="mb-2 flex items-center gap-2 px-1">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
               YOU
             </span>
-            <div className="h-1 w-1 rounded-full bg-primary-foreground/30" />
-            <span className="text-[10px]">
+            <div className="h-1 w-1 rounded-full bg-primary/30" />
+            <span className="text-[10px] text-muted-foreground">
               {new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </span>
           </div>
@@ -139,7 +139,7 @@ const ChatBubble = ({ message, index, onPin, onFeedback, onAskExpert, onAcceptAc
         <div
           className={`relative w-full ${
             isUser
-              ? "px-5 py-4 rounded-2xl bg-bubble-user"
+              ? "px-4 py-2.5 rounded-2xl bg-bubble-user"
               : "px-1 py-2"
           }`}
         >
