@@ -816,18 +816,26 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
           .update({ feedback })
           .eq("id", msgId);
 
-        // Also insert into message_feedback table
+        // Also insert into benchrex_feedback table
         if (feedback) {
+          const conv = state.conversations.find((c) => c.id === convId);
+          const aiMsgIndex = conv?.messages.findIndex((m) => m.id === msgId) ?? -1;
+          const aiMsg = aiMsgIndex !== -1 ? conv?.messages[aiMsgIndex] : null;
+          const userMsg = aiMsgIndex > 0 ? conv?.messages[aiMsgIndex - 1] : null;
+
           await supabase
-            .from("message_feedback")
+            .from("benchrex_feedback")
             .insert({
               message_id: msgId,
               user_id: state.user.id,
               rating: feedback === "up" ? 1 : -1,
+              user_prompt: userMsg?.content || null,
+              ai_response: aiMsg?.content || null,
+              team_id: state.user.team_id || null,
             });
         } else {
           await supabase
-            .from("message_feedback")
+            .from("benchrex_feedback")
             .delete()
             .eq("message_id", msgId)
             .eq("user_id", state.user.id);
@@ -836,7 +844,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         console.error("Failed to set feedback:", err);
       }
     }
-  }, [addMessage, state.user]);
+  }, [addMessage, state.user, state.conversations]);
 
   const decrementCredits = (n = 1) =>
     setState((s) => ({
