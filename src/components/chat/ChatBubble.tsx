@@ -70,7 +70,7 @@ const ChatBubble = ({ message, index, onPin, onFeedback, onAskExpert, onAcceptAc
       <div className="shrink-0 pt-1">
         <div className={`h-10 w-10 rounded-2xl flex items-center justify-center shadow-sm ${
           isUser 
-          ? "bg-primary text-white" 
+          ? "bg-primary text-primary-foreground" 
           : isExpert
             ? "bg-blue-600 text-white"
             : "bg-white dark:bg-zinc-900 border border-border"
@@ -103,11 +103,11 @@ const ChatBubble = ({ message, index, onPin, onFeedback, onAskExpert, onAcceptAc
 
         {/* User Tag bar (Outside padding) */}
         {isUser && (
-          <div className="mb-2 flex items-center gap-2 px-1 opacity-70">
+          <div className="mb-2 flex items-center gap-2 px-1 text-primary-foreground/70">
             <span className="text-[10px] font-bold uppercase tracking-widest">
               YOU
             </span>
-            <div className="h-1 w-1 rounded-full bg-white/30" />
+            <div className="h-1 w-1 rounded-full bg-primary-foreground/30" />
             <span className="text-[10px]">
               {new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </span>
@@ -147,7 +147,7 @@ const ChatBubble = ({ message, index, onPin, onFeedback, onAskExpert, onAcceptAc
           {isUser && message.topicMentions?.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-2">
               {message.topicMentions.map((t) => (
-                <Badge key={t} variant="secondary" className="text-[10px] font-medium bg-white/20 text-white border-none backdrop-blur-md">
+                <Badge key={t} variant="secondary" className="text-[10px] font-medium bg-primary-foreground/10 text-primary-foreground border-none backdrop-blur-md">
                   @{t}
                 </Badge>
               ))}
@@ -252,7 +252,7 @@ const ChatBubble = ({ message, index, onPin, onFeedback, onAskExpert, onAcceptAc
           )}
 
           {/* Web Search Results */}
-          {!isUser && message.webSearch?.results && message.webSearch.results.length > 0 && (
+          {!isUser && message.webSearch && message.webSearch.results && message.webSearch.results.length > 0 && (
             <div className="mb-4">
               <SearchResultsCard webSearch={message.webSearch} />
             </div>
@@ -261,7 +261,7 @@ const ChatBubble = ({ message, index, onPin, onFeedback, onAskExpert, onAcceptAc
           {/* Content */}
           <div className={`max-w-none prose dark:prose-invert leading-relaxed ${
             isUser 
-            ? "prose-sm text-white prose-p:text-white" 
+            ? "prose-sm text-primary-foreground prose-p:text-primary-foreground font-medium" 
             : "prose-base md:prose-lg prose-headings:text-primary prose-blockquote:border-l-primary prose-blockquote:bg-primary/5 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-lg prose-a:text-primary hover:prose-a:underline prose-table:border-collapse prose-table:w-full prose-th:border prose-th:border-border prose-th:bg-muted/50 prose-th:p-2 prose-td:border prose-td:border-border prose-td:p-2"
           }`}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>

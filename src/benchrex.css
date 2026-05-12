@@ -15,37 +15,45 @@
 }
 
 /* Theme Tokens */
+[data-theme="lavender"] {
+  --primary: 260 60% 55%;
+  --primary-foreground: 240 10% 3.9%;
+  --accent: 260 40% 92%;
+}
+
 [data-theme="rose"] {
   --primary: 340 85% 65%;
-  --primary-foreground: 0 0% 100%;
+  --primary-foreground: 240 10% 3.9%;
   --accent: 340 70% 95%;
 }
 
 [data-theme="mint"] {
   --primary: 160 80% 35%;
-  --primary-foreground: 0 0% 100%;
+  --primary-foreground: 240 10% 3.9%;
   --accent: 160 60% 92%;
 }
 
 [data-theme="sky"] {
   --primary: 205 90% 55%;
-  --primary-foreground: 0 0% 100%;
+  --primary-foreground: 240 10% 3.9%;
   --accent: 205 80% 94%;
 }
 
 [data-theme="amber"] {
   --primary: 38 95% 50%;
-  --primary-foreground: 0 0% 100%;
+  --primary-foreground: 240 10% 3.9%;
   --accent: 38 90% 92%;
 }
 
-/* Premium Layout Utilities */
-.glass-panel {
-  @apply backdrop-blur-xl bg-white/70 dark:bg-zinc-900/70 border border-white/50 dark:border-white/10;
-}
+@layer components {
+  /* Premium Layout Utilities */
+  .glass-panel {
+    @apply backdrop-blur-xl bg-white/70 dark:bg-zinc-900/70 border border-white/50 dark:border-white/10;
+  }
 
-.glass-card {
-  @apply backdrop-blur-lg bg-white/60 dark:bg-zinc-800/40 border border-white/40 dark:border-white/5 shadow-sm;
+  .glass-card {
+    @apply backdrop-blur-lg bg-white/60 dark:bg-zinc-800/40 border border-white/40 dark:border-white/5 shadow-sm;
+  }
 }
 
 /* Improved Typography */
@@ -62,18 +70,19 @@
   overflow: hidden;
 }
 
-.chat-main {
-  @apply relative flex flex-col w-full h-full bg-slate-50 dark:bg-zinc-950 transition-all duration-300;
-}
+@layer components {
+  .chat-main {
+    @apply relative flex flex-col w-full h-full bg-slate-50 dark:bg-zinc-950 transition-all duration-300;
+  }
 
-/* Chat Bubbles Revamp */
-/* Chat Bubbles Revamp */
-.bg-bubble-user {
-  @apply bg-primary text-primary-foreground shadow-lg shadow-primary/20 rounded-2xl rounded-tr-none border-none;
-}
+  /* Chat Bubbles Revamp */
+  .bg-bubble-user {
+    @apply bg-primary text-primary-foreground shadow-lg shadow-primary/20 rounded-2xl rounded-tr-none border-none;
+  }
 
-.bg-bubble-ai {
-  @apply bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm rounded-2xl rounded-tl-none backdrop-blur-md bg-opacity-80 dark:bg-opacity-80;
+  .bg-bubble-ai {
+    @apply bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm rounded-2xl rounded-tl-none backdrop-blur-md bg-opacity-80 dark:bg-opacity-80;
+  }
 }
 
 /* Scrollbar Styling */
@@ -85,8 +94,10 @@
   background: transparent;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  @apply bg-zinc-300 dark:bg-zinc-800 rounded-full hover:bg-zinc-400 dark:hover:bg-zinc-700 transition-colors;
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-zinc-300 dark:bg-zinc-800 rounded-full hover:bg-zinc-400 dark:hover:bg-zinc-700 transition-colors;
+  }
 }
 
 /* Animations */

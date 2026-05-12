@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import type { ReactNode } from "react";
 import type { UserProfile, Conversation, Topic, ThemeName, BoardNote, Feedback, AIPersonality } from "../types";
 import { DEFAULT_PERSONALITIES } from "../types";
 import { getDefaultTopics } from "../lib/mock-data";
@@ -120,11 +121,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
 
   useEffect(() => {
     const root = document.documentElement;
-    if (state.theme === "lavender") {
-      root.removeAttribute("data-theme");
-    } else {
-      root.setAttribute("data-theme", state.theme);
-    }
+    root.setAttribute("data-theme", state.theme);
   }, [state.theme]);
 
   useEffect(() => {
@@ -211,7 +208,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     };
   }, []);
 
-  const loadConversations = async (userId: string, role?: string) => {
+  const loadConversations = React.useCallback(async (userId: string, role?: string) => {
     console.log("Loading conversations for user:", userId, "with role:", role);
     try {
       const isExpert = role === 'doubt_expert' || role === 'super_admin' || role === 'faculty';
@@ -273,9 +270,9 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       console.error("Failed to load conversations:", err);
       toast.error(`Failed to load history: ${err.message}`);
     }
-  };
+  }, []);
 
-  const loadPersonalities = async () => {
+  const loadPersonalities = React.useCallback(async () => {
     try {
       const { data: personas, error } = await supabase
         .from("personalities")
@@ -304,7 +301,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     } catch (err: any) {
       console.error("Failed to load personalities:", err);
     }
-  };
+  }, []);
 
   const loadNotes = async (userId: string) => {
     try {
@@ -912,9 +909,9 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         console.error("Failed to delete note:", err);
       }
     }
-  };
+  }, [state.user?.id]);
 
-  const requestExpert = async (convId: string, context: string) => {
+  const requestExpert = React.useCallback(async (convId: string, context: string) => {
     // 1. Update local state
     setState(s => ({
       ...s,
@@ -1019,6 +1016,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     deleteNote,
     requestExpert,
     markAsRead,
+    loadPersonalities,
     setActiveModel,
     setSelectedStudentId,
   }), [
@@ -1045,6 +1043,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     deleteNote,
     requestExpert,
     markAsRead,
+    loadPersonalities,
     setActiveModel,
     setSelectedStudentId,
   ]);
