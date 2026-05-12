@@ -10,6 +10,7 @@ export interface AIPersonality {
   tool_image_gen?: boolean;
   tool_calendar_mgmt?: boolean;
   tool_knowledge_retrieval?: boolean;
+  tool_chain_of_thought?: boolean;
   data_access?: {
     tables: Record<string, boolean>;
     databases?: Record<string, boolean>;
@@ -141,6 +142,13 @@ export interface Message {
   /** Curriculum chunks retrieved from the content bank for this response */
   contentBankItems?: ContentBankItem[];
   aiActionId?: string;
+  thoughtProcess?: {
+    id: string;
+    type: 'content_bank' | 'web_search' | 'ai_reasoning' | 'tool_call';
+    status: 'pending' | 'active' | 'done' | 'error';
+    label: string;
+    detail?: string;
+  }[];
 }
 
 export interface Conversation {
@@ -203,6 +211,7 @@ export const DEFAULT_PERSONALITIES: AIPersonality[] = [
     description: "Best for conceptual clarity",
     icon: "🎓",
     tool_web_search: true,
+    tool_chain_of_thought: true,
   },
   {
     id: "groq-analyst",
@@ -212,6 +221,16 @@ export const DEFAULT_PERSONALITIES: AIPersonality[] = [
     description: "Deep analysis and insights",
     icon: "🧠",
     tool_web_search: true,
+  },
+  {
+    id: "deepseek-reasoner",
+    name: "DeepSeek Reasoner",
+    model: "deepseek-r1-distill-llama-70b",
+    systemInstructions: "You are a deep reasoning assistant. Show your full thought process and solve complex problems systematically.",
+    description: "Deepest reasoning and CoT",
+    icon: "🔬",
+    tool_web_search: true,
+    tool_chain_of_thought: true,
   },
   {
     id: "problem-solver",

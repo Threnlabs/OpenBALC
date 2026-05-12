@@ -40,6 +40,7 @@ export async function sendQuestion(
     anthropicApiKey?: string | null;
     googleApiKey?: string | null;
     xaiApiKey?: string | null;
+    onProgress?: (steps: { id: string, type: any, status: any, label: string, detail?: string }[]) => void;
   },
   signal?: AbortSignal
 ): Promise<{
@@ -67,15 +68,34 @@ export async function sendQuestion(
     console.log("Attachments processed for LLM:", processedAttachments.length);
   }
 
+  const steps: { id: string, type: any, status: any, label: string, detail?: string }[] = [];
+  const reportProgress = () => payload.onProgress?.([...steps]);
+
   // ── Content Bank Tool ──────────────────────────────────────────────────────
   let contentBankItems: ContentBankItem[] = [];
   let contentBankContext: string | undefined;
 
   if (payload.useContentBank !== false) {
-    const subject = payload.subject !== "General" ? payload.subject : undefined;
-    const cbResult = await autoFetchContentBankContext(payload.question, subject);
-    contentBankItems = cbResult.items;
-    contentBankContext = cbResult.context || undefined;
+    const stepId = "cb-" + Date.now();
+    steps.push({ id: stepId, type: 'content_bank', status: 'active', label: 'Knowledge Base', detail: 'Searching curriculum...' });
+    reportProgress();
+    
+    try {
+      const subject = payload.subject !== "General" ? payload.subject : undefined;
+      const cbResult = await autoFetchContentBankContext(payload.question, subject);
+      contentBankItems = cbResult.items;
+      contentBankContext = cbResult.context || undefined;
+      
+      const step = steps.find(s => s.id === stepId);
+      if (step) {
+        step.status = 'done';
+        step.detail = `Found ${contentBankItems.length} relevant sections`;
+      }
+    } catch (e) {
+      const step = steps.find(s => s.id === stepId);
+      if (step) step.status = 'error';
+    }
+    reportProgress();
   }
 
   // ── Web Search Tool ────────────────────────────────────────────────────────
@@ -83,10 +103,31 @@ export async function sendQuestion(
   let webSearchContext: string | undefined;
 
   if (payload.useWebSearch) {
-    const searchResponse = await runWebSearch(payload.question);
-    webSearch = searchResponse;
-    webSearchContext = formatSearchContextForPrompt(searchResponse);
+    const stepId = "ws-" + Date.now();
+    steps.push({ id: stepId, type: 'web_search', status: 'active', label: 'Web Research', detail: 'Searching the web...' });
+    reportProgress();
+
+    try {
+      const searchResponse = await runWebSearch(payload.question);
+      webSearch = searchResponse;
+      webSearchContext = formatSearchContextForPrompt(searchResponse);
+      
+      const step = steps.find(s => s.id === stepId);
+      if (step) {
+        step.status = 'done';
+        step.detail = `Analyzed ${webSearch.results?.length || 0} sources`;
+      }
+    } catch (e) {
+      const step = steps.find(s => s.id === stepId);
+      if (step) step.status = 'error';
+    }
+    reportProgress();
   }
+
+  // ── AI Reasoning Step ─────────────────────────────────────────────────────
+  const reasoningStepId = "ai-" + Date.now();
+  steps.push({ id: reasoningStepId, type: 'ai_reasoning', status: 'active', label: 'AI Reasoning', detail: 'Generating response...' });
+  reportProgress();
 
   // ── Route to Backend ──────────────────────────────────────────────────────
   const API_URL = (import.meta.env.VITE_BACKEND_URL || "http://localhost:8000") + "/api/benchrex/chat";
@@ -106,7 +147,9 @@ export async function sendQuestion(
     history: payload.history,
     subject: payload.subject,
     system_instructions: payload.systemInstructions,
-    model_override: payload.mode,
+    student_id: payload.student_id,
+    no_of_sources: (contentBankItems?.length || 0) + (webSearch?.results?.length || 0),
+    no_of_tools: (payload.useCalendar ? 1 : 0) + (payload.useWebSearch ? 1 : 0),
   };
 
   console.log("[API] Sending request to backend:", { url: API_URL, body: requestBody });
@@ -121,12 +164,23 @@ export async function sendQuestion(
   });
 
   if (!response.ok) {
+    const reasoningStep = steps.find(s => s.id === reasoningStepId);
+    if (reasoningStep) reasoningStep.status = 'error';
+    reportProgress();
+
     const err = await response.json().catch(() => ({ detail: "Chat failed" }));
     console.error("[API] Backend error:", { status: response.status, err });
     throw new Error(err.detail || `AI call failed: ${response.status}`);
   }
 
   const result = await response.json();
+  
+  const reasoningStep = steps.find(s => s.id === reasoningStepId);
+  if (reasoningStep) {
+    reasoningStep.status = 'done';
+    reasoningStep.detail = 'Response complete';
+  }
+  reportProgress();
   console.log("[API] Backend response received:", result);
 
   return { 

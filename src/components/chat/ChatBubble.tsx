@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "benchrex/components/ui/collapsible";
-import { ChevronDown, BookOpen, Copy, Check, Pin, ThumbsUp, ThumbsDown, Loader2, UserCircle, FileText, Music, Download, ExternalLink, BrainCircuit, Sparkles, Undo2, CheckCircle2, AlertCircle, Shield } from "lucide-react";
+import { ChevronDown, BookOpen, Copy, Check, Pin, ThumbsUp, ThumbsDown, UserCircle, FileText, Music, Download, ExternalLink, Sparkles, Undo2, Share2, Trash2, BrainCircuit, CheckCircle2, Loader2, AlertCircle, Shield } from "lucide-react";
 import { Badge } from "benchrex/components/ui/badge";
 import { Button } from "benchrex/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "benchrex/components/ui/tooltip";
@@ -114,22 +114,64 @@ const ChatBubble = ({ message, index, onPin, onFeedback, onAskExpert, onAcceptAc
           </div>
         )}
 
-        {/* Reasoning / Chain of Thought (Outside padding) */}
-        {!isUser && message.reasoning && (
+        {/* Reasoning / Chain of Thought / Thought Process */}
+        {!isUser && (message.reasoning || message.thoughtProcess) && (
           <div className="mb-3 w-full px-1">
-            <Collapsible>
+            <Collapsible defaultOpen={!!message.thoughtProcess?.some(p => p.status === 'active')}>
               <CollapsibleTrigger className="flex items-center gap-2 text-xs font-medium text-primary/70 hover:text-primary transition-colors group">
                 <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                  <Sparkles className="h-3 w-3 text-primary" />
+                  <BrainCircuit className="h-3 w-3 text-primary animate-pulse" />
                 </div>
-                Show thinking
+                {message.thoughtProcess?.some(p => p.status === 'active') ? 'Processing...' : 'Show thinking'}
                 <ChevronDown className="h-3.5 w-3.5 transition-transform [[data-state=open]>&]:rotate-180" />
               </CollapsibleTrigger>
               <CollapsibleContent>
-                <div className="mt-3 rounded-2xl bg-muted/30 border border-border/50 p-5 shadow-sm">
-                  <div className="prose prose-sm prose-p:text-muted-foreground text-muted-foreground italic text-[13px] leading-relaxed">
-                    {message.reasoning}
-                  </div>
+                <div className="mt-3 rounded-2xl bg-muted/30 border border-border/50 p-5 shadow-sm space-y-4">
+                  {message.thoughtProcess && message.thoughtProcess.length > 0 && (
+                    <div className="space-y-3">
+                      {message.thoughtProcess.map((step) => (
+                        <motion.div 
+                          key={step.id}
+                          initial={{ opacity: 0, x: -5 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className="flex items-start gap-3"
+                        >
+                          <div className={`mt-0.5 h-4 w-4 rounded-full flex items-center justify-center shrink-0 ${
+                            step.status === 'done' ? 'bg-green-500/20 text-green-600' :
+                            step.status === 'active' ? 'bg-blue-500/20 text-blue-600' :
+                            step.status === 'error' ? 'bg-red-500/20 text-red-600' :
+                            'bg-zinc-200 dark:bg-zinc-800 text-zinc-400'
+                          }`}>
+                            {step.status === 'done' ? <CheckCircle2 className="h-2.5 w-2.5" /> :
+                             step.status === 'active' ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> :
+                             step.status === 'error' ? <AlertCircle className="h-2.5 w-2.5" /> :
+                             <div className="h-1 w-1 rounded-full bg-current" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-[11px] font-bold uppercase tracking-wider ${
+                              step.status === 'active' ? 'text-primary' : 'text-muted-foreground'
+                            }`}>
+                              {step.label}
+                            </p>
+                            {step.detail && (
+                              <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-2 italic">
+                                {step.detail}
+                              </p>
+                            )}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {message.reasoning && (
+                    <div className={cn(
+                      "prose prose-sm prose-p:text-muted-foreground text-muted-foreground italic text-[13px] leading-relaxed",
+                      message.thoughtProcess && "pt-4 border-t border-border/50"
+                    )}>
+                      {message.reasoning}
+                    </div>
+                  )}
                 </div>
               </CollapsibleContent>
             </Collapsible>

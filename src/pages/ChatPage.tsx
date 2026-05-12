@@ -44,6 +44,7 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
     requestExpert,
     markAsRead,
     activeModel,
+    updateMessage,
   } = useApp();
 
   const [selectedPersonalityId, setSelectedPersonalityId] = useState("");
@@ -162,8 +163,27 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
     }
 
     if (messageRole === "user") {
+      const personality = personalities.find(p => p.id === selectedPersonalityId);
+      const aiMsgId = crypto.randomUUID();
+      
+      // Create initial AI thinking message if CoT is enabled
+      const showCoT = personality?.tool_chain_of_thought;
+      
+      if (showCoT) {
+        const initialAiMsg: Message = {
+          id: aiMsgId,
+          role: "ai",
+          content: "",
+          timestamp: Date.now(),
+          personalityIcon: personality?.icon,
+          personalityId: selectedPersonalityId,
+          tags: personality ? [personality.name] : [],
+          thoughtProcess: [],
+        };
+        addMessage(convId, initialAiMsg);
+      }
+
       try {
-        const personality = personalities.find(p => p.id === selectedPersonalityId);
         console.log("[ChatPage] Sending message:", { 
           content, 
           selectedPersonalityId, 
@@ -203,15 +223,16 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
           useContentBank: true,
           useCalendar: personality?.tool_calendar_mgmt,
           personalityId: selectedPersonalityId,
+          onProgress: (steps) => {
+            if (showCoT) {
+              // Update the existing AI message with current steps
+              updateMessage(convId, aiMsgId, { thoughtProcess: steps });
+            }
+          }
         });
 
-        // Track content bank items for the panel
-        if (result.contentBankItems?.length) {
-          // Tracked in results now
-        }
-
-        const aiMsg: Message = {
-          id: crypto.randomUUID(),
+        const finalAiMsg: Message = {
+          id: aiMsgId,
           role: "ai",
           content: result.answer,
           reasoning: result.reasoning,
@@ -223,8 +244,15 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
           webSearch: result.webSearch,
           contentBankItems: result.contentBankItems,
           aiActionId: result.aiActionId,
+          thoughtProcess: showCoT ? (messages.find(m => m.id === aiMsgId)?.thoughtProcess || []) : undefined
         };
-        addMessage(convId, aiMsg);
+
+        if (showCoT) {
+          // Update the thinking message to final
+          addMessage(convId, finalAiMsg);
+        } else {
+          addMessage(convId, finalAiMsg);
+        }
       } catch (err: any) {
         toast.error(err.message || "Failed to get response");
       } finally {

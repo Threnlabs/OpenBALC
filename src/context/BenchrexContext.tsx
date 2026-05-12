@@ -36,6 +36,7 @@ interface AppContextType extends AppState {
   createConversation: () => Promise<string>;
   setActiveConversation: (id: string | null) => void;
   addMessage: (convId: string, msg: Conversation["messages"][0]) => Promise<void>;
+  updateMessage: (convId: string, msgId: string, patch: Partial<Conversation["messages"][0]>) => void;
   updateTopics: (topics: Topic[]) => void;
   togglePinConversation: (id: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
@@ -253,6 +254,22 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     }
   }, [state.user?.id, state.conversations]);
 
+  const updateMessage = React.useCallback((convId: string, msgId: string, patch: Partial<Conversation["messages"][0]>) => {
+    setState((s) => ({
+      ...s,
+      conversations: s.conversations.map((c) =>
+        c.id === convId
+          ? {
+              ...c,
+              messages: c.messages.map((m) =>
+                m.id === msgId ? { ...m, ...patch } : m
+              ),
+            }
+          : c
+      ),
+    }));
+  }, []);
+
 
   // Sync auth state with Supabase
   useEffect(() => {
@@ -398,7 +415,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     try {
       const { data: personas, error } = await supabase
         .from("personalities")
-        .select("id, name, model, system_instructions, description, icon, tool_web_search, tool_calendar_mgmt")
+        .select("id, name, model, system_instructions, description, icon, tool_web_search, tool_calendar_mgmt, tool_chain_of_thought")
         .order("name", { ascending: true });
 
       if (error) throw error;
@@ -416,6 +433,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
           tool_code_interpreter: p.tool_code_interpreter,
           tool_image_gen: p.tool_image_gen,
           tool_calendar_mgmt: p.tool_calendar_mgmt,
+          tool_chain_of_thought: p.tool_chain_of_thought,
           apiKey: p.api_key,
         }));
         setState(s => ({ ...s, personalities: mapped }));
@@ -1062,6 +1080,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     loadPersonalities,
     setActiveModel,
     setSelectedStudentId,
+    updateMessage,
   }), [
     state,
     login,
@@ -1089,6 +1108,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     loadPersonalities,
     setActiveModel,
     setSelectedStudentId,
+    updateMessage,
   ]);
 
   return (
