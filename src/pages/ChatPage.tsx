@@ -23,7 +23,10 @@ interface ChatPageProps {
   isEmbedded?: boolean;
 }
 
+const backendUrl = (import.meta.env.VITE_BACKEND_URL || "http://localhost:8000").replace(/\/$/, "");
+
 const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
+
   const isMobile = useIsMobile();
   const {
     activeConversationId,
@@ -294,7 +297,7 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
   const handleAcceptAction = async (actionId: string) => {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
-    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || "http://localhost:8000"}/api/ai/action/accept?action_id=${actionId}`, {
+    const response = await fetch(`${backendUrl}/api/ai/action/accept?action_id=${actionId}`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${token}`
@@ -306,7 +309,7 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
   const handleUndoAction = async (actionId: string) => {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
-    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || "http://localhost:8000"}/api/ai/action/undo?action_id=${actionId}`, {
+    const response = await fetch(`${backendUrl}/api/ai/action/undo?action_id=${actionId}`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${token}`

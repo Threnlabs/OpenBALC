@@ -130,7 +130,9 @@ export async function sendQuestion(
   reportProgress();
 
   // ── Route to Backend ──────────────────────────────────────────────────────
-  const API_URL = (import.meta.env.VITE_BACKEND_URL || "http://localhost:8000") + "/api/benchrex/chat";
+  const backendUrl = (import.meta.env.VITE_BACKEND_URL || "http://localhost:8000").replace(/\/$/, "");
+  const API_URL = backendUrl + "/api/benchrex/chat";
+
   
   // Combine contexts for the prompt
   let enrichedQuestion = payload.question;
