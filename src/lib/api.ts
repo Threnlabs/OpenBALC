@@ -64,7 +64,7 @@ export async function sendQuestion(
       )
     : undefined;
 
-  if (processedAttachments) {
+  if (processedAttachments && import.meta.env.DEV) {
     console.log("Attachments processed for LLM:", processedAttachments.length);
   }
 
@@ -154,7 +154,9 @@ export async function sendQuestion(
     no_of_tools: (payload.useCalendar ? 1 : 0) + (payload.useWebSearch ? 1 : 0),
   };
 
-  console.log("[API] Sending request to backend:", { url: API_URL, body: requestBody });
+  if (import.meta.env.DEV) {
+    console.log("[API] Sending request to backend:", { url: API_URL, body: requestBody });
+  }
 
   const response = await fetch(API_URL, {
     method: "POST",
@@ -171,7 +173,9 @@ export async function sendQuestion(
     reportProgress();
 
     const err = await response.json().catch(() => ({ detail: "Chat failed" }));
-    console.error("[API] Backend error:", { status: response.status, err });
+    if (import.meta.env.DEV) {
+      console.error("[API] Backend error:", { status: response.status, err });
+    }
     throw new Error(err.detail || `AI call failed: ${response.status}`);
   }
 
@@ -183,7 +187,9 @@ export async function sendQuestion(
     reasoningStep.detail = 'Response complete';
   }
   reportProgress();
-  console.log("[API] Backend response received:", result);
+  if (import.meta.env.DEV) {
+    console.log("[API] Backend response received:", result);
+  }
 
   return { 
     answer: result.answer, 
