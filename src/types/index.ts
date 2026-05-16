@@ -250,6 +250,24 @@ export const DEFAULT_PERSONALITIES: AIPersonality[] = [
     icon: "🎯",
     tool_web_search: true,
   },
+  {
+    id: "calendar-assistant",
+    name: "Calendar Assistant",
+    model: "llama-3.3-70b-versatile",
+    systemInstructions: "You are the UIAF Calendar Maestro. Manage schedules and resolve conflicts with precision.",
+    description: "Expert in scheduling and event management",
+    icon: "📅",
+    tool_calendar_mgmt: true,
+  },
+  {
+    id: "content-parser",
+    name: "Content Parser",
+    model: "llama-3.3-70b-versatile",
+    systemInstructions: "You are the UIAF Smart Content Architect. Transform raw knowledge into structured digital assets.",
+    description: "Specialized in structuring educational documents",
+    icon: "📂",
+    tool_calendar_mgmt: false,
+  },
 ];
 
 export const NOTE_COLORS = [
