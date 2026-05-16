@@ -356,8 +356,8 @@ const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonal
                 </div>
               </SelectTrigger>
               <SelectContent className="rounded-2xl border-border/50 shadow-2xl backdrop-blur-xl">
-                {personalities.length > 0 ? (
-                  personalities.map((p) => (
+                {personalities.filter(p => p.category !== 'utility').length > 0 ? (
+                  personalities.filter(p => p.category !== 'utility').map((p) => (
                     <SelectItem key={p.id} value={p.id} className="rounded-xl m-1">
                       <div className="flex items-center gap-3 py-1">
                         <span className="text-xl">{p.icon}</span>

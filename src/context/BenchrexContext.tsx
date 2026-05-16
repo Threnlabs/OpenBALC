@@ -416,7 +416,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     try {
       const { data: personas, error } = await supabase
         .from("personalities")
-        .select("id, name, model, system_instructions, description, icon, tool_web_search, tool_calendar_mgmt, tool_chain_of_thought")
+        .select("id, name, model, system_instructions, description, icon, tool_web_search, tool_calendar_mgmt, tool_chain_of_thought, category")
         .order("name", { ascending: true });
 
       if (error) throw error;
@@ -435,6 +435,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
           tool_image_gen: p.tool_image_gen,
           tool_calendar_mgmt: p.tool_calendar_mgmt,
           tool_chain_of_thought: p.tool_chain_of_thought,
+          category: p.category,
           apiKey: p.api_key,
         }));
         setState(s => ({ ...s, personalities: mapped }));

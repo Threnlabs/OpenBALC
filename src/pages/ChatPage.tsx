@@ -92,8 +92,11 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
 
   // Set initial personality if not set
   useEffect(() => {
-    if (personalities.length > 0 && (!selectedPersonalityId || !personalities.find(p => p.id === selectedPersonalityId))) {
-      setSelectedPersonalityId(personalities[0].id);
+    if (personalities.length > 0) {
+      const visiblePersonas = personalities.filter(p => p.category !== 'utility');
+      if (visiblePersonas.length > 0 && (!selectedPersonalityId || !visiblePersonas.find(p => p.id === selectedPersonalityId))) {
+        setSelectedPersonalityId(visiblePersonas[0].id);
+      }
     }
   }, [personalities, selectedPersonalityId]);
 

@@ -11,6 +11,7 @@ export interface AIPersonality {
   tool_calendar_mgmt?: boolean;
   tool_knowledge_retrieval?: boolean;
   tool_chain_of_thought?: boolean;
+  category?: string;
   data_access?: {
     tables: Record<string, boolean>;
     databases?: Record<string, boolean>;
@@ -258,6 +259,7 @@ export const DEFAULT_PERSONALITIES: AIPersonality[] = [
     description: "Expert in scheduling and event management",
     icon: "📅",
     tool_calendar_mgmt: true,
+    category: "utility",
   },
   {
     id: "content-parser",
@@ -267,6 +269,7 @@ export const DEFAULT_PERSONALITIES: AIPersonality[] = [
     description: "Specialized in structuring educational documents",
     icon: "📂",
     tool_calendar_mgmt: false,
+    category: "utility",
   },
 ];
 
