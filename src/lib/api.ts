@@ -1,3 +1,4 @@
+import { supabase } from "./supabase";
 import { sendAIQuestion } from "./groq";
 import { runWebSearch, formatSearchContextForPrompt } from "./tools/webSearch";
 import { autoFetchContentBankContext } from "./tools/contentBank";
@@ -50,6 +51,7 @@ export async function sendQuestion(
   webSearch?: WebSearchMeta;
   contentBankItems?: ContentBankItem[];
   aiActionId?: string;
+  newCredits?: number;
 }> {
   // Pre-process attachments
   const processedAttachments = payload.attachments
@@ -158,11 +160,15 @@ export async function sendQuestion(
     console.log("[API] Sending request to backend:", { url: API_URL, body: requestBody });
   }
 
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+
   const response = await fetch(API_URL, {
     method: "POST",
     signal: signal,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(requestBody),
   });
@@ -197,7 +203,8 @@ export async function sendQuestion(
     sources: result.sources || contentBankItems || [], 
     webSearch: result.webSearch || webSearch, 
     contentBankItems: result.contentBankItems || contentBankItems, 
-    aiActionId: result.aiActionId 
+    aiActionId: result.aiActionId,
+    newCredits: result.new_credits 
   };
 }
 

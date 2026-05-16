@@ -9,6 +9,7 @@ import LoginPage from "./pages/LoginPage";
 import ChatPage from "./pages/ChatPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import ProfilePage from "./pages/ProfilePage";
+import BoardPage from "./pages/BoardPage";
 import NotFound from "./pages/NotFound";
 
 import "./index.css";
@@ -33,6 +34,7 @@ const BenchrexApp = () => (
             <Routes>
               <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/board" element={<BoardPage />} />
               <Route path="/" element={<AppShell />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

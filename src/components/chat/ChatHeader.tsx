@@ -162,7 +162,7 @@ const ChatHeader = ({ onNewChat: _onNewChat }: ChatHeaderProps) => {
             <DropdownMenuSeparator />
 
             <DropdownMenuItem asChild className="gap-2">
-              <Link to="/benchrex/profile">
+              <Link to="/profile">
                 <UserIcon className="h-4 w-4" />
                 View Profile
               </Link>
@@ -186,7 +186,7 @@ const ChatHeader = ({ onNewChat: _onNewChat }: ChatHeaderProps) => {
             )}
 
             <DropdownMenuItem asChild className="gap-2">
-              <Link to="/benchrex/privacy">
+              <Link to="/privacy">
                 <ShieldCheck className="h-4 w-4" />
                 Privacy & Consent
               </Link>
@@ -281,7 +281,7 @@ const ChatHeader = ({ onNewChat: _onNewChat }: ChatHeaderProps) => {
                 </div>
 
                 <Button asChild variant="ghost" className="justify-start gap-3 h-11 rounded-xl" onClick={() => setMobileMenuOpen(false)}>
-                  <Link to="/benchrex/profile">
+                  <Link to="/profile">
                     <UserIcon className="h-4 w-4" />
                     View Profile
                   </Link>
@@ -303,7 +303,7 @@ const ChatHeader = ({ onNewChat: _onNewChat }: ChatHeaderProps) => {
                 )}
 
                 <Button asChild variant="ghost" className="justify-start gap-3 h-11 rounded-xl" onClick={() => setMobileMenuOpen(false)}>
-                  <Link to="/benchrex/privacy">
+                  <Link to="/privacy">
                     <ShieldCheck className="h-4 w-4" />
                     Privacy & Consent
                   </Link>

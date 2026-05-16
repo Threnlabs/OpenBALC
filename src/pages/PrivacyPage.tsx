@@ -9,7 +9,7 @@ const PrivacyPage = () => {
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
           <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-            <Link to="/benchrex/" aria-label="Back">
+            <Link to="/" aria-label="Back">
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
@@ -68,7 +68,7 @@ const PrivacyPage = () => {
 
         <div className="pt-4">
           <Button asChild>
-            <Link to="/benchrex/">Back to app</Link>
+            <Link to="/">Back to app</Link>
           </Button>
         </div>
       </main>

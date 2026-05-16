@@ -48,6 +48,7 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
     markAsRead,
     activeModel,
     updateMessage,
+    updateCredits,
   } = useApp();
 
   const [selectedPersonalityId, setSelectedPersonalityId] = useState("");
@@ -250,6 +251,10 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
           thoughtProcess: showCoT ? (messages.find(m => m.id === aiMsgId)?.thoughtProcess || []) : undefined
         };
 
+        if (result.newCredits !== undefined) {
+          updateCredits(result.newCredits);
+        }
+
         if (showCoT) {
           // Update the thinking message to final
           addMessage(convId, finalAiMsg);
@@ -385,7 +390,7 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
                     transition={{ delay: 0.2 }}
                   >
                     <h2 className="font-display text-4xl font-bold tracking-tight mb-3">
-                      {isExpert ? "Expert Dashboard" : "Hello! I'm Benchrex"}
+                      {isExpert ? "Expert Dashboard" : `Hello ${user?.name || "Student"}!`}
                     </h2>
                     <p className="text-muted-foreground max-w-sm mb-10 text-lg leading-relaxed">
                       {isExpert 

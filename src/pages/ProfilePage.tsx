@@ -44,7 +44,7 @@ const ProfilePage = () => {
   const [confirm, setConfirm] = useState("");
 
   if (!user) {
-    navigate("/benchrex");
+    navigate("/");
     return null;
   }
 
@@ -77,7 +77,7 @@ const ProfilePage = () => {
             variant="ghost"
             size="sm"
             className="gap-2"
-            onClick={() => navigate("/benchrex")}
+            onClick={() => navigate("/")}
           >
             <ChevronLeft className="h-4 w-4" />
             Back to App
@@ -146,7 +146,7 @@ const ProfilePage = () => {
                     className="flex-1 gap-2 h-11"
                     onClick={() => {
                       logout();
-                      navigate("/benchrex");
+                      navigate("/");
                     }}
                   >
                     <LogOut className="h-4 w-4" /> Logout

@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "benchrex/components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 
 interface ChatInputProps {
   onSend: (question: string, tags: string[], topicMentions: string[], systemInstructions: string, attachments?: Attachment[], knowledgeTags?: string[], useKnowledgeRetrieval?: boolean) => void;
@@ -105,15 +106,18 @@ const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonal
       closePicker();
       return;
     }
-    setTrigger(t);
+    setTrigger(null);
     setTriggerPos(idx);
     setQuery(afterTrigger);
     
+    // Feature disabled - showing toast on send instead
+    /*
     if (t === "@/") {
       setLevel("files");
     } else {
       setLevel("subject");
     }
+    */
   };
 
   const insertChipAtTrigger = (label: string) => {
@@ -157,6 +161,15 @@ const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonal
 
   const handleSubmit = () => {
     if (!text.trim() && topicMentions.length === 0 && attachments.length === 0) return;
+    
+    // Check for mapping triggers (@ or /) to show maintenance message
+    if (/(^|\s)[@/]/.test(text)) {
+      toast.info("Course and files mapping feature is currently under maintenance", {
+        description: "We are working on bringing this feature to you soon!",
+        duration: 4000,
+      });
+    }
+
     const personality = personalities.find(p => p.id === selectedPersonalityId);
     const tags = personality ? [personality.name] : [];
     const personalityInstructions = personality ? personality.systemInstructions : "";
@@ -372,82 +385,19 @@ const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonal
                 value={text}
                 onChange={(e) => handleTextChange(e.target.value, e.target.selectionStart ?? e.target.value.length)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask me anything... (use @ or / or @/ for files)"
+                placeholder="Ask me anything..."
                 disabled={disabled}
                 rows={1}
                 className="w-full resize-none bg-transparent py-2.5 text-sm outline-none placeholder:text-muted-foreground/60 disabled:opacity-50 font-medium"
                 style={{ maxHeight: "150px", overflowY: "auto" }}
               />
 
-              {/* Hierarchical Picker Floating */}
-              <AnimatePresence>
+              {/* Hierarchical Picker Floating - Disabled for Maintenance */}
+              {/* <AnimatePresence>
                 {trigger && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute bottom-full left-0 mb-4 w-80 rounded-2xl border border-border/50 bg-card/80 backdrop-blur-2xl shadow-2xl z-50 overflow-hidden ring-1 ring-white/10"
-                  >
-                    <div className="flex items-center gap-2 border-b border-border/30 bg-muted/30 px-3 py-2.5">
-                      {trigger === "@" ? <AtSign className="h-3.5 w-3.5 text-primary" /> : <Hash className="h-3.5 w-3.5 text-primary" />}
-                      <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest overflow-hidden">
-                        <button className="hover:text-primary transition-colors truncate" onClick={() => { setLevel("subject"); setPickedSubject(null); setPickedChapter(null); }}>Subjects</button>
-                        {pickedSubject && (
-                          <>
-                            <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                            <button className="hover:text-primary transition-colors truncate" onClick={() => { setLevel("chapter"); setPickedChapter(null); }}>{pickedSubject}</button>
-                          </>
-                        )}
-                      </div>
-                      <button onClick={closePicker} className="ml-auto hover:text-destructive transition-colors"><X className="h-3.5 w-3.5" /></button>
-                    </div>
-
-                    <div className="max-h-64 overflow-y-auto p-1.5 custom-scrollbar">
-                      {level === "subject" && filteredSubjects.map((s) => (
-                        <button key={s.subject} onClick={() => onPickSubject(s.subject)} className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm hover:bg-primary/5 group transition-all">
-                          <span className="font-semibold text-foreground/90 group-hover:text-primary transition-colors">{s.subject}</span>
-                          <span className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground bg-muted/50 rounded-lg px-2 py-0.5 group-hover:bg-primary/10 group-hover:text-primary transition-all">
-                            {s.chapters.length} <ChevronRight className="h-2.5 w-2.5" />
-                          </span>
-                        </button>
-                      ))}
-                      {level === "chapter" && filteredChapters.map((c) => (
-                        <button key={c.id} onClick={() => onPickChapter(c)} className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm hover:bg-primary/5 group transition-all">
-                          <span className="font-medium">{c.chapter}</span>
-                          {c.sections && c.sections.length > 0 && (
-                            <span className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground group-hover:text-primary">
-                              {c.sections.length} <ChevronRight className="h-3 w-3" />
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                      {level === "section" && filteredSections.map((sec) => (
-                        <button key={sec.id} onClick={() => onPickSection(sec)} className="w-full rounded-xl px-3 py-2.5 text-left text-sm hover:bg-primary/5 transition-all font-medium">
-                          {sec.name}
-                        </button>
-                      ))}
-                      {level === "files" && KnowledgeService.getLookup().filter(f => f.name.toLowerCase().includes(lowerQ)).map((f) => (
-                        <button 
-                          key={f.id} 
-                          onClick={() => {
-                            if (!knowledgeTags.includes(f.name)) {
-                              setKnowledgeTags(prev => [...prev, f.name]);
-                            }
-                            closePicker();
-                          }} 
-                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-emerald-500/5 group transition-all"
-                        >
-                          <FileText className="h-4 w-4 text-emerald-500" />
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-foreground/90 group-hover:text-emerald-500 transition-colors">{f.name}</span>
-                            <span className="text-[8px] text-muted-foreground uppercase font-black">{f.path}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </motion.div>
+                  ... (picker content)
                 )}
-              </AnimatePresence>
+              </AnimatePresence> */}
             </div>
 
             {/* Actions */}

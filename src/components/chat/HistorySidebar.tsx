@@ -83,7 +83,7 @@ const HistorySidebar = ({ onClose }: HistorySidebarProps) => {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="block truncate font-bold text-[13px]">{c.title || "Untitled Chat"}</span>
+            <span className="block whitespace-normal break-words font-bold text-[13px] leading-tight">{c.title || "Untitled Chat"}</span>
             {c.pinned && <Pin className="h-2.5 w-2.5 text-primary shrink-0 fill-primary/20" />}
           </div>
           <div className="flex items-center gap-2">
@@ -226,8 +226,8 @@ const HistorySidebar = ({ onClose }: HistorySidebarProps) => {
                       {student.name.slice(0, 2)}
                     </div>
                     <div className="flex-1 text-left min-w-0">
-                      <p className="font-bold text-xs truncate">{student.name}</p>
-                      <p className="text-[10px] opacity-50 truncate">{student.email}</p>
+                      <p className="font-bold text-xs whitespace-normal break-words">{student.name}</p>
+                      <p className="text-[10px] opacity-50 whitespace-normal break-all">{student.email}</p>
                       <div className="flex gap-1 mt-1">
                         <span className="px-1.5 py-0.5 rounded-md bg-muted text-[8px] font-black uppercase">{student.course?.name || 'General'}</span>
                         <span className="px-1.5 py-0.5 rounded-md bg-muted text-[8px] font-black uppercase">{student.batch?.name || 'Default'}</span>

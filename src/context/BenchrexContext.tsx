@@ -42,6 +42,7 @@ interface AppContextType extends AppState {
   deleteConversation: (id: string) => Promise<void>;
   setMessageFeedback: (convId: string, msgId: string, feedback: Feedback) => Promise<void>;
   decrementCredits: (n?: number) => void;
+  updateCredits: (n: number) => void;
   addNote: (note: BoardNote) => Promise<void>;
   updateNote: (id: string, patch: Partial<BoardNote>) => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
@@ -904,6 +905,12 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         ? { ...s.user, credits: Math.max(0, s.user.credits - n) }
         : null,
     }));
+    
+  const updateCredits = (n: number) =>
+    setState((s) => ({
+      ...s,
+      user: s.user ? { ...s.user, credits: n } : null,
+    }));
 
   const addNote = React.useCallback(async (note: BoardNote) => {
     // Update local state
@@ -1081,6 +1088,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     setActiveModel,
     setSelectedStudentId,
     updateMessage,
+    updateCredits,
   }), [
     state,
     login,
@@ -1109,6 +1117,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     setActiveModel,
     setSelectedStudentId,
     updateMessage,
+    updateCredits,
   ]);
 
   return (
