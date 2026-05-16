@@ -1,12 +1,12 @@
 import React, { useState } from "react";
-import { useApp } from "benchrex/context/BenchrexContext";
-import { Button } from "benchrex/components/ui/button";
-import { Input } from "benchrex/components/ui/input";
-import { Textarea } from "benchrex/components/ui/textarea";
+import { useApp } from "../../context/BenchrexContext";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Textarea } from "../../components/ui/textarea";
 import { X, Plus, Trash2, StickyNote, Maximize2, Minimize2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { BoardNote } from "benchrex/types";
-import { NOTE_COLORS } from "benchrex/types";
+import type { BoardNote } from "../../types";
+import { NOTE_COLORS } from "../../types";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from "benchrex/components/ui/dialog";
+} from "../../components/ui/dialog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 

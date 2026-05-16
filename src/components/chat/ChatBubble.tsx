@@ -1,13 +1,13 @@
 import React, { useState } from "react";
-import type { Message } from "benchrex/types";
+import type { Message } from "../../types";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "benchrex/components/ui/collapsible";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "../../components/ui/collapsible";
 import { ChevronDown, BookOpen, Copy, Check, Pin, ThumbsUp, ThumbsDown, UserCircle, FileText, Music, Download, ExternalLink, Sparkles, Undo2, Share2, Trash2, BrainCircuit, CheckCircle2, Loader2, AlertCircle, Shield } from "lucide-react";
-import { Badge } from "benchrex/components/ui/badge";
-import { Button } from "benchrex/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "benchrex/components/ui/tooltip";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../components/ui/tooltip";
 import { toast } from "sonner";
 import SearchResultsCard from "./SearchResultsCard";
 

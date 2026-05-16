@@ -1,15 +1,16 @@
 import { BrowserRouter } from "react-router-dom";
-import { Toaster } from "./components/ui/toaster";
-import { Toaster as Sonner } from "./components/ui/sonner";
-import { TooltipProvider } from "./components/ui/tooltip";
+import { Toaster } from "benchrex/components/ui/toaster";
+import { Sonner } from "benchrex/components/ui/sonner";
+import { TooltipProvider } from "benchrex/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Routes, Route } from "react-router-dom";
-import { BenchrexProvider, useApp } from "./context/BenchrexContext";
-import LoginPage from "./pages/LoginPage";
-import ChatPage from "./pages/ChatPage";
-import PrivacyPage from "./pages/PrivacyPage";
-import ProfilePage from "./pages/ProfilePage";
-import BoardPage from "./pages/BoardPage";
+import { ScholarsAnchorProvider, useApp } from "benchrex/context/BenchrexContext";
+import LoginPage from "benchrex/pages/LoginPage";
+import ChatPage from "benchrex/pages/ChatPage";
+import PrivacyPage from "benchrex/pages/PrivacyPage";
+import SetupPage from "benchrex/pages/SetupPage";
+import ProfilePage from "benchrex/pages/ProfilePage";
+import BoardPage from "benchrex/pages/BoardPage";
 import NotFound from "./pages/NotFound";
 
 import "./index.css";
@@ -22,13 +23,13 @@ const AppShell = () => {
   return <ChatPage />;
 };
 
-const BenchrexApp = () => (
+const ScholarsAnchorApp = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BenchrexProvider>
-        <div className="benchrex-app-root">
+      <ScholarsAnchorProvider>
+        <div className="scholarsanchor-app-root">
           <div className="gradient-bg" />
           <BrowserRouter>
             <Routes>
@@ -40,9 +41,9 @@ const BenchrexApp = () => (
             </Routes>
           </BrowserRouter>
         </div>
-      </BenchrexProvider>
+      </ScholarsAnchorProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
 
-export default BenchrexApp;
+export default ScholarsAnchorApp;

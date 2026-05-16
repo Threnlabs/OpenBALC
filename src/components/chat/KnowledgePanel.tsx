@@ -1,15 +1,15 @@
 import React, { useState, useMemo } from "react";
-import { useApp } from "benchrex/context/BenchrexContext";
-import { Button } from "benchrex/components/ui/button";
+import { useApp } from "../../context/BenchrexContext";
+import { Button } from "../../components/ui/button";
 import { X, FileText, FileCode, ChevronLeft, Download, ExternalLink, Search, Globe, BookOpen, Layers, Folder, Save, Edit3 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Badge } from "benchrex/components/ui/badge";
-import { Input } from "benchrex/components/ui/input";
-import type { Message, Attachment, WebSearchResult, Source } from "benchrex/types";
+import { Badge } from "../../components/ui/badge";
+import { Input } from "../../components/ui/input";
+import type { Message, Attachment, WebSearchResult, Source } from "../../types";
 import { supabase } from "@/lib/supabase";
-import { cn } from "benchrex/lib/utils";
+import { cn } from "../../lib/utils";
 
 interface KnowledgePanelProps {
   onClose: () => void;

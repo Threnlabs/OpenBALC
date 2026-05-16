@@ -9,7 +9,7 @@ export interface KnowledgeNode {
 }
 
 export class KnowledgeService {
-  private static LOOKUP_KEY = "benchrex_knowledge_lookup";
+  private static LOOKUP_KEY = "scholarsanchor_knowledge_lookup";
 
   static async syncLookup() {
     console.log("Syncing knowledge lookup...");

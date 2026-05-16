@@ -11,6 +11,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
+      'scholarsanchor': path.resolve(__dirname, './src'),
       'benchrex': path.resolve(__dirname, './src'),
       '@': path.resolve(__dirname, './src'),
     },

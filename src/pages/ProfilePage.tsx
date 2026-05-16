@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useApp } from "benchrex/context/BenchrexContext";
-import { Button } from "benchrex/components/ui/button";
-import { Input } from "benchrex/components/ui/input";
-import { Label } from "benchrex/components/ui/label";
-import { Separator } from "benchrex/components/ui/separator";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "benchrex/components/ui/card";
-import { toast } from "benchrex/hooks/use-toast";
+import { useApp } from "../context/BenchrexContext";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Separator } from "../components/ui/separator";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
+import { toast } from "../hooks/use-toast";
 import {
   User, Mail, GraduationCap, BookOpen, Users,
   Sparkles, KeyRound, ChevronLeft, LogOut

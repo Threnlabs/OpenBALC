@@ -383,7 +383,7 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
                   >
                     <div className="absolute -inset-8 bg-primary/10 blur-3xl rounded-full animate-pulse" />
                     <div className="relative h-24 w-24 rounded-[2rem] overflow-hidden flex items-center justify-center shadow-2xl rotate-3">
-                      <img src="/logo.png" alt="Benchrex" className="h-full w-full object-cover" />
+                      <img src="/logo.png" alt="ScholarsAnchor" className="h-full w-full object-cover" />
                     </div>
                   </motion.div>
 

@@ -26,6 +26,7 @@
     "baseUrl": ".",
 
     "paths": {
+      "scholarsanchor/*": ["./src/*"],
       "benchrex/*": ["./src/*"],
       "@/*": ["./src/*"]
     }

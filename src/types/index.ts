@@ -43,7 +43,7 @@ export interface UserProfile {
   setupComplete: boolean;
   credits: number;
   team_id: string;
-  schema: 'public' | 'benchrex';
+  schema: 'public' | 'scholarsanchor';
 }
 
 export interface TopicSection {
@@ -255,7 +255,7 @@ export const DEFAULT_PERSONALITIES: AIPersonality[] = [
     id: "calendar-assistant",
     name: "Calendar Assistant",
     model: "llama-3.3-70b-versatile",
-    systemInstructions: "You are the UIAF Calendar Maestro. Manage schedules and resolve conflicts with precision.",
+    systemInstructions: "You are the ScholarsAnchor Calendar Maestro. Manage schedules and resolve conflicts with precision.",
     description: "Expert in scheduling and event management",
     icon: "📅",
     tool_calendar_mgmt: true,
@@ -265,7 +265,7 @@ export const DEFAULT_PERSONALITIES: AIPersonality[] = [
     id: "content-parser",
     name: "Content Parser",
     model: "llama-3.3-70b-versatile",
-    systemInstructions: "You are the UIAF Smart Content Architect. Transform raw knowledge into structured digital assets.",
+    systemInstructions: "You are the ScholarsAnchor Smart Content Architect. Transform raw knowledge into structured digital assets.",
     description: "Specialized in structuring educational documents",
     icon: "📂",
     tool_calendar_mgmt: false,

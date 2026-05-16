@@ -10,7 +10,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   auth: {
     persistSession: true,
-    storageKey: 'benchrex-auth',
+    storageKey: 'scholarsanchor-auth',
     storage: window.localStorage,
     autoRefreshToken: true,
     detectSessionInUrl: false,

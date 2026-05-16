@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { useApp } from "benchrex/context/BenchrexContext";
-import { Button } from "benchrex/components/ui/button";
+import { useApp } from "../../context/BenchrexContext";
+import { Button } from "../../components/ui/button";
 import { X, MessageSquare, Pin, Trash2, PinOff, Plus, Search, Calendar } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ScrollArea } from "benchrex/components/ui/scroll-area";
-import { cn } from "benchrex/lib/utils";
+import { ScrollArea } from "../../components/ui/scroll-area";
+import { cn } from "../../lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,8 +14,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "benchrex/components/ui/alert-dialog";
-import type { Conversation } from "benchrex/types";
+} from "../../components/ui/alert-dialog";
+import type { Conversation } from "../../types";
 
 interface HistorySidebarProps {
   onClose: () => void;

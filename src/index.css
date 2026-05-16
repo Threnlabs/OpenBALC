@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
-@import "./benchrex.css";
+@import "./scholarsanchor.css";
 @config "../tailwind.config.js";
 
 @plugin "tailwindcss-animate";
@@ -101,7 +101,7 @@
   background: hsl(var(--muted-foreground));
 }
 
-.benchrex-app-root {
+.scholarsanchor-app-root {
   height: 100vh;
   width: 100vw;
   overflow: hidden;

@@ -57,7 +57,7 @@ const BenchrexContext = createContext<AppContextType | null>(null);
 
 const DEFAULT_CREDITS = 100;
 
-export function BenchrexProvider({ children, initialActiveConversationId, forcedDarkMode, onDarkModeChange }: { children: ReactNode, initialActiveConversationId?: string | null, forcedDarkMode?: boolean, onDarkModeChange?: (v: boolean) => void }) {
+export function ScholarsAnchorProvider({ children, initialActiveConversationId, forcedDarkMode, onDarkModeChange }: { children: ReactNode, initialActiveConversationId?: string | null, forcedDarkMode?: boolean, onDarkModeChange?: (v: boolean) => void }) {
   const [state, setState] = useState<AppState>(() => {
     // Only restore UI preferences from sessionStorage, NOT conversations/messages
     // Conversations and messages are fetched from Supabase on login
@@ -84,10 +84,10 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
 
   // Use localStorage so all tabs in the same browser share the same session ID
   const [currentSessionId] = useState(() => {
-    const saved = localStorage.getItem("benchrex-session-id");
+    const saved = localStorage.getItem("scholarsanchor-session-id");
     if (saved) return saved;
     const newId = crypto.randomUUID();
-    localStorage.setItem("benchrex-session-id", newId);
+    localStorage.setItem("scholarsanchor-session-id", newId);
     return newId;
   });
 
@@ -283,7 +283,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       console.log("Auth event:", event);
       if (session?.user) {
         // Fetch profile from benchrex_users (portal users)
-        let userSchema: 'public' | 'benchrex' = 'public';
+        let userSchema: 'public' | 'scholarsanchor' = 'public';
         const { data: profile } = await supabase
           .from("benchrex_users")
           .select("*")
@@ -450,7 +450,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       const profile = JSON.parse(localStorage.getItem('admin_profile') || '{}');
       const teamId = profile.team_id;
       let query = supabase
-        .from("benchrex_board_notes")
+        .from("scholarsanchor_board_notes")
         .select("*")
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
@@ -523,7 +523,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         return false;
       }
 
-      // Check if user exists in benchrex_users (Benchrex portal users only)
+      // Check if user exists in benchrex_users (ScholarsAnchor portal users only)
       const { data: bProfileData } = await supabase
         .from("benchrex_users")
         .select("id, team_id")
@@ -533,7 +533,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
       if (!bProfileData) {
         console.warn("User not found in benchrex_users — not authorized");
         await supabase.auth.signOut();
-        toast.error("You do not have access to the Benchrex portal. Please contact your administrator.");
+        toast.error("You do not have access to the ScholarsAnchor portal. Please contact your administrator.");
         return false;
       }
 
@@ -613,7 +613,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     };
   }, [state.user?.id, currentSessionId]);
 
-  // ── Benchrex Realtime ──────────────────────────────────────────────────────
+  // ── ScholarsAnchor Realtime ──────────────────────────────────────────────────────
   // Listen for new messages and conversation updates (unread flags, status changes)
   React.useEffect(() => {
     if (!state.user || state.user.id.startsWith("mock-")) return;
@@ -621,7 +621,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     const userId = state.user.id;
 
     const channel = supabase
-      .channel('benchrex-realtime')
+      .channel('scholarsanchor-realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversations' },
@@ -921,7 +921,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     if (state.user && !state.user.id.startsWith("mock-")) {
       try {
         await supabase
-          .from("benchrex_board_notes")
+          .from("scholarsanchor_board_notes")
           .insert({
             id: note.id,
             user_id: state.user.id,
@@ -954,7 +954,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
         if (patch.color !== undefined) dbPatch.color = patch.color;
         
         await supabase
-          .from("benchrex_board_notes")
+          .from("scholarsanchor_board_notes")
           .update(dbPatch)
           .eq("id", id);
       } catch (err) {
@@ -971,7 +971,7 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
     if (state.user && !state.user.id.startsWith("mock-")) {
       try {
         await supabase
-          .from("benchrex_board_notes")
+          .from("scholarsanchor_board_notes")
           .delete()
           .eq("id", id);
       } catch (err) {
@@ -1130,6 +1130,6 @@ export function BenchrexProvider({ children, initialActiveConversationId, forced
 
 export const useApp = () => {
   const ctx = useContext(BenchrexContext);
-  if (!ctx) throw new Error("useApp must be used within BenchrexProvider");
+  if (!ctx) throw new Error("useApp must be used within ScholarsAnchorProvider");
   return ctx;
 };

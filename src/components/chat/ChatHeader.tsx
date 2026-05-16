@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { useApp } from "benchrex/context/BenchrexContext";
-import { Button } from "benchrex/components/ui/button";
-import { THEMES } from "benchrex/types";
+import { useApp } from "../../context/BenchrexContext";
+import { Button } from "../../components/ui/button";
+import { THEMES } from "../../types";
 import {
   UserCircle2, Moon, Sun, ShieldCheck, User as UserIcon, FileText, LayoutGrid, Palette, LogOut, Sparkles, MessageSquare, Menu
 } from "lucide-react";
@@ -13,15 +13,15 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
   DropdownMenuLabel,
-} from "benchrex/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "benchrex/components/ui/tooltip";
-import { Switch } from "benchrex/components/ui/switch";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "benchrex/components/ui/sheet";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "benchrex/components/ui/dialog";
-import { Input } from "benchrex/components/ui/input";
-import { Label } from "benchrex/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "benchrex/components/ui/select";
-import { MODELS } from "benchrex/lib/models";
+} from "../../components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../components/ui/tooltip";
+import { Switch } from "../../components/ui/switch";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "../../components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "../../components/ui/dialog";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import { MODELS } from "../../lib/models";
 import { toast } from "sonner";
 
 interface ChatHeaderProps {
@@ -58,7 +58,7 @@ const ChatHeader = ({ onNewChat: _onNewChat }: ChatHeaderProps) => {
           <Menu className="h-4 w-4" />
         </Button>
         <h1 className="font-display text-lg font-semibold truncate">
-          {activeStudent ? `Helping ${activeStudent.name}` : "Benchrex"}
+          {activeStudent ? `Helping ${activeStudent.name}` : "ScholarsAnchor"}
         </h1>
         {activeConversation?.isExpertSession && (
           <div className="ml-2 flex items-center gap-1.5 rounded-full bg-blue-500/10 px-2.5 py-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-sm animate-in fade-in zoom-in duration-300">

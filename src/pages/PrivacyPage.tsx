@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Button } from "benchrex/components/ui/button";
+import { Button } from "../components/ui/button";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 
 const PrivacyPage = () => {
@@ -24,7 +24,7 @@ const PrivacyPage = () => {
         <section>
           <h2 className="font-display text-base font-semibold mb-2">Overview</h2>
           <p className="text-muted-foreground">
-            Benchrex helps commerce students get academic answers. This page describes
+            ScholarsAnchor helps commerce students get academic answers. This page describes
             what information we collect in this demo, how it is used, and your choices.
           </p>
         </section>

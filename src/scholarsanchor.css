@@ -1,17 +1,17 @@
-/* Benchrex Premium Design System */
+/* ScholarsAnchor Premium Design System */
 
 :root {
-  --benchrex-radius: 1.25rem;
-  --benchrex-shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.05);
-  --benchrex-shadow-md: 0 4px 20px -4px rgba(0, 0, 0, 0.1);
-  --benchrex-shadow-lg: 0 10px 40px -6px rgba(0, 0, 0, 0.15);
-  --benchrex-glass-bg: rgba(255, 255, 255, 0.7);
-  --benchrex-glass-border: rgba(255, 255, 255, 0.5);
+  --scholarsanchor-radius: 1.25rem;
+  --scholarsanchor-shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.05);
+  --scholarsanchor-shadow-md: 0 4px 20px -4px rgba(0, 0, 0, 0.1);
+  --scholarsanchor-shadow-lg: 0 10px 40px -6px rgba(0, 0, 0, 0.15);
+  --scholarsanchor-glass-bg: rgba(255, 255, 255, 0.7);
+  --scholarsanchor-glass-border: rgba(255, 255, 255, 0.5);
 }
 
 .dark {
-  --benchrex-glass-bg: rgba(20, 20, 35, 0.7);
-  --benchrex-glass-border: rgba(255, 255, 255, 0.08);
+  --scholarsanchor-glass-bg: rgba(20, 20, 35, 0.7);
+  --scholarsanchor-glass-border: rgba(255, 255, 255, 0.08);
 }
 
 /* Theme Tokens */

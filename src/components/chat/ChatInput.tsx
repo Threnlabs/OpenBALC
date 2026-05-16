@@ -1,22 +1,22 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { useApp } from "benchrex/context/BenchrexContext";
-import type { Topic, TopicSection, AIPersonality, Attachment } from "benchrex/types";
-import { Button } from "benchrex/components/ui/button";
-import { Badge } from "benchrex/components/ui/badge";
+import { useApp } from "../../context/BenchrexContext";
+import type { Topic, TopicSection, AIPersonality, Attachment } from "../../types";
+import { Button } from "../../components/ui/button";
+import { Badge } from "../../components/ui/badge";
 import { Send, Settings2, X, ChevronRight, Hash, AtSign, Paperclip, FileText, Image as ImageIcon, Music, Trash2, Sparkles, Command, BookOpen } from "lucide-react";
-import { Textarea } from "benchrex/components/ui/textarea";
-import { Collapsible, CollapsibleContent } from "benchrex/components/ui/collapsible";
+import { Textarea } from "../../components/ui/textarea";
+import { Collapsible, CollapsibleContent } from "../../components/ui/collapsible";
 import { KnowledgeService } from "../../lib/knowledge-service";
 import type { KnowledgeNode } from "../../lib/knowledge-service";
-import { Switch } from "benchrex/components/ui/switch";
-import { Label } from "benchrex/components/ui/label";
+import { Switch } from "../../components/ui/switch";
+import { Label } from "../../components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "benchrex/components/ui/select";
+} from "../../components/ui/select";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 
@@ -475,7 +475,7 @@ const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonal
           </AnimatePresence>
         </div>
         <p className="text-[10px] text-center text-muted-foreground/60 font-medium">
-          Benchrex can make mistakes. Verify important information.
+          ScholarsAnchor can make mistakes. Verify important information.
         </p>
       </div>
     </div>

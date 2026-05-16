@@ -6,10 +6,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "benchrex/components/ui/dialog";
-import { Button } from "benchrex/components/ui/button";
-import { Textarea } from "benchrex/components/ui/textarea";
-import { Label } from "benchrex/components/ui/label";
+} from "../../components/ui/dialog";
+import { Button } from "../../components/ui/button";
+import { Textarea } from "../../components/ui/textarea";
+import { Label } from "../../components/ui/label";
 import { MessageSquare, ShieldCheck, Zap } from "lucide-react";
 
 interface ExpertRequestDialogProps {

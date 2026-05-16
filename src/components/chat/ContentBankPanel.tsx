@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { Button } from "benchrex/components/ui/button";
-import { Input } from "benchrex/components/ui/input";
-import { Badge } from "benchrex/components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Badge } from "../../components/ui/badge";
 import {
   X, Search, BookOpen, Sigma, FileText, HelpCircle, Lightbulb,
   ChevronLeft, ChevronRight, Filter, Layers, Database,
@@ -16,7 +16,7 @@ import {
   ContentBankSearchOptions,
   ContentBankContentType,
   ContentBankDifficulty,
-} from "benchrex/lib/tools/contentBank";
+} from "../../lib/tools/contentBank";
 
 export type { ContentBankItem };
 
