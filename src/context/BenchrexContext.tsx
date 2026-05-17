@@ -450,7 +450,7 @@ export function ScholarsAnchorProvider({ children, initialActiveConversationId, 
       const profile = JSON.parse(localStorage.getItem('admin_profile') || '{}');
       const teamId = profile.team_id;
       let query = supabase
-        .from("scholarsanchor_board_notes")
+        .from("benchrex_board_notes")
         .select("*")
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
@@ -470,6 +470,7 @@ export function ScholarsAnchorProvider({ children, initialActiveConversationId, 
           createdAt: new Date(n.created_at).getTime(),
           source: n.source,
           conversationId: n.conversation_id,
+          isStarred: !!n.is_starred,
         }));
 
         setState(s => ({ ...s, notes: mappedNotes }));
@@ -921,7 +922,7 @@ export function ScholarsAnchorProvider({ children, initialActiveConversationId, 
     if (state.user && !state.user.id.startsWith("mock-")) {
       try {
         await supabase
-          .from("scholarsanchor_board_notes")
+          .from("benchrex_board_notes")
           .insert({
             id: note.id,
             user_id: state.user.id,
@@ -931,6 +932,7 @@ export function ScholarsAnchorProvider({ children, initialActiveConversationId, 
             color: note.color,
             source: note.source || 'manual',
             team_id: state.user.team_id || null,
+            is_starred: note.isStarred || false,
           });
       } catch (err) {
         console.error("Failed to persist note:", err);
@@ -952,9 +954,10 @@ export function ScholarsAnchorProvider({ children, initialActiveConversationId, 
         if (patch.title !== undefined) dbPatch.title = patch.title;
         if (patch.content !== undefined) dbPatch.content = patch.content;
         if (patch.color !== undefined) dbPatch.color = patch.color;
+        if (patch.isStarred !== undefined) dbPatch.is_starred = patch.isStarred;
         
         await supabase
-          .from("scholarsanchor_board_notes")
+          .from("benchrex_board_notes")
           .update(dbPatch)
           .eq("id", id);
       } catch (err) {
@@ -971,7 +974,7 @@ export function ScholarsAnchorProvider({ children, initialActiveConversationId, 
     if (state.user && !state.user.id.startsWith("mock-")) {
       try {
         await supabase
-          .from("scholarsanchor_board_notes")
+          .from("benchrex_board_notes")
           .delete()
           .eq("id", id);
       } catch (err) {

@@ -176,6 +176,7 @@ export interface BoardNote {
   createdAt: number;
   source?: "manual" | "ai-pin";
   conversationId?: string;
+  isStarred?: boolean;
 }
 
 export type ThemeName = "lavender" | "rose" | "mint" | "sky" | "amber";
