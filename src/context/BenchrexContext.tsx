@@ -533,7 +533,7 @@ export function ScholarsAnchorProvider({ children, initialActiveConversationId, 
       if (!bProfileData) {
         console.warn("User not found in benchrex_users — not authorized");
         await supabase.auth.signOut();
-        toast.error("You do not have access to the ScholarsAnchor portal. Please contact your administrator.");
+        toast.error("You do not have access to the Benchrex portal. Please contact your administrator.");
         return false;
       }
 

@@ -36,19 +36,25 @@ const LoginPage = () => {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md"
       >
-        <div className="mb-8 text-center">
+        <div className="mb-8 text-center flex flex-col items-center justify-center">
           <img 
             src="/logo.png" 
-            alt="DoubtSolve Buddy" 
-            className="mx-auto h-24 w-auto object-contain"
+            alt="Benchrex Logo" 
+            className="mx-auto h-20 w-20 object-contain mb-4 animate-float"
           />
+          <h1 className="text-4xl font-black text-foreground tracking-tighter uppercase leading-[0.8] mb-1">
+            Benchrex
+          </h1>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-bold">
+            Intelligent Student Portal
+          </p>
         </div>
 
         <Card className="border-border/50 shadow-lg backdrop-blur-sm bg-card/80">
           <CardHeader className="pb-2 text-center">
-            <CardTitle className="font-display text-2xl font-bold">Student Login</CardTitle>
+            <CardTitle className="font-display text-2xl font-bold">Benchrex Login</CardTitle>
             <CardDescription>
-              Sign in to start solving doubts
+              Sign in to start solving doubts in the Benchrex AI Portal
             </CardDescription>
           </CardHeader>
           <CardContent>

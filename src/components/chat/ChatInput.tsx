@@ -475,7 +475,7 @@ const ChatInput = ({ onSend, disabled, topics, selectedPersonalityId, onPersonal
           </AnimatePresence>
         </div>
         <p className="text-[10px] text-center text-muted-foreground/60 font-medium">
-          ScholarsAnchor can make mistakes. Verify important information.
+          Benchrex can make mistakes. Verify important information.
         </p>
       </div>
     </div>

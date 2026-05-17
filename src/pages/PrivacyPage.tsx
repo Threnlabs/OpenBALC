@@ -24,7 +24,7 @@ const PrivacyPage = () => {
         <section>
           <h2 className="font-display text-base font-semibold mb-2">Overview</h2>
           <p className="text-muted-foreground">
-            ScholarsAnchor helps commerce students get academic answers. This page describes
+            Benchrex helps commerce students get academic answers. This page describes
             what information we collect in this demo, how it is used, and your choices.
           </p>
         </section>

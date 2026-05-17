@@ -383,7 +383,7 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
                   >
                     <div className="absolute -inset-8 bg-primary/10 blur-3xl rounded-full animate-pulse" />
                     <div className="relative h-24 w-24 rounded-[2rem] overflow-hidden flex items-center justify-center shadow-2xl rotate-3">
-                      <img src="/logo.png" alt="ScholarsAnchor" className="h-full w-full object-cover" />
+                      <img src="/logo.png" alt="Benchrex" className="h-full w-full object-cover" />
                     </div>
                   </motion.div>
 
@@ -417,12 +417,12 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
                       <button
                         key={q}
                         onClick={() => handleSend(q, [], [], "")}
-                        className="p-4 text-sm text-left rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm hover:border-primary/50 hover:bg-primary/5 transition-all group shadow-sm hover:shadow-md"
+                        className="p-4 text-sm text-left rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm hover:border-primary/50 hover:bg-primary/5 transition-all group shadow-sm hover:shadow-md flex items-center gap-3.5 sm:flex-col sm:items-start sm:gap-3"
                       >
-                        <div className="h-8 w-8 rounded-lg bg-primary/5 flex items-center justify-center mb-3 group-hover:bg-primary/10 transition-colors">
+                        <div className="h-8 w-8 rounded-lg bg-primary/5 flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
                           <MessageSquare className="h-4 w-4 text-primary" />
                         </div>
-                        <span className="font-medium group-hover:text-primary transition-colors">{q}</span>
+                        <span className="font-medium group-hover:text-primary transition-colors flex-1">{q}</span>
                       </button>
                     ))}
                   </motion.div>
