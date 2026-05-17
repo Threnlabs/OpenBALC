@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import type { Message } from "../../types";
 import { motion } from "framer-motion";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import MarkdownRenderer from "./MarkdownRenderer";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "../../components/ui/collapsible";
 import { ChevronDown, BookOpen, Copy, Check, Pin, ThumbsUp, ThumbsDown, UserCircle, FileText, Music, Download, ExternalLink, Sparkles, Undo2, Share2, Trash2, BrainCircuit, CheckCircle2, Loader2, AlertCircle, Shield } from "lucide-react";
 import { Badge } from "../../components/ui/badge";
@@ -301,15 +300,10 @@ const ChatBubble = ({ message, index, onPin, onFeedback, onAskExpert, onAcceptAc
           )}
 
           {/* Content */}
-          <div className={`max-w-none prose dark:prose-invert leading-relaxed ${
-            isUser 
-            ? "prose-sm text-primary-foreground prose-p:text-primary-foreground font-medium" 
-            : "prose-base md:prose-lg prose-headings:text-primary prose-blockquote:border-l-primary prose-blockquote:bg-primary/5 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-lg prose-a:text-primary hover:prose-a:underline prose-table:border-collapse prose-table:w-full prose-th:border prose-th:border-border prose-th:bg-muted/50 prose-th:p-2 prose-td:border prose-td:border-border prose-td:p-2"
-          }`}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {message.content}
-            </ReactMarkdown>
-          </div>
+          <MarkdownRenderer 
+            content={message.content} 
+            variant={isUser ? "user" : "chat"} 
+          />
 
           {/* Sources Citation */}
           {!isUser && message.sources?.length > 0 && (

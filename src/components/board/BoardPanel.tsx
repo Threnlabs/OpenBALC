@@ -15,8 +15,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "../../components/ui/dialog";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import MarkdownRenderer from "../chat/MarkdownRenderer";
 
 interface BoardPanelProps {
   onClose: () => void;
@@ -116,10 +115,8 @@ const BoardPanel = ({ onClose }: BoardPanelProps) => {
                       {n.title}
                     </h3>
                     {n.content && (
-                      <div className="prose prose-sm prose-p:text-black/70 text-black/70 mb-3 line-clamp-6">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {n.content}
-                        </ReactMarkdown>
+                      <div className="mb-3 line-clamp-6">
+                        <MarkdownRenderer content={n.content} variant="note" />
                       </div>
                     )}
                     <div className="flex items-center justify-between mt-auto pt-2 border-t border-black/5">
