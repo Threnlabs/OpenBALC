@@ -631,6 +631,7 @@ export function ScholarsAnchorProvider({ children, initialActiveConversationId, 
         (payload) => {
           if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
             const updated = payload.new as any;
+            console.log("[Realtime Conversation Event]", payload.eventType, "updated:", updated);
             // Only care if it's our conversation OR if we are an expert
             const isExpert = state.user?.role === 'doubt_expert' || state.user?.role === 'super_admin' || state.user?.role === 'faculty';
             
@@ -643,6 +644,7 @@ export function ScholarsAnchorProvider({ children, initialActiveConversationId, 
                       title: updated.title,
                       pinned: updated.pinned,
                       isExpertSession: updated.is_expert_session,
+                      expertId: updated.expert_id,
                       userHasUnread: updated.user_has_unread,
                       expertHasUnread: updated.expert_has_unread,
                       updatedAt: new Date(updated.updated_at).getTime()
@@ -652,6 +654,7 @@ export function ScholarsAnchorProvider({ children, initialActiveConversationId, 
                       title: updated.title,
                       pinned: updated.pinned,
                       isExpertSession: updated.is_expert_session,
+                      expertId: updated.expert_id,
                       userHasUnread: updated.user_has_unread,
                       expertHasUnread: updated.expert_has_unread,
                       userId: updated.user_id,
