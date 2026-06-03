@@ -52,6 +52,7 @@ interface AppContextType extends AppState {
   setActiveModel: (model: string) => void;
   setSelectedStudentId: (id: string | null) => void;
   startExpertSession: (convId: string) => Promise<void>;
+  closeExpertSession: (convId: string) => Promise<void>;
 }
 
 const BenchrexContext = createContext<AppContextType | null>(null);
@@ -1066,6 +1067,50 @@ export function ScholarsAnchorProvider({ children, initialActiveConversationId, 
     }
   }, [addMessage, state.user]);
 
+  const closeExpertSession = React.useCallback(async (convId: string) => {
+    // 1. Update local state
+    setState(s => ({
+      ...s,
+      conversations: s.conversations.map(c => 
+        c.id === convId ? { 
+          ...c, 
+          isExpertSession: false,
+          expertId: undefined
+        } : c
+      )
+    }));
+
+    // 2. Persist to Supabase
+    if (state.user && !state.user.id.startsWith("mock-")) {
+      try {
+        const { error } = await supabase
+          .from("conversations")
+          .update({ 
+            is_expert_session: false,
+            expert_id: null,
+            expert_joined_at: null,
+            updated_at: new Date().toISOString() 
+          })
+          .eq("id", convId);
+        
+        if (error) throw error;
+
+        // Add a system message about the expert session ending
+        const systemMsg = {
+          id: crypto.randomUUID(),
+          role: "ai",
+          content: `The expert session has been closed by ${state.user.name || "the expert"}.`,
+          timestamp: Date.now(),
+          tags: ["System", "Expert Session Closed"]
+        };
+        
+        await addMessage(convId, systemMsg as any);
+      } catch (err: any) {
+        toast.error(`Failed to close expert session: ${err.message}`);
+      }
+    }
+  }, [addMessage, state.user]);
+
   const markAsRead = React.useCallback(async (convId: string, role: 'user' | 'expert') => {
     // 1. Update local state
     setState(s => {
@@ -1139,6 +1184,7 @@ export function ScholarsAnchorProvider({ children, initialActiveConversationId, 
     updateMessage,
     updateCredits,
     startExpertSession,
+    closeExpertSession,
   }), [
     state,
     login,
@@ -1169,6 +1215,7 @@ export function ScholarsAnchorProvider({ children, initialActiveConversationId, 
     updateMessage,
     updateCredits,
     startExpertSession,
+    closeExpertSession,
   ]);
 
   return (

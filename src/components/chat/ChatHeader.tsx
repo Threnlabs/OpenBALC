@@ -60,12 +60,17 @@ const ChatHeader = ({ onNewChat: _onNewChat }: ChatHeaderProps) => {
         <h1 className="font-display text-lg font-semibold truncate">
           {activeStudent ? `Helping ${activeStudent.name}` : "Benchrex"}
         </h1>
-        {activeConversation?.isExpertSession && (
+        {activeConversation?.expertId ? (
+          <div className="ml-2 flex items-center gap-1.5 rounded-full bg-green-500/10 px-2.5 py-1 text-[10px] font-bold text-green-600 dark:text-green-400 border border-green-500/20 shadow-sm animate-in fade-in zoom-in duration-300">
+            <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+            <span>EXPERT CONNECTED</span>
+          </div>
+        ) : activeConversation?.isExpertSession ? (
           <div className="ml-2 flex items-center gap-1.5 rounded-full bg-blue-500/10 px-2.5 py-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-sm animate-in fade-in zoom-in duration-300">
             <div className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
             <span>EXPERT SESSION ACTIVE</span>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Desktop Menu - hidden on mobile */}
