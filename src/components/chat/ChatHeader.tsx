@@ -63,7 +63,7 @@ const ChatHeader = ({ onNewChat: _onNewChat }: ChatHeaderProps) => {
         {activeConversation?.isExpertSession && (
           <div className="ml-2 flex items-center gap-1.5 rounded-full bg-blue-500/10 px-2.5 py-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-sm animate-in fade-in zoom-in duration-300">
             <div className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-            <span>EXPERT ACTIVE</span>
+            <span>EXPERT SESSION ACTIVE</span>
           </div>
         )}
       </div>

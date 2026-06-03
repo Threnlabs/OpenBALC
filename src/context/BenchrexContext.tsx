@@ -51,6 +51,7 @@ interface AppContextType extends AppState {
   loadPersonalities: () => Promise<void>;
   setActiveModel: (model: string) => void;
   setSelectedStudentId: (id: string | null) => void;
+  startExpertSession: (convId: string) => Promise<void>;
 }
 
 const BenchrexContext = createContext<AppContextType | null>(null);
@@ -1021,6 +1022,50 @@ export function ScholarsAnchorProvider({ children, initialActiveConversationId, 
     }
   }, [addMessage, state.user]);
 
+  const startExpertSession = React.useCallback(async (convId: string) => {
+    // 1. Update local state
+    setState(s => ({
+      ...s,
+      conversations: s.conversations.map(c => 
+        c.id === convId ? { 
+          ...c, 
+          isExpertSession: true,
+          expertId: state.user?.id || undefined
+        } : c
+      )
+    }));
+
+    // 2. Persist to Supabase
+    if (state.user && !state.user.id.startsWith("mock-")) {
+      try {
+        const { error } = await supabase
+          .from("conversations")
+          .update({ 
+            is_expert_session: true,
+            expert_id: state.user.id,
+            expert_joined_at: new Date().toISOString(),
+            updated_at: new Date().toISOString() 
+          })
+          .eq("id", convId);
+        
+        if (error) throw error;
+
+        // Add a system message about the expert session starting
+        const expertMsg = {
+          id: crypto.randomUUID(),
+          role: "ai",
+          content: `${state.user.name || "An expert"} has started the expert session.`,
+          timestamp: Date.now(),
+          tags: ["System", "Expert Session Active"]
+        };
+        
+        await addMessage(convId, expertMsg as any);
+      } catch (err: any) {
+        toast.error(`Failed to start expert session: ${err.message}`);
+      }
+    }
+  }, [addMessage, state.user]);
+
   const markAsRead = React.useCallback(async (convId: string, role: 'user' | 'expert') => {
     // 1. Update local state
     setState(s => {
@@ -1093,6 +1138,7 @@ export function ScholarsAnchorProvider({ children, initialActiveConversationId, 
     setSelectedStudentId,
     updateMessage,
     updateCredits,
+    startExpertSession,
   }), [
     state,
     login,
@@ -1122,6 +1168,7 @@ export function ScholarsAnchorProvider({ children, initialActiveConversationId, 
     setSelectedStudentId,
     updateMessage,
     updateCredits,
+    startExpertSession,
   ]);
 
   return (

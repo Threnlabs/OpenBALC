@@ -16,8 +16,9 @@ import { ScrollArea } from "../components/ui/scroll-area";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Message, Attachment, ContentBankItem } from "../types";
 import { toast } from "sonner";
-import { Loader2, MessageSquare } from "lucide-react";
+import { Loader2, MessageSquare, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "../components/ui/button";
 
 interface ChatPageProps {
   isEmbedded?: boolean;
@@ -49,12 +50,15 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
     activeModel,
     updateMessage,
     updateCredits,
+    startExpertSession,
   } = useApp();
 
   const [selectedPersonalityId, setSelectedPersonalityId] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const isResizing = React.useRef(false);
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const lastConversationIdRef = React.useRef<string | null>(null);
 
   const startResizing = React.useCallback((e: React.MouseEvent) => {
     isResizing.current = true;
@@ -132,6 +136,21 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
       markAsRead(activeConversationId, role);
     }
   }, [activeConversationId, user?.role, markAsRead]);
+
+  // Scroll to bottom when conversation changes or new messages/typing state updates
+  useEffect(() => {
+    if (activeConversationId && (messages.length > 0 || isTyping)) {
+      const isNewConversation = lastConversationIdRef.current !== activeConversationId;
+      lastConversationIdRef.current = activeConversationId;
+
+      const timer = setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({
+          behavior: isNewConversation ? "auto" : "smooth",
+        });
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [activeConversationId, messages.length, isTyping]);
 
   const handleSend = async (
     content: string,
@@ -371,6 +390,26 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
         </AnimatePresence>
 
         <main className="flex flex-1 flex-col overflow-hidden relative">
+          {isExpert && activeConversation && !activeConversation.isExpertSession && (
+            <div className="bg-blue-500/10 border-b border-blue-500/20 px-6 py-4 flex items-center justify-between animate-in slide-in-from-top duration-300">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-blue-500/20 flex items-center justify-center shrink-0">
+                  <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Start the expert session</p>
+                  <p className="text-xs text-muted-foreground">Click the button to officially take over this conversation as the human expert.</p>
+                </div>
+              </div>
+              <Button 
+                size="sm" 
+                onClick={() => startExpertSession(activeConversation.id)}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shrink-0"
+              >
+                Start Expert Session
+              </Button>
+            </div>
+          )}
           <ScrollArea className="flex-1 px-4 sm:px-6">
             <div className="mx-auto max-w-4xl space-y-10 py-10 pb-20">
               {messages.length === 0 ? (
@@ -451,6 +490,7 @@ const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
                       </div>
                     </div>
                   )}
+                  <div ref={messagesEndRef} />
                 </>
               )}
             </div>
