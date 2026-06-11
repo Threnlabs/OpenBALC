@@ -24,7 +24,7 @@ interface ChatPageProps {
   isEmbedded?: boolean;
 }
 
-const backendUrl = (import.meta.env.VITE_BACKEND_URL || "http://localhost:8000").replace(/\/$/, "");
+const backendUrl = (import.meta.env.BACKEND_URL || "http://localhost:8000").replace(/\/$/, "");
 
 const ChatPage = ({ isEmbedded = false }: ChatPageProps) => {
 

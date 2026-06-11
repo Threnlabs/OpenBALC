@@ -2,7 +2,7 @@
  * Web Search Tool — Brave Search API + DuckDuckGo Instant Answer fallback
  *
  * Priority:
- *  1. Brave Search API  (REACT_APP_BRAVE_SEARCH_API_KEY)
+ *  1. Brave Search API  (BRAVE_SEARCH_API_KEY)
  *  2. DuckDuckGo Instant Answers  (no key, free, limited)
  *  3. Graceful empty return so AI still responds without search context
  */
@@ -12,7 +12,7 @@ export type { WebSearchMeta, WebSearchResult };
 
 export type WebSearchResponse = WebSearchMeta;
 
-const BRAVE_API_KEY = (import.meta.env.VITE_BRAVE_SEARCH_API_KEY as string) || "";
+const BRAVE_API_KEY = (import.meta.env.BRAVE_SEARCH_API_KEY as string) || "";
 const BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search";
 const DDG_INSTANT_URL = "https://api.duckduckgo.com/";
 

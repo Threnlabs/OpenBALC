@@ -2,7 +2,7 @@
  * Central model registry for all supported AI providers.
  *
  * ─── Providers ───────────────────────────────────────────────────────────────
- *  "groq"   → Groq Cloud    (api.groq.com)     key: VITE_GROQ_API_KEY
+ *  "groq"   → Groq Cloud    (api.groq.com)     key: GROQ_API_KEY
  *  "mock"   → Mock fallback (no key needed)
  */
 

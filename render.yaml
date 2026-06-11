@@ -6,15 +6,15 @@ services:
     buildCommand: npm install --legacy-peer-deps && npm run build
     staticPublishPath: dist
     envVars:
-      - key: VITE_BACKEND_URL
+      - key: BACKEND_URL
         sync: false
-      - key: VITE_API_URL
+      - key: API_URL
         sync: false
-      - key: VITE_SUPABASE_URL
+      - key: SUPABASE_URL
         sync: false
-      - key: VITE_SUPABASE_ANON_KEY
+      - key: SUPABASE_ANON_KEY
         sync: false
-      - key: VITE_BRAVE_SEARCH_API_KEY
+      - key: BRAVE_SEARCH_API_KEY
         sync: false
       - key: NODE_VERSION
         value: 20.19.0

@@ -6,7 +6,7 @@
  * curriculum-approved definitions, formulas, and examples.
  */
 
-const BACKEND_URL = ((import.meta.env.VITE_BACKEND_URL as string) || "http://localhost:8000").replace(/\/$/, "");
+const BACKEND_URL = ((import.meta.env.BACKEND_URL as string) || "http://localhost:8000").replace(/\/$/, "");
 
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
