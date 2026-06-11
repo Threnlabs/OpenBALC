@@ -20,5 +20,8 @@ services:
         value: 20.19.0
     routes:
       - type: rewrite
+        source: /api/*
+        destination: https://calendarsync-backend.onrender.com/api/*
+      - type: rewrite
         source: /*
         destination: /index.html
