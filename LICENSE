@@ -1,21 +1,22 @@
-MIT License
+Copyright (c) [2026] [Threnlabs]
 
-Copyright (c) 2026 Threnlabs
+1. Permissions
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to exercise the following rights:
+* To use, copy, modify, and merge the Software for private, educational, and non-commercial purposes.
+* To publish and distribute the Software, provided it remains under this exact license.
+* To submit modifications and contributions back to the original authors or repository.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+2. Restrictions (Non-Commercial Clause)
+The Software may NOT be used for any commercial purposes. "Commercial purposes" are defined as any use that involves direct or indirect financial gain, including but not limited to:
+* Selling the Software or any derived works.
+* Incorporating the Software into a proprietary, paid, or commercial product.
+* Using the Software to provide a commercial service, including Software-as-a-Service (SaaS) or hosting for profit.
+* Distributing the Software behind a paywall.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+3. Conditions
+The above copyright notice and this complete license text must be included in all copies or substantial portions of the Software. 
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+4. Disclaimer of Warranty
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
