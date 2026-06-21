@@ -1,49 +1,90 @@
-import { BrowserRouter } from "react-router-dom";
-import { Toaster } from "benchrex/components/ui/toaster";
-import { Toaster as Sonner } from "benchrex/components/ui/sonner";
-import { TooltipProvider } from "benchrex/components/ui/tooltip";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Routes, Route } from "react-router-dom";
-import { ScholarsAnchorProvider, useApp } from "benchrex/context/BenchrexContext";
-import LoginPage from "benchrex/pages/LoginPage";
-import ChatPage from "benchrex/pages/ChatPage";
-import PrivacyPage from "benchrex/pages/PrivacyPage";
-import SetupPage from "benchrex/pages/SetupPage";
-import ProfilePage from "benchrex/pages/ProfilePage";
-import BoardPage from "benchrex/pages/BoardPage";
-import NotFound from "./pages/NotFound";
+import { Toaster } from "sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider, useAuth } from "@/lib/auth";
+import { useEffect } from "react";
 
-import "./index.css";
+import NotFound from "@/pages/not-found";
+import Landing from "@/pages/landing";
+import Pricing from "@/pages/pricing";
+import Login from "@/pages/login";
+import OnboardPage from "@/pages/onboard";
+import Dashboard from "@/pages/dashboard";
+import ChatPage from "@/pages/chat";
+import ModulesPage from "@/pages/modules";
+import ModuleDetailPage from "@/pages/module-detail";
+import NotesPage from "@/pages/notes";
+import TestsPage from "@/pages/tests";
+import ProfilePage from "@/pages/profile";
+import OrgPage from "@/pages/org";
+import AdsPortal from "@/pages/ads-portal";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30_000,
+    },
+  },
+});
 
-const AppShell = () => {
-  const { user } = useApp();
-  if (!user) return <LoginPage />;
-  return <ChatPage />;
-};
+function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+  const { isLoggedIn } = useAuth();
+  const [, setLocation] = useLocation();
 
-const ScholarsAnchorApp = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <ScholarsAnchorProvider>
-        <div className="scholarsanchor-app-root">
-          <div className="gradient-bg" />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/privacy" element={<PrivacyPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/board" element={<BoardPage />} />
-              <Route path="/" element={<AppShell />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </div>
-      </ScholarsAnchorProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setLocation("/login");
+    }
+  }, [isLoggedIn, setLocation]);
 
-export default ScholarsAnchorApp;
+  if (!isLoggedIn) return null;
+
+  return <Component />;
+}
+
+function Router() {
+  return (
+    <Switch>
+      <Route path="/" component={Landing} />
+      <Route path="/pricing" component={Pricing} />
+      <Route path="/login" component={Login} />
+      <Route path="/onboard" component={() => <ProtectedRoute component={OnboardPage} />} />
+      <Route path="/ads" component={AdsPortal} />
+
+      <Route path="/app" component={() => <ProtectedRoute component={Dashboard} />} />
+      <Route path="/app/chat" component={() => <ProtectedRoute component={ChatPage} />} />
+      <Route path="/app/chat/:id" component={() => <ProtectedRoute component={ChatPage} />} />
+      <Route path="/app/modules" component={() => <ProtectedRoute component={ModulesPage} />} />
+      <Route path="/app/modules/:id" component={() => <ProtectedRoute component={ModuleDetailPage} />} />
+      <Route path="/app/notes" component={() => <ProtectedRoute component={NotesPage} />} />
+      <Route path="/app/tests" component={() => <ProtectedRoute component={TestsPage} />} />
+      <Route path="/app/profile" component={() => <ProtectedRoute component={ProfilePage} />} />
+      <Route path="/app/org" component={() => <ProtectedRoute component={OrgPage} />} />
+
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function App() {
+  useEffect(() => {
+    document.documentElement.classList.remove("dark");
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+          <AuthProvider>
+            <Router />
+          </AuthProvider>
+        </WouterRouter>
+        <Toaster richColors position="top-right" />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
