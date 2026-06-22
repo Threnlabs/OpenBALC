@@ -113,10 +113,10 @@ export default function ModuleDetailPage() {
 
   const color = module ? getModuleColor(module.id) : "from-indigo-500 to-violet-600";
 
-  const chapters = content ? [...new Set(content.map(c => c.chapter))] : [];
+  const chapters: any[] = content ? [...new Set(content.map((c: any) => c.chapter))] : [];
 
   const selectedContent = selectedChapter
-    ? content?.filter(c => c.chapter === selectedChapter)
+    ? content?.filter((c: any) => c.chapter === selectedChapter)
     : content?.slice(0, 1);
 
   if (moduleLoading) {
@@ -274,7 +274,7 @@ export default function ModuleDetailPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {sources.map(s => (
+                  {sources.map((s: any) => (
                     <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/30">
                       <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center shrink-0">
                         {s.type === "url" ? <Link2 className="h-3 w-3 text-primary" />

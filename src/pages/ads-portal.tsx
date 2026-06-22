@@ -251,7 +251,7 @@ export default function AdsPortal() {
             </div>
           ) : (
             <div className="space-y-3">
-              {campaigns.map(c => (
+              {campaigns.map((c: any) => (
                 <div key={c.id} className="rounded-xl border border-border bg-card p-4">
                   <div className="flex items-center justify-between">
                     <div>
