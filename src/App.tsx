@@ -19,6 +19,9 @@ import TestsPage from "@/pages/tests";
 import ProfilePage from "@/pages/profile";
 import OrgPage from "@/pages/org";
 import AdsPortal from "@/pages/ads-portal";
+import PublicModulesPage from "@/pages/public-modules";
+import PublicModuleDetailPage from "@/pages/public-module-detail";
+import AdminPage from "@/pages/admin";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,6 +55,8 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/onboard" component={() => <ProtectedRoute component={OnboardPage} />} />
       <Route path="/ads" component={AdsPortal} />
+      <Route path="/modules" component={PublicModulesPage} />
+      <Route path="/modules/:id" component={PublicModuleDetailPage} />
 
       <Route path="/app" component={() => <ProtectedRoute component={Dashboard} />} />
       <Route path="/app/chat" component={() => <ProtectedRoute component={ChatPage} />} />
@@ -62,6 +67,7 @@ function Router() {
       <Route path="/app/tests" component={() => <ProtectedRoute component={TestsPage} />} />
       <Route path="/app/profile" component={() => <ProtectedRoute component={ProfilePage} />} />
       <Route path="/app/org" component={() => <ProtectedRoute component={OrgPage} />} />
+      <Route path="/app/admin" component={() => <ProtectedRoute component={AdminPage} />} />
 
       <Route component={NotFound} />
     </Switch>

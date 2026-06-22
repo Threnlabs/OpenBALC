@@ -6,7 +6,7 @@ import { getInitials, cn } from "@/lib/utils";
 import {
   LayoutDashboard, MessageSquare, BookOpen, StickyNote, FlaskConical,
   Users, Building2, Megaphone, Bell, Settings, ChevronLeft, ChevronRight,
-  LogOut, Menu, X, Zap, ChevronsUpDown, Plus
+  LogOut, Menu, X, Zap, ChevronsUpDown, Plus, ArrowLeft, Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +59,7 @@ function NavItem({ href, label, icon: Icon, collapsed, exact }: {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [location] = useLocation();
   const { logout } = useAuth();
   const { data: user } = useGetMe();
   const { data: org } = useGetOrg();
@@ -86,62 +87,77 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Sidebar */}
-      <aside className={cn(
-        "fixed top-0 left-0 bottom-0 z-50 flex flex-col border-r border-border bg-sidebar transition-all duration-200",
-        collapsed ? "w-[72px]" : "w-[280px]",
-        "hidden lg:flex",
-        mobileOpen && "flex w-[280px]"
-      )}>
-        {/* Logo */}
-        <div className={cn(
-          "h-16 flex items-center border-b border-border pl-6 pr-4 shrink-0",
-          collapsed && "justify-center px-0"
+      {(location === "/app" || location === "/app/") && (
+        <aside className={cn(
+          "fixed top-0 left-0 bottom-0 z-50 flex flex-col border-r border-border bg-sidebar transition-all duration-200",
+          collapsed ? "w-[72px]" : "w-[280px]",
+          "hidden lg:flex",
+          mobileOpen && "flex w-[280px]"
         )}>
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
-              OB
+          {/* Logo */}
+          <div className={cn(
+            "h-16 flex items-center border-b border-border pl-6 pr-4 shrink-0",
+            collapsed && "justify-center px-0"
+          )}>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                OB
+              </div>
+              {!collapsed && <span className="font-bold text-[15px] tracking-tight truncate">OpenBALC</span>}
             </div>
-            {!collapsed && <span className="font-bold text-[15px] tracking-tight truncate">OpenBALC</span>}
           </div>
-        </div>
-        
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-4 space-y-1">
-          {navItems.map(item => (
-            <NavItem key={item.href} {...item} collapsed={collapsed} />
-          ))}
-        </nav>
-
-        {/* Bottom */}
-        <div className="border-t border-border py-4 space-y-1">
-          {bottomItems.map(item => (
-            <NavItem key={item.href} {...item} collapsed={collapsed} />
-          ))}
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className={cn(
-              "flex items-center gap-3 py-3 rounded-r-full mr-4 pl-6 pr-4 text-muted-foreground hover:text-foreground hover:bg-muted/50 w-full transition-colors",
-              collapsed && "justify-center px-0 w-12 mx-auto rounded-xl mr-auto ml-auto"
+          
+          {/* Nav */}
+          <nav className="flex-1 overflow-y-auto py-4 space-y-1">
+            {navItems.map(item => (
+              <NavItem key={item.href} {...item} collapsed={collapsed} />
+            ))}
+            {user?.role === "admin" && (
+              <NavItem href="/app/admin" label="Admin Portal" icon={Shield} collapsed={collapsed} />
             )}
-          >
-            {collapsed
-              ? <ChevronRight className="h-5 w-5 mx-auto" />
-              : <><ChevronLeft className="h-5 w-5" /><span className="text-[15px]">Collapse</span></>
-            }
-          </button>
-        </div>
-      </aside>
+          </nav>
+
+          {/* Bottom */}
+          <div className="border-t border-border py-4 space-y-1">
+            {bottomItems.map(item => (
+              <NavItem key={item.href} {...item} collapsed={collapsed} />
+            ))}
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className={cn(
+                "flex items-center gap-3 py-3 rounded-r-full mr-4 pl-6 pr-4 text-muted-foreground hover:text-foreground hover:bg-muted/50 w-full transition-colors",
+                collapsed && "justify-center px-0 w-12 mx-auto rounded-xl mr-auto ml-auto"
+              )}
+            >
+              {collapsed
+                ? <ChevronRight className="h-5 w-5 mx-auto" />
+                : <><ChevronLeft className="h-5 w-5" /><span className="text-[15px]">Collapse</span></>
+              }
+            </button>
+          </div>
+        </aside>
+      )}
 
       {/* Main */}
       <div className={cn(
         "flex-1 flex flex-col transition-all duration-200",
-        collapsed ? "lg:ml-[72px]" : "lg:ml-[280px]"
+        (location === "/app" || location === "/app/")
+          ? (collapsed ? "lg:ml-[72px]" : "lg:ml-[280px]")
+          : "lg:ml-0"
       )}>
         {/* Topbar */}
         <header className="h-16 border-b border-border bg-background/80 backdrop-blur sticky top-0 z-30 flex items-center px-6 gap-4">
-          <button className="lg:hidden p-2 rounded-md hover:bg-muted shrink-0" onClick={() => setMobileOpen(!mobileOpen)}>
-            <Menu className="h-6 w-6" />
-          </button>
+          {(location !== "/app" && location !== "/app/") ? (
+            <Link href="/app">
+              <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full shrink-0">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            </Link>
+          ) : (
+            <button className="lg:hidden p-2 rounded-md hover:bg-muted shrink-0" onClick={() => setMobileOpen(!mobileOpen)}>
+              <Menu className="h-6 w-6" />
+            </button>
+          )}
 
           {/* Workspace Switcher */}
           <DropdownMenu>
@@ -258,8 +274,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/app/profile">Settings</Link>
+                  <Link href="/app/profile" className="cursor-pointer">Settings</Link>
                 </DropdownMenuItem>
+                {user?.role === "admin" && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/app/admin" className="cursor-pointer flex items-center text-indigo-400 focus:text-indigo-300">
+                        <Shield className="h-4 w-4 mr-2" />
+                        <span>Admin Portal</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
                   <LogOut className="h-4 w-4 mr-2" />

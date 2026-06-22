@@ -41,13 +41,7 @@ function ModuleCard({ module }: { module: any }) {
   const createConv = useCreateConversation();
 
   function handleChat() {
-    createConv.mutate({ data: { title: `Chat about ${module.title}`, taggedModuleIds: [module.id] } }, {
-      onSuccess: (conv: any) => {
-        qc.invalidateQueries({ queryKey: getListConversationsQueryKey() });
-        setLocation(`/app/chat/${conv.id}`);
-      },
-      onError: () => toast.error("Failed to start chat")
-    });
+    setLocation(`/app/chat?moduleId=${module.id}`);
   }
 
   return (

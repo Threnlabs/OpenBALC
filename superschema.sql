@@ -1,16 +1,30 @@
 -- ============================================================================
--- OpenBALC Database Schema (PostgreSQL)
--- Optimal, production-grade schema setup.
+-- OpenBALC Database Superschema (PostgreSQL)
+-- Combines the core schema, RAG & AI pipeline schema, and ULF schema.
 -- Includes tables, columns, constraints, indices, and update triggers.
 -- ============================================================================
 
--- Enable UUID extension if UUIDs are needed in the future
+-- Enable extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS vector;
 
 -- ============================================================================
--- 1. DROP TABLES & ENUMS (For clean setups, ordered by dependencies)
+-- 1. DROP TABLES & ENUMS (Ordered by dependencies)
 -- ============================================================================
 
+-- Drop ULF tables
+DROP TABLE IF EXISTS learning_signals_history CASCADE;
+DROP TABLE IF EXISTS learning_signals_queue CASCADE;
+DROP TABLE IF EXISTS user_learning_profiles CASCADE;
+
+-- Drop RAG tables
+DROP TABLE IF EXISTS module_stars CASCADE;
+DROP TABLE IF EXISTS module_chunks CASCADE;
+DROP TABLE IF EXISTS module_content CASCADE;
+DROP TABLE IF EXISTS topics CASCADE;
+DROP TABLE IF EXISTS module_sources CASCADE;
+
+-- Drop Core tables
 DROP TABLE IF EXISTS ad_campaigns CASCADE;
 DROP TABLE IF EXISTS ad_businesses CASCADE;
 DROP TABLE IF EXISTS test_attempts CASCADE;
@@ -31,6 +45,10 @@ DROP TABLE IF EXISTS workspace_members CASCADE;
 DROP TABLE IF EXISTS workspaces CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
+-- Drop helper functions
+DROP FUNCTION IF EXISTS update_updated_at_column CASCADE;
+
+-- Drop Custom Types
 DROP TYPE IF EXISTS user_role CASCADE;
 DROP TYPE IF EXISTS buffer_mode CASCADE;
 DROP TYPE IF EXISTS workspace_type CASCADE;
@@ -44,6 +62,7 @@ DROP TYPE IF EXISTS priority CASCADE;
 DROP TYPE IF EXISTS difficulty CASCADE;
 DROP TYPE IF EXISTS question_type CASCADE;
 DROP TYPE IF EXISTS ad_status CASCADE;
+DROP TYPE IF EXISTS source_type CASCADE;
 
 -- ============================================================================
 -- 2. CREATE CUSTOM ENUM TYPES
@@ -62,6 +81,7 @@ CREATE TYPE priority AS ENUM ('normal', 'urgent');
 CREATE TYPE difficulty AS ENUM ('easy', 'medium', 'hard', 'mixed');
 CREATE TYPE question_type AS ENUM ('mcq', 'short');
 CREATE TYPE ad_status AS ENUM ('pending', 'active', 'rejected', 'paused');
+CREATE TYPE source_type AS ENUM ('pdf', 'url', 'text');
 
 -- ============================================================================
 -- 3. HELPER FUNCTIONS & TRIGGERS FOR TIMESTAMPS
@@ -109,7 +129,86 @@ CREATE TRIGGER update_users_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- 4.2 WORKSPACES
+-- 4.2 USER LEARNING PROFILES (ULF Core Storage)
+-- Stores the computed cognitive state, mastery rates, domain preferences, 
+-- and learning patterns per user.
+CREATE TABLE user_learning_profiles (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    
+    -- Topic-level mastery map.
+    -- Schema: { "module_[id]:[topic_slug]": { "topic_id": int, "score": float, "confidence": float, "last_updated": timestamptz } }
+    topic_mastery JSONB NOT NULL DEFAULT '{}',
+    
+    -- Inferred user interests per domain.
+    -- Schema: { "[domain_slug]": weight_score_float }
+    interest_map JSONB NOT NULL DEFAULT '{}',
+    
+    -- Quick-lookup arrays for RAG prompt injection (updated via triggers/workers)
+    weak_topics TEXT[] NOT NULL DEFAULT '{}',
+    strong_topics TEXT[] NOT NULL DEFAULT '{}',
+    
+    -- Inferred domain mastery level: "beginner" | "intermediate" | "advanced"
+    -- Schema: { "[domain_slug]": "level_string" }
+    domain_levels JSONB NOT NULL DEFAULT '{}',
+    
+    -- Learning preference heuristics.
+    -- Schema: { "prefers_examples": bool, "prefers_visuals": bool, "depth_preference": "concise"|"detailed" }
+    learning_style JSONB NOT NULL DEFAULT '{}',
+    
+    -- Spaced Repetition Review Queue (based on SuperMemo-2 scheduler)
+    -- Schema: [ { "topic_key": "module_x:topic_y", "due_date": timestamptz, "interval": int, "repetition": int, "ef": float } ]
+    revisit_queue JSONB NOT NULL DEFAULT '[]',
+    
+    -- Aggregated metrics for profiling velocity
+    total_questions_attempted INTEGER NOT NULL DEFAULT 0,
+    total_correct INTEGER NOT NULL DEFAULT 0,
+    avg_session_length_minutes DOUBLE PRECISION DEFAULT 0.0,
+    
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TRIGGER trigger_update_ulp_timestamp
+    BEFORE UPDATE ON user_learning_profiles
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- 4.3 TELEMETRY EVENT QUEUE (ULF Signal Staging)
+-- Stage table for passive signals. Telemetry events are dumped here instantly 
+-- by APIs and parsed out-of-band by background workers.
+CREATE TABLE learning_signals_queue (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    signal_type VARCHAR(50) NOT NULL, -- 'chat_question', 'test_answer', 'module_view', 'nlp_confusion'
+    module_id INTEGER,
+    topic_slug VARCHAR(100),
+    domain VARCHAR(100),
+    
+    -- Dynamic data depending on type:
+    -- Quiz: { "correct": bool, "time_taken_ms": int, "question_id": int }
+    -- Chat: { "complexity": "basic"|"advanced", "text_length": int }
+    payload JSONB NOT NULL DEFAULT '{}',
+    
+    processed BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    processed_at TIMESTAMPTZ
+);
+
+-- 4.4 HISTORICAL SIGNAL LOG (ULF Long-term Cold Storage)
+-- Once background workers finish calculating a signal, it moves here for 
+-- analytical auditing, model retraining, and progress visualization.
+CREATE TABLE learning_signals_history (
+    id BIGINT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    signal_type VARCHAR(50) NOT NULL,
+    module_id INTEGER,
+    topic_slug VARCHAR(100),
+    domain VARCHAR(100),
+    payload JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL
+);
+
+-- 4.5 WORKSPACES
 CREATE TABLE workspaces (
     id SERIAL PRIMARY KEY,
     owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -124,7 +223,7 @@ CREATE TRIGGER update_workspaces_updated_at
     BEFORE UPDATE ON workspaces
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- 4.3 WORKSPACE MEMBERS
+-- 4.6 WORKSPACE MEMBERS
 CREATE TABLE workspace_members (
     id SERIAL PRIMARY KEY,
     workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -138,7 +237,7 @@ CREATE TABLE workspace_members (
     CONSTRAINT chk_credits_used CHECK (credits_used <= credits_allocated)
 );
 
--- 4.4 CONVERSATIONS (CHAT SESSIONS)
+-- 4.7 CONVERSATIONS (CHAT SESSIONS)
 CREATE TABLE conversations (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -159,7 +258,7 @@ CREATE TRIGGER update_conversations_updated_at
     BEFORE UPDATE ON conversations
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- 4.5 MESSAGES (CHAT HISTORY)
+-- 4.8 MESSAGES (CHAT HISTORY)
 CREATE TABLE messages (
     id SERIAL PRIMARY KEY,
     conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
@@ -171,7 +270,7 @@ CREATE TABLE messages (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
--- 4.6 CREDIT TRANSACTIONS (ACCOUNTING)
+-- 4.9 CREDIT TRANSACTIONS (ACCOUNTING)
 CREATE TABLE credit_transactions (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -182,7 +281,7 @@ CREATE TABLE credit_transactions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
--- 4.7 MODULES (KNOWLEDGE CORE)
+-- 4.10 MODULES (KNOWLEDGE CORE)
 CREATE TABLE modules (
     id SERIAL PRIMARY KEY,
     workspace_id INTEGER REFERENCES workspaces(id) ON DELETE SET NULL,
@@ -212,13 +311,25 @@ CREATE TRIGGER update_modules_updated_at
     BEFORE UPDATE ON modules
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- 4.8 FILES (GENERAL DOCUMENT & ASSET MANAGEMENT)
+-- 4.11 MODULE SOURCES (INGESTED DOCUMENTS/URLS)
+CREATE TABLE module_sources (
+    id SERIAL PRIMARY KEY,
+    module_id INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+    type source_type NOT NULL, -- e.g. 'pdf', 'url', 'text'
+    name VARCHAR(255) NOT NULL, -- source title/filename
+    url TEXT,
+    content TEXT, -- normalized parsed raw text content
+    processed BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- 4.12 FILES (GENERAL DOCUMENT & ASSET MANAGEMENT)
 CREATE TABLE files (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     workspace_id INTEGER REFERENCES workspaces(id) ON DELETE SET NULL,
     module_id INTEGER REFERENCES modules(id) ON DELETE SET NULL,
-    source_id INTEGER, -- which source this asset came from (foreign key added retroactively in RAG.sql)
+    source_id INTEGER REFERENCES module_sources(id) ON DELETE SET NULL, -- which source this asset came from
     name VARCHAR(255) NOT NULL,
     mime_type VARCHAR(100) NOT NULL,
     size_bytes INTEGER NOT NULL CHECK (size_bytes > 0),
@@ -230,7 +341,7 @@ CREATE TABLE files (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
--- 4.14 ARTIFACTS (AI GENERATED WORKSPACES/CODEFILES/DOCS)
+-- 4.13 ARTIFACTS (AI GENERATED WORKSPACES/CODEFILES/DOCS)
 CREATE TABLE artifacts (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -248,7 +359,7 @@ CREATE TRIGGER update_artifacts_updated_at
     BEFORE UPDATE ON artifacts
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- 4.15 NOTES (PERSONAL MEMOS & CAPTURED INSIGHTS)
+-- 4.14 NOTES (PERSONAL MEMOS & CAPTURED INSIGHTS)
 CREATE TABLE notes (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -268,7 +379,7 @@ CREATE TRIGGER update_notes_updated_at
     BEFORE UPDATE ON notes
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- 4.16 NOTIFICATIONS
+-- 4.15 NOTIFICATIONS
 CREATE TABLE notifications (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -279,7 +390,7 @@ CREATE TABLE notifications (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
--- 4.17 ORGANIZATIONS (ENTERPRISE / TEAM ACCOUNTS)
+-- 4.16 ORGANIZATIONS (ENTERPRISE / TEAM ACCOUNTS)
 CREATE TABLE organizations (
     id SERIAL PRIMARY KEY,
     owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -297,7 +408,7 @@ CREATE TRIGGER update_organizations_updated_at
     BEFORE UPDATE ON organizations
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- 4.18 ORGANIZATION MEMBERS
+-- 4.17 ORGANIZATION MEMBERS
 CREATE TABLE org_members (
     id SERIAL PRIMARY KEY,
     org_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -311,7 +422,7 @@ CREATE TABLE org_members (
     CONSTRAINT chk_org_credits CHECK (credit_cap IS NULL OR credits_used <= credit_cap)
 );
 
--- 4.19 EXPERT TICKETS QUEUE
+-- 4.18 EXPERT TICKETS QUEUE
 CREATE TABLE expert_queue (
     id SERIAL PRIMARY KEY,
     conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
@@ -330,7 +441,55 @@ CREATE TRIGGER update_expert_queue_updated_at
     BEFORE UPDATE ON expert_queue
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- 4.20 TEST SETS (AI GENERATED QUIZZES)
+-- 4.19 TOPICS (STRUCTURED OUTLINE FOR MODULES)
+CREATE TABLE topics (
+    id SERIAL PRIMARY KEY,
+    module_id INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    order_index INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TRIGGER update_topics_updated_at
+    BEFORE UPDATE ON topics
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- 4.20 MODULE CONTENT (GENERATED DETAILED KNOWLEDGE CHAPTERS/SECTIONS)
+CREATE TABLE module_content (
+    id SERIAL PRIMARY KEY,
+    module_id INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+    topic_id INTEGER REFERENCES topics(id) ON DELETE SET NULL,
+    chapter VARCHAR(255) NOT NULL,
+    topic VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    format VARCHAR(50) NOT NULL DEFAULT 'markdown', -- 'markdown', 'html', 'json'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+-- 4.21 MODULE CHUNKS (SEMANTIC CHUNKS FOR RAG RETRIEVAL)
+CREATE TABLE module_chunks (
+    id SERIAL PRIMARY KEY,
+    module_id INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+    source_id INTEGER REFERENCES module_sources(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    token_count INTEGER NOT NULL,
+    metadata JSONB NOT NULL DEFAULT '{}',
+    embedding vector(1536) NOT NULL -- pgvector type for text-embedding-3-small (1536 dims)
+);
+
+-- 4.22 MODULE STARS (STARRED/FAVORITED MODULES BY USERS)
+CREATE TABLE module_stars (
+    id SERIAL PRIMARY KEY,
+    module_id INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    
+    CONSTRAINT unique_module_user_star UNIQUE (module_id, user_id)
+);
+
+-- 4.23 TEST SETS (AI GENERATED QUIZZES)
 CREATE TABLE test_sets (
     id SERIAL PRIMARY KEY,
     module_id INTEGER REFERENCES modules(id) ON DELETE SET NULL,
@@ -342,7 +501,7 @@ CREATE TABLE test_sets (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
--- 4.21 TEST QUESTIONS
+-- 4.24 TEST QUESTIONS
 CREATE TABLE test_questions (
     id SERIAL PRIMARY KEY,
     test_set_id INTEGER NOT NULL REFERENCES test_sets(id) ON DELETE CASCADE,
@@ -353,7 +512,7 @@ CREATE TABLE test_questions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
--- 4.22 TEST ATTEMPTS (SCORES LOG)
+-- 4.25 TEST ATTEMPTS (SCORES LOG)
 CREATE TABLE test_attempts (
     id SERIAL PRIMARY KEY,
     test_set_id INTEGER NOT NULL REFERENCES test_sets(id) ON DELETE CASCADE,
@@ -363,7 +522,7 @@ CREATE TABLE test_attempts (
     completed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
--- 4.23 ADVERTISERS (AD BUSINESSES)
+-- 4.26 ADVERTISERS (AD BUSINESSES)
 CREATE TABLE ad_businesses (
     id SERIAL PRIMARY KEY,
     auth_id INTEGER REFERENCES users(id) ON DELETE SET NULL, -- Business rep user account
@@ -382,7 +541,7 @@ CREATE TRIGGER update_ad_businesses_updated_at
     BEFORE UPDATE ON ad_businesses
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- 4.24 AD CAMPAIGNS (MONETIZATION SYSTEM)
+-- 4.27 AD CAMPAIGNS (MONETIZATION SYSTEM)
 CREATE TABLE ad_campaigns (
     id SERIAL PRIMARY KEY,
     business_id INTEGER NOT NULL REFERENCES ad_businesses(id) ON DELETE CASCADE,
@@ -411,6 +570,16 @@ CREATE TRIGGER update_ad_campaigns_updated_at
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_username ON users(username);
 
+-- User learning profile indexes
+CREATE INDEX idx_ulp_user_id ON user_learning_profiles(user_id);
+CREATE INDEX idx_ulp_topic_mastery ON user_learning_profiles USING gin (topic_mastery);
+CREATE INDEX idx_ulp_interest_map ON user_learning_profiles USING gin (interest_map);
+
+-- Telemetry/Learning Signal indexes
+CREATE INDEX idx_lsq_unprocessed ON learning_signals_queue(processed) WHERE processed = FALSE;
+CREATE INDEX idx_lsq_user_id ON learning_signals_queue(user_id);
+CREATE INDEX idx_lsh_analytics ON learning_signals_history(user_id, created_at DESC);
+
 -- Workspace indexes
 CREATE INDEX idx_workspaces_owner ON workspaces(owner_id);
 CREATE INDEX idx_workspace_members_user ON workspace_members(user_id);
@@ -429,10 +598,9 @@ CREATE INDEX idx_modules_workspace ON modules(workspace_id);
 CREATE INDEX idx_modules_user ON modules(user_id);
 CREATE INDEX idx_modules_visibility ON modules(visibility);
 
--- Notes indexes
-CREATE INDEX idx_notes_user ON notes(user_id);
-CREATE INDEX idx_notes_workspace ON notes(workspace_id);
-CREATE INDEX idx_notes_conversation ON notes(conversation_id);
+-- Module source and content indexes
+CREATE INDEX idx_module_sources_module ON module_sources(module_id);
+CREATE INDEX idx_module_content_module ON module_content(module_id);
 
 -- Files indexes
 CREATE INDEX idx_files_user ON files(user_id);
@@ -444,6 +612,11 @@ CREATE INDEX idx_artifacts_user ON artifacts(user_id);
 CREATE INDEX idx_artifacts_workspace ON artifacts(workspace_id);
 CREATE INDEX idx_artifacts_conversation ON artifacts(conversation_id);
 
+-- Notes indexes
+CREATE INDEX idx_notes_user ON notes(user_id);
+CREATE INDEX idx_notes_workspace ON notes(workspace_id);
+CREATE INDEX idx_notes_conversation ON notes(conversation_id);
+
 -- Notifications index
 CREATE INDEX idx_notifications_user ON notifications(user_id);
 
@@ -453,6 +626,26 @@ CREATE INDEX idx_org_members_org ON org_members(org_id);
 CREATE INDEX idx_org_members_user ON org_members(user_id);
 CREATE INDEX idx_expert_queue_org ON expert_queue(org_id);
 CREATE INDEX idx_expert_queue_status ON expert_queue(status);
+
+-- Topics index
+CREATE INDEX idx_topics_module ON topics(module_id);
+
+-- Module star indexes
+CREATE INDEX idx_module_stars_module ON module_stars(module_id);
+CREATE INDEX idx_module_stars_user ON module_stars(user_id);
+
+-- pgvector Indexing (HNSW for Cosine Similarity search)
+CREATE INDEX idx_chunks_module_id ON module_chunks(module_id);
+CREATE INDEX idx_chunks_embedding_hnsw 
+ON module_chunks 
+USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+
+-- Full-Text Search (FTS) Indexing (GIN for BM25 keyword matching)
+-- Used for the FTS boost leg in OpenBALC's hybrid search pipeline
+CREATE INDEX idx_chunks_fts
+ON module_chunks
+USING gin(to_tsvector('english', content));
 
 -- Test indexes
 CREATE INDEX idx_test_sets_module ON test_sets(module_id);
@@ -468,5 +661,5 @@ CREATE INDEX idx_ad_campaigns_business ON ad_campaigns(business_id);
 CREATE INDEX idx_ad_campaigns_status ON ad_campaigns(status);
 
 -- ============================================================================
--- End of schema.sql
+-- End of superschema.sql
 -- ============================================================================
