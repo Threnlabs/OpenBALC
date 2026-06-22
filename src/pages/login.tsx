@@ -38,29 +38,43 @@ const MetaIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, signUp, loginWithOAuth } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
+  
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate auth
-    login();
+    setLoading(true);
+    try {
+      if (isLogin) {
+        await login(email, password);
+      } else {
+        await signUp(email, password, displayName, username);
+      }
+    } catch (err) {
+      // Errors are handled/displayed by toast inside AuthProvider
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleOAuth = (provider: string) => {
+  const handleOAuth = async (provider: string) => {
     setOauthLoading(provider);
     const toastId = toast.loading(`Connecting to ${provider}...`);
-    
-    setTimeout(() => {
+    try {
+      await loginWithOAuth(provider.toLowerCase() as any);
       toast.dismiss(toastId);
-      toast.success(
-        isLogin 
-          ? `Successfully signed in via ${provider}!`
-          : `Successfully signed up via ${provider}!`
-      );
-      login();
-    }, 1200);
+    } catch (err) {
+      toast.dismiss(toastId);
+    } finally {
+      setOauthLoading(null);
+    }
   };
 
   return (
@@ -90,11 +104,39 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {!isLogin && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Display Name</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="w-full px-3 py-2 bg-input/50 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="Jane Doe"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Username</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full px-3 py-2 bg-input/50 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="janedoe"
+                  />
+                </div>
+              </>
+            )}
             <div className="space-y-2">
               <label className="text-sm font-medium">Email</label>
               <input 
                 type="email" 
                 required 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 bg-input/50 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="you@example.com"
               />
@@ -104,14 +146,18 @@ export default function Login() {
               <input 
                 type="password" 
                 required 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-3 py-2 bg-input/50 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="••••••••"
               />
             </div>
             <button 
               type="submit"
-              className="w-full bg-primary text-primary-foreground font-medium py-2.5 rounded-md hover:opacity-90 transition-opacity"
+              disabled={loading}
+              className="w-full bg-primary text-primary-foreground font-medium py-2.5 rounded-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
             >
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               {isLogin ? "Sign In" : "Sign Up"}
             </button>
           </form>

@@ -5,19 +5,22 @@ import { EmptyState } from "@/components/EmptyState";
 import {
   useGetOrg, useCreateOrg, useListOrgMembers, useInviteOrgMember,
   useGetOrgAnalytics, useListExpertQueue, useReplyExpertTicket,
+  useUpdateOrg, useDeleteOrg, useUpdateOrgMember, useRemoveOrgMember,
   getGetOrgQueryKey, getListOrgMembersQueryKey, getListExpertQueueQueryKey
 } from "@workspace/api-client-react";
 import { getInitials, cn, timeAgo } from "@/lib/utils";
 import {
   Building2, Users, BarChart2, MessageSquare, BookOpen, Settings,
-  Plus, Loader2, ChevronDown, Send, Shield, Zap
+  Plus, Loader2, ChevronDown, Send, Shield, Zap, Lock, Globe, Mail,
+  CreditCard, Trash2, Edit3, AlertTriangle, Check, X, ShieldAlert
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from "@/components/ui/dialog";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -138,12 +141,60 @@ function MembersTab() {
   const qc = useQueryClient();
   const inviteMember = useInviteOrgMember();
 
+  // New states for editing and removing members
+  const [editOpen, setEditOpen] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<any>(null);
+  const [editRole, setEditRole] = useState<"viewer" | "member" | "admin">("member");
+  const [editCreditCap, setEditCreditCap] = useState(500);
+
+  const [removeOpen, setRemoveOpen] = useState(false);
+
+  const updateMember = useUpdateOrgMember();
+  const removeMember = useRemoveOrgMember();
+
   function handleInvite() {
     inviteMember.mutate({ data: { email, role } }, {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getListOrgMembersQueryKey() });
         toast.success("Invite sent!");
         setInviteOpen(false); setEmail("");
+      }
+    });
+  }
+
+  function handleEditMember(m: any) {
+    setSelectedMember(m);
+    setEditRole(m.role);
+    setEditCreditCap(m.creditCap || 500);
+    setEditOpen(true);
+  }
+
+  function handleSaveMember() {
+    if (!selectedMember) return;
+    updateMember.mutate({
+      userId: selectedMember.userId,
+      data: { role: editRole, creditCap: editCreditCap }
+    }, {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getListOrgMembersQueryKey() });
+        toast.success("Member settings updated!");
+        setEditOpen(false);
+      }
+    });
+  }
+
+  function handleConfirmRemove(m: any) {
+    setSelectedMember(m);
+    setRemoveOpen(true);
+  }
+
+  function handleRemoveMember() {
+    if (!selectedMember) return;
+    removeMember.mutate({ userId: selectedMember.userId }, {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getListOrgMembersQueryKey() });
+        toast.success("Member removed from organization.");
+        setRemoveOpen(false);
       }
     });
   }
@@ -169,6 +220,7 @@ function MembersTab() {
                 <th className="text-left text-xs font-medium text-muted-foreground px-4 py-3">Role</th>
                 <th className="text-left text-xs font-medium text-muted-foreground px-4 py-3">Credits Used</th>
                 <th className="text-left text-xs font-medium text-muted-foreground px-4 py-3">Last Active</th>
+                <th className="text-right text-xs font-medium text-muted-foreground px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -195,6 +247,26 @@ function MembersTab() {
                   <td className="px-4 py-3 text-sm text-muted-foreground">
                     {m.lastActive ? timeAgo(m.lastActive) : "Never"}
                   </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex justify-end items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={() => handleEditMember(m)}
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleConfirmRemove(m)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 animate-pulse" />
+                      </Button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -202,6 +274,7 @@ function MembersTab() {
         </div>
       )}
 
+      {/* Invite Member Dialog */}
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle>Invite Member</DialogTitle></DialogHeader>
@@ -229,6 +302,74 @@ function MembersTab() {
             <Button onClick={handleInvite} disabled={!email || inviteMember.isPending}>
               {inviteMember.isPending && <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />}
               Send Invite
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Member Settings Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit Member Settings</DialogTitle>
+            <DialogDescription>
+              Modify access role and credit limitations for {selectedMember?.displayName || selectedMember?.email}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Role</Label>
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                {(["viewer", "member", "admin"] as const).map(r => (
+                  <button key={r} onClick={() => setEditRole(r)}
+                    className={cn("px-3 py-2 rounded-lg border text-xs font-medium capitalize transition-all",
+                      editRole === r ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"
+                    )}>
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label>Monthly Credit Cap</Label>
+              <Input
+                type="number"
+                value={editCreditCap}
+                onChange={e => setEditCreditCap(parseInt(e.target.value) || 0)}
+                placeholder="500"
+                className="mt-1.5"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                The member cannot spend more than this amount of credits in a month.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveMember} disabled={updateMember.isPending}>
+              {updateMember.isPending && <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Member Confirmation Dialog */}
+      <Dialog open={removeOpen} onOpenChange={setRemoveOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" /> Remove Member
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove {selectedMember?.displayName || selectedMember?.email} from the organization? They will lose all access to shared modules.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setRemoveOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleRemoveMember} disabled={removeMember.isPending}>
+              {removeMember.isPending && <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />}
+              Remove
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -410,6 +551,511 @@ function AnalyticsTab() {
   );
 }
 
+function SettingsTab({ org }: { org: any }) {
+  const [name, setName] = useState(org.name || "");
+  const [description, setDescription] = useState(org.description || "");
+  const [logoInitials, setLogoInitials] = useState(getInitials(org.name));
+
+  // Security
+  const [allowedDomains, setAllowedDomains] = useState(org.allowedDomains || "");
+  const [defaultMemberRole, setDefaultMemberRole] = useState(org.defaultMemberRole || "member");
+  const [allowMemberInvites, setAllowMemberInvites] = useState(org.allowMemberInvites ?? true);
+  const [restrictSharing, setRestrictSharing] = useState(org.restrictSharing ?? false);
+  const [requireMfa, setRequireMfa] = useState(org.requireMfa ?? false);
+
+  // Credit Management
+  const [defaultMemberCreditCap, setDefaultMemberCreditCap] = useState(org.defaultMemberCreditCap || 500);
+  const [allowCreditRequests, setAllowCreditRequests] = useState(org.allowCreditRequests ?? true);
+  const [autoRefill, setAutoRefill] = useState(org.autoRefill ?? false);
+
+  // Billing
+  const [plan, setPlan] = useState<"personal" | "hosted" | "managed">(org.plan || "hosted");
+  const [cardBrand, setCardBrand] = useState("Visa");
+  const [cardLast4, setCardLast4] = useState("4242");
+
+  // Danger zone
+  const [transferTarget, setTransferTarget] = useState("");
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+
+  const qc = useQueryClient();
+  const updateOrg = useUpdateOrg();
+  const deleteOrg = useDeleteOrg();
+  const { data: members } = useListOrgMembers();
+
+  function handleSaveGeneral() {
+    updateOrg.mutate({ data: { name, description } }, {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getGetOrgQueryKey() });
+        setLogoInitials(getInitials(name));
+        toast.success("General settings saved!");
+      }
+    });
+  }
+
+  function handleSaveSecurity() {
+    updateOrg.mutate({
+      data: {
+        allowedDomains,
+        defaultMemberRole,
+        allowMemberInvites,
+        restrictSharing,
+        requireMfa
+      }
+    }, {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getGetOrgQueryKey() });
+        toast.success("Security & access settings saved!");
+      }
+    });
+  }
+
+  function handleSaveCredits() {
+    updateOrg.mutate({
+      data: {
+        defaultMemberCreditCap,
+        allowCreditRequests,
+        autoRefill
+      }
+    }, {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getGetOrgQueryKey() });
+        toast.success("Credit management settings saved!");
+      }
+    });
+  }
+
+  function handlePlanChange(newPlan: "personal" | "hosted" | "managed") {
+    updateOrg.mutate({ data: { plan: newPlan } }, {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getGetOrgQueryKey() });
+        setPlan(newPlan);
+        toast.success(`Plan updated to ${newPlan}!`);
+      }
+    });
+  }
+
+  function handleTransferOwnership() {
+    if (!transferTarget) return;
+    const targetMember = members?.find((m: any) => String(m.userId) === transferTarget);
+    toast.success(`Ownership transfer request sent to ${targetMember?.displayName || "member"}`);
+    setTransferOpen(false);
+  }
+
+  function handleDeleteOrg() {
+    if (deleteConfirmName !== org.name) {
+      toast.error("Confirmation name does not match.");
+      return;
+    }
+    deleteOrg.mutate(undefined, {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getGetOrgQueryKey() });
+        toast.success("Organization permanently deleted.");
+        setDeleteOpen(false);
+      }
+    });
+  }
+
+  const otherMembers = members?.filter((m: any) => m.userId !== 1) || [];
+
+  return (
+    <div className="space-y-6 max-w-4xl">
+      {/* 1. General Profile */}
+      <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <Building2 className="h-5 w-5 text-primary" />
+          <h3 className="text-sm font-semibold">General Information</h3>
+        </div>
+        <p className="text-xs text-muted-foreground mb-6">
+          Update your organization's display identity, description, and public-facing avatar details.
+        </p>
+
+        <div className="flex flex-col md:flex-row gap-6 items-start">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center text-3xl font-extrabold text-primary shadow-inner">
+              {logoInitials}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs py-1 h-7"
+              onClick={() => {
+                toast.success("Logo upload simulated! Using initials based on name.");
+              }}
+            >
+              Upload Logo
+            </Button>
+          </div>
+
+          <div className="flex-1 space-y-4 w-full">
+            <div>
+              <Label htmlFor="org-name">Organization Name</Label>
+              <Input
+                id="org-name"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Acme Learning Corp"
+                className="mt-1.5"
+              />
+            </div>
+            <div>
+              <Label htmlFor="org-desc">Description</Label>
+              <textarea
+                id="org-desc"
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder="Describe what your organization works on..."
+                className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleSaveGeneral} size="sm" disabled={updateOrg.isPending}>
+                {updateOrg.isPending && <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />}
+                Save Details
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Security & Invitations */}
+      <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <Shield className="h-5 w-5 text-indigo-400" />
+          <h3 className="text-sm font-semibold">Security & Access Policies</h3>
+        </div>
+        <p className="text-xs text-muted-foreground mb-6">
+          Define access control layers, membership sign-in requirements, and domain registration filters.
+        </p>
+
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="allowed-domains" className="flex items-center gap-1.5">
+                <Globe className="h-3.5 w-3.5 text-muted-foreground" /> Allowed Email Domains
+              </Label>
+              <Input
+                id="allowed-domains"
+                value={allowedDomains}
+                onChange={e => setAllowedDomains(e.target.value)}
+                placeholder="acme.com, acme-corp.com"
+                className="mt-1.5"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Comma-separated list of domains permitted to join this organization.
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="default-role" className="flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-muted-foreground" /> Default New Member Role
+              </Label>
+              <select
+                id="default-role"
+                value={defaultMemberRole}
+                onChange={e => setDefaultMemberRole(e.target.value)}
+                className="mt-1.5 flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="viewer">Viewer (Read-only modules)</option>
+                <option value="member">Member (Can create & process modules)</option>
+                <option value="admin">Admin (Full settings & billing control)</option>
+              </select>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Specify the permission role assigned to newly invited members by default.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border/50">
+              <div className="space-y-0.5">
+                <div className="text-xs font-semibold flex items-center gap-1.5">
+                  <Mail className="h-3.5 w-3.5 text-muted-foreground" /> Restrict to Allowed Domains
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  Prevent inviting users whose email domains are not in the approved allowed list.
+                </div>
+              </div>
+              <Switch checked={allowMemberInvites} onCheckedChange={setAllowMemberInvites} />
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border/50">
+              <div className="space-y-0.5">
+                <div className="text-xs font-semibold flex items-center gap-1.5">
+                  <Lock className="h-3.5 w-3.5 text-muted-foreground" /> Enforce Multi-Factor Auth (MFA)
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  Require all organization members to have verified MFA setups active.
+                </div>
+              </div>
+              <Switch checked={requireMfa} onCheckedChange={setRequireMfa} />
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border/50">
+              <div className="space-y-0.5">
+                <div className="text-xs font-semibold flex items-center gap-1.5">
+                  <Globe className="h-3.5 w-3.5 text-muted-foreground" /> Restrict Public Sharing
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  Do not allow members to change custom module visibility from Private to Public.
+                </div>
+              </div>
+              <Switch checked={restrictSharing} onCheckedChange={setRestrictSharing} />
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button onClick={handleSaveSecurity} size="sm" disabled={updateOrg.isPending}>
+              {updateOrg.isPending && <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />}
+              Save Security Policies
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Credit & Resource Caps */}
+      <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <Zap className="h-5 w-5 text-amber-400" />
+          <h3 className="text-sm font-semibold">Credit & Resource Allocations</h3>
+        </div>
+        <p className="text-xs text-muted-foreground mb-6">
+          Set monthly limit constraints on processing tasks, credit distribution limits, and automated refills.
+        </p>
+
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="credit-cap">Default Monthly Credit Limit per Member</Label>
+              <Input
+                id="credit-cap"
+                type="number"
+                value={defaultMemberCreditCap}
+                onChange={e => setDefaultMemberCreditCap(parseInt(e.target.value) || 0)}
+                placeholder="500"
+                className="mt-1.5"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                New members cannot exceed this credit limit within a billing cycle.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border/50">
+              <div className="space-y-0.5">
+                <div className="text-xs font-semibold">Allow Limit Increase Requests</div>
+                <div className="text-[10px] text-muted-foreground">
+                  Permit members to request credit limit extensions directly through their dashboards.
+                </div>
+              </div>
+              <Switch checked={allowCreditRequests} onCheckedChange={setAllowCreditRequests} />
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border/50">
+              <div className="space-y-0.5">
+                <div className="text-xs font-semibold">Automated Credit Refills</div>
+                <div className="text-[10px] text-muted-foreground">
+                  Automatically buy credit booster packs (+$25) when org balance falls below 500.
+                </div>
+              </div>
+              <Switch checked={autoRefill} onCheckedChange={setAutoRefill} />
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button onClick={handleSaveCredits} size="sm" disabled={updateOrg.isPending}>
+              {updateOrg.isPending && <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />}
+              Save Credit Policies
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Plan & Billing */}
+      <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <CreditCard className="h-5 w-5 text-emerald-400" />
+          <h3 className="text-sm font-semibold">Plan & Billing</h3>
+        </div>
+        <p className="text-xs text-muted-foreground mb-6">
+          Manage subscriptions, choose scaling plan tiers, and check credit cards.
+        </p>
+
+        <div className="space-y-6">
+          <div>
+            <Label className="text-xs text-muted-foreground">Active Organization Plan</Label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+              {[
+                { id: "personal", title: "Personal", price: "Free", desc: "For individual learners and test accounts." },
+                { id: "hosted", title: "Hosted Team", price: "$49/mo", desc: "Collaborative learning workspace with 2,500 credits." },
+                { id: "managed", title: "Managed Enterprise", price: "$299/mo", desc: "Strict domain locking, higher support tiers, unlimited modules." }
+              ].map((tier) => (
+                <button
+                  key={tier.id}
+                  onClick={() => handlePlanChange(tier.id as any)}
+                  className={cn(
+                    "p-4 rounded-xl border text-left flex flex-col justify-between transition-all hover:bg-muted/10",
+                    plan === tier.id ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border bg-background"
+                  )}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold capitalize">{tier.title}</span>
+                      {plan === tier.id && <Badge className="text-[9px] bg-primary/20 text-primary border-0">Active</Badge>}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground line-clamp-2">{tier.desc}</p>
+                  </div>
+                  <div className="text-xs font-extrabold mt-3 text-indigo-400">{tier.price}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-4 rounded-lg bg-muted/20 border border-border/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-6 bg-secondary/80 rounded border border-border/50 flex items-center justify-center text-[10px] font-bold text-muted-foreground">
+                {cardBrand}
+              </div>
+              <div>
+                <p className="text-xs font-medium">Payment Card Ending in {cardLast4}</p>
+                <p className="text-[10px] text-muted-foreground">Next payment charge on July 21, 2026</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-8"
+              onClick={() => {
+                toast.success("Card update flow simulated.");
+              }}
+            >
+              Update Card
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Danger Zone */}
+      <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <ShieldAlert className="h-5 w-5 text-rose-400" />
+          <h3 className="text-sm font-semibold text-rose-400">Danger Zone</h3>
+        </div>
+        <p className="text-xs text-rose-400/80 mb-6">
+          Critical operations. These actions can cause permanent access loss, billing changes, or deletion of data.
+        </p>
+
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg border border-rose-500/10 bg-rose-500/5">
+            <div>
+              <h4 className="text-xs font-semibold text-rose-300">Transfer Organization Ownership</h4>
+              <p className="text-[10px] text-rose-400/70">
+                Give another administrator full billing and administrative authority over this organization.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-rose-400 hover:bg-rose-500 hover:text-white border-rose-500/20"
+              onClick={() => setTransferOpen(true)}
+              disabled={otherMembers.length === 0}
+            >
+              Transfer Ownership
+            </Button>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg border border-rose-900/30 bg-rose-950/20">
+            <div>
+              <h4 className="text-xs font-semibold text-rose-200">Delete Organization</h4>
+              <p className="text-[10px] text-rose-400/70">
+                Permanently delete all organization settings, data archives, modules, and remove member access.
+              </p>
+            </div>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setDeleteOpen(true)}
+            >
+              Delete Organization
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Transfer Ownership Dialog */}
+      <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Transfer Ownership</DialogTitle>
+            <DialogDescription>
+              Select a member to transfer organization ownership to. You will lose primary ownership status.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-3">
+            <Label htmlFor="transfer-select">Select New Owner</Label>
+            <select
+              id="transfer-select"
+              value={transferTarget}
+              onChange={e => setTransferTarget(e.target.value)}
+              className="mt-1.5 flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">-- Choose member --</option>
+              {otherMembers.map((m: any) => (
+                <option key={m.userId} value={m.userId}>{m.displayName} ({m.email})</option>
+              ))}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransferOpen(false)}>Cancel</Button>
+            <Button onClick={handleTransferOwnership} disabled={!transferTarget} className="bg-amber-600 hover:bg-amber-700 text-white">
+              Confirm Transfer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Org Confirmation Dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5 animate-bounce" /> Delete Organization Permanently
+            </DialogTitle>
+            <DialogDescription>
+              This action is irreversibly destructive. It will delete the organization "<span className="font-bold text-foreground">{org.name}</span>" and all its modules, members, and billing setup.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Label htmlFor="delete-confirm-input">
+              Type <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-destructive">{org.name}</span> to confirm:
+            </Label>
+            <Input
+              id="delete-confirm-input"
+              value={deleteConfirmName}
+              onChange={e => setDeleteConfirmName(e.target.value)}
+              placeholder={org.name}
+              className="mt-1 border-rose-500/40 focus-visible:ring-rose-500"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteOrg}
+              disabled={deleteConfirmName !== org.name || deleteOrg.isPending}
+            >
+              {deleteOrg.isPending && <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />}
+              Permanently Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function OrgPage() {
   const [tab, setTab] = useState<Tab>("overview");
   const [createOpen, setCreateOpen] = useState(false);
@@ -446,7 +1092,7 @@ export default function OrgPage() {
     members: <MembersTab />,
     expert: <ExpertConsoleTab />,
     analytics: <AnalyticsTab />,
-    settings: <div className="text-sm text-muted-foreground">Organization settings coming soon.</div>,
+    settings: <SettingsTab org={org} />,
   };
 
   return (

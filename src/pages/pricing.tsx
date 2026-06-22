@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { useState } from "react";
 import { Check, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 
 export default function Pricing() {
   const [currency, setCurrency] = useState<"USD" | "INR">("USD");
@@ -168,6 +169,52 @@ export default function Pricing() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* FAQ Section */}
+            <div className="pt-12 border-t border-border max-w-3xl mx-auto">
+              <div className="text-center mb-10">
+                <h3 className="text-2xl md:text-3xl font-bold">Frequently Asked Questions</h3>
+                <p className="text-muted-foreground mt-2">Have questions? We have answers.</p>
+              </div>
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="item-1">
+                  <AccordionTrigger className="text-base font-semibold hover:no-underline">What is OpenBALC?</AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground leading-relaxed pt-2">
+                    OpenBALC is an intelligent, high-performance workspace that allows you to structure your knowledge into units called Modules. You can import documents, PDFs, or URLs, and use advanced AI models to study, chat, and test your knowledge.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="item-2">
+                  <AccordionTrigger className="text-base font-semibold hover:no-underline">What are Modules?</AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground leading-relaxed pt-2">
+                    Modules are the core building blocks of OpenBALC. They represent a specific topic or library of study material. You can generate them by topic, upload PDFs/sources, or link URLs. OpenBALC processes these sources to create structured chapters you can read, search, and chat with.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="item-3">
+                  <AccordionTrigger className="text-base font-semibold hover:no-underline">How do credits work?</AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground leading-relaxed pt-2">
+                    Credits are the currency used for AI-powered actions, such as generating content or asking questions in chat. Each action consumes a small number of credits (for example, 2 credits per chat message). You get a monthly allowance of credits with your subscription plan, and you can buy Credit Packs if you need more.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="item-4">
+                  <AccordionTrigger className="text-base font-semibold hover:no-underline">Do unused credits expire?</AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground leading-relaxed pt-2">
+                    Credits included in your monthly subscription plan reset at the end of each billing cycle. However, credits purchased through our Credit Pack add-ons are valid for a full 12 months from the date of purchase.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="item-5">
+                  <AccordionTrigger className="text-base font-semibold hover:no-underline">Can I cancel or change my plan anytime?</AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground leading-relaxed pt-2">
+                    Yes, you can upgrade, downgrade, or cancel your subscription plan at any time from your Billing Settings page. If you cancel, you will retain access to your premium features until the end of your current billing period.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="item-6">
+                  <AccordionTrigger className="text-base font-semibold hover:no-underline">Can I browse public modules without an account?</AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground leading-relaxed pt-2">
+                    Absolutely! OpenBALC features a Public Library of modules created by our community. You can browse, search, and view public modules directly from the navigation bar without signing in. To save modules, star them, or start chatting, you will need to create a free account.
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </div>
           </div>
         </div>
