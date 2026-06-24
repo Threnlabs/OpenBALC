@@ -144,7 +144,5 @@ vite.config.ts.timestamp-*
 
 /references
 /reference_app
-/replit
-
 
 .env.local
