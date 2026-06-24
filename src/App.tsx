@@ -76,7 +76,7 @@ function Router() {
 
 function App() {
   useEffect(() => {
-    document.documentElement.classList.remove("dark");
+    document.documentElement.classList.add("dark");
   }, []);
 
   return (

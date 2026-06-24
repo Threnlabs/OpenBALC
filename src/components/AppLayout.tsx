@@ -87,24 +87,88 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Sidebar */}
-      {(location === "/app" || location === "/app/") && (
+      {location.startsWith("/app") && (
         <aside className={cn(
-          "fixed top-0 left-0 bottom-0 z-50 flex flex-col border-r border-border bg-sidebar transition-all duration-200",
+          "fixed top-0 left-0 bottom-0 z-50 flex flex-col border-r border-border bg-card/85 backdrop-blur-md transition-all duration-200",
           collapsed ? "w-[72px]" : "w-[280px]",
           "hidden lg:flex",
           mobileOpen && "flex w-[280px]"
         )}>
-          {/* Logo */}
+          {/* Top of Sidebar: Workspace Switcher */}
           <div className={cn(
-            "h-16 flex items-center border-b border-border pl-6 pr-4 shrink-0",
+            "h-20 flex items-center border-b border-border px-4 shrink-0",
             collapsed && "justify-center px-0"
           )}>
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
-                OB
-              </div>
-              {!collapsed && <span className="font-bold text-[15px] tracking-tight truncate">OpenBALC</span>}
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                {collapsed ? (
+                  <button className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-sm cursor-pointer hover:opacity-90 shadow-md shadow-indigo-500/10 shrink-0">
+                    {org?.name ? getInitials(org.name) : "OB"}
+                  </button>
+                ) : (
+                  <button className="flex items-center gap-3 w-full px-3 py-2 rounded-xl border border-border bg-muted/20 hover:bg-muted/50 transition-all text-left group cursor-pointer">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-xs shrink-0 shadow">
+                      {org?.name ? getInitials(org.name) : "OB"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 justify-between">
+                        <span className="font-semibold text-xs text-foreground truncate">{org?.name || "Workspace"}</span>
+                        <Badge className="text-[9px] font-bold h-3.5 px-1 capitalize shrink-0 bg-primary/10 text-primary border-0">
+                          {org?.plan || "Personal"}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between items-center mt-0.5 text-[9px] text-muted-foreground/80 font-medium">
+                        <span>{org?.memberCount || 5} members</span>
+                        <span className="flex items-center gap-0.5 text-amber-500">
+                          <Zap className="h-2.5 w-2.5" /> {credits?.balance ?? user?.credits ?? 0}
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronsUpDown className="h-3 w-3 text-muted-foreground/50 group-hover:text-foreground shrink-0" />
+                  </button>
+                )}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align={collapsed ? "start" : "center"}
+                side={collapsed ? "right" : "bottom"}
+                sideOffset={collapsed ? 12 : 4}
+                className="w-[220px]"
+              >
+                <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Workspaces
+                </div>
+                <DropdownMenuItem className="cursor-pointer font-medium bg-accent/25">
+                  <div className="flex items-center gap-2 w-full">
+                    <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
+                      {org?.name ? getInitials(org.name) : "W"}
+                    </div>
+                    <span className="flex-1 truncate">{org?.name || "Primary Workspace"}</span>
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer text-muted-foreground hover:text-foreground">
+                  <div className="flex items-center gap-2 w-full">
+                    <div className="w-5 h-5 rounded bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground shrink-0">
+                      S
+                    </div>
+                    <span className="flex-1 truncate">Secondary Workspace</span>
+                  </div>
+                </DropdownMenuItem>
+                
+                <DropdownMenuSeparator />
+                
+                <DropdownMenuItem asChild>
+                  <Link href="/app/org" className="cursor-pointer w-full flex items-center text-muted-foreground hover:text-foreground">
+                    <Settings className="h-4 w-4 mr-2 shrink-0" />
+                    <span>Workspace Settings</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer text-muted-foreground hover:text-foreground">
+                  <Plus className="h-4 w-4 mr-2 shrink-0" />
+                  <span>New Workspace</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           
           {/* Nav */}
@@ -125,7 +189,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <button
               onClick={() => setCollapsed(!collapsed)}
               className={cn(
-                "flex items-center gap-3 py-3 rounded-r-full mr-4 pl-6 pr-4 text-muted-foreground hover:text-foreground hover:bg-muted/50 w-full transition-colors",
+                "flex items-center gap-3 py-3 rounded-r-full mr-4 pl-6 pr-4 text-muted-foreground hover:text-foreground hover:bg-muted/50 w-full transition-colors cursor-pointer",
                 collapsed && "justify-center px-0 w-12 mx-auto rounded-xl mr-auto ml-auto"
               )}
             >
@@ -141,71 +205,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Main */}
       <div className={cn(
         "flex-1 flex flex-col transition-all duration-200",
-        (location === "/app" || location === "/app/")
+        location.startsWith("/app")
           ? (collapsed ? "lg:ml-[72px]" : "lg:ml-[280px]")
           : "lg:ml-0"
       )}>
         {/* Topbar */}
         <header className="h-16 border-b border-border bg-background/80 backdrop-blur sticky top-0 z-30 flex items-center px-6 gap-4">
-          {(location !== "/app" && location !== "/app/") ? (
+          {(!location.startsWith("/app") || (location !== "/app" && location !== "/app/")) ? (
             <Link href="/app">
               <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full shrink-0">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
           ) : (
-            <button className="lg:hidden p-2 rounded-md hover:bg-muted shrink-0" onClick={() => setMobileOpen(!mobileOpen)}>
+            <button className="lg:hidden p-2 rounded-md hover:bg-muted shrink-0 cursor-pointer" onClick={() => setMobileOpen(!mobileOpen)}>
               <Menu className="h-6 w-6" />
             </button>
           )}
 
-          {/* Workspace Switcher */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-all duration-150 text-foreground hover:bg-muted/60 border border-border bg-card">
-                <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="text-sm font-medium truncate max-w-[160px]">
-                  {org?.name || "Workspace"}
-                </span>
-                <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              </div>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" side="bottom" sideOffset={4} className="w-[220px]">
-              <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Workspaces
-              </div>
-              <DropdownMenuItem className="cursor-pointer font-medium bg-accent/25">
-                <div className="flex items-center gap-2 w-full">
-                  <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
-                    {org?.name ? getInitials(org.name) : "W"}
-                  </div>
-                  <span className="flex-1 truncate">{org?.name || "Primary Workspace"}</span>
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer text-muted-foreground hover:text-foreground">
-                <div className="flex items-center gap-2 w-full">
-                  <div className="w-5 h-5 rounded bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground shrink-0">
-                    S
-                  </div>
-                  <span className="flex-1 truncate">Secondary Workspace</span>
-                </div>
-              </DropdownMenuItem>
-              
-              <DropdownMenuSeparator />
-              
-              <DropdownMenuItem asChild>
-                <Link href="/app/org" className="cursor-pointer w-full flex items-center text-muted-foreground hover:text-foreground">
-                  <Settings className="h-4 w-4 mr-2 shrink-0" />
-                  <span>Workspace Settings</span>
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer text-muted-foreground hover:text-foreground">
-                <Plus className="h-4 w-4 mr-2 shrink-0" />
-                <span>New Workspace</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Page Section Indicator */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+              {location.split("/").filter(Boolean).slice(1).join(" / ") || "Dashboard"}
+            </span>
+          </div>
 
           <div className="flex-1" />
 
