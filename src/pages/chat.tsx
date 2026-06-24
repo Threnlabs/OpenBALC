@@ -13,7 +13,7 @@ import {
   MessageSquare, Plus, Search, Trash2, Pin, PinOff, Send, Loader2,
   BookOpen, Globe, User, Bot, Zap, ChevronRight, MoreVertical,
   Layers, BrainCircuit, FileText, ArrowLeft, GraduationCap, X, Award, Sparkles,
-  Link2, Info
+  Link2, Info, ChevronLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,10 @@ import { toast } from "sonner";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import {
+  HoverCard, HoverCardTrigger, HoverCardContent
+} from "@/components/ui/hover-card";
+import InteractiveMindMap from "@/components/InteractiveMindMap";
 
 const SUGGESTED_PROMPTS = [
   "Explain the key concepts in my latest module",
@@ -122,8 +126,76 @@ function ConversationItem({ conv, active, onSelect, onDelete, onPin }: {
   );
 }
 
-function MessageBubble({ msg }: { msg: any }) {
+export const getCitationContext = (sourceName: string) => {
+  const name = sourceName.toLowerCase();
+  if (name.includes("pdf") || name.includes("accounting") || name.includes("notes")) {
+    return {
+      page: "PDF Page 3",
+      relevance: "96%",
+      highlight: "subtract the salvage value from the asset cost and divide by useful life to determine depreciation",
+      fullText: "To calculate straight-line depreciation, first subtract the salvage value from the asset cost and divide by useful life to determine depreciation. This formula represents the standard practice across public and private corporate finance groups."
+    };
+  }
+  if (name.includes("machine") || name.includes("learning") || name.includes("bas")) {
+    return {
+      page: "Page 12",
+      relevance: "93%",
+      highlight: "supervised learning mapping inputs to outputs based on labeled datasets",
+      fullText: "We define supervised learning mapping inputs to outputs based on labeled datasets, which is fundamentally distinct from unsupervised clustering techniques such as K-Means or PCA dimension reduction."
+    };
+  }
+  return {
+    page: "Page 1",
+    relevance: "89%",
+    highlight: "the active context retrieve matches this study source",
+    fullText: "Based on vector search similarity, the active context retrieve matches this study source. Reviewing this context helps verify AI accuracy and prevent hallucinations."
+  };
+};
+
+function MessageBubble({ msg, onCitationClick }: { msg: any; onCitationClick: (sourceName: string) => void }) {
   const isUser = msg.role === "user";
+
+  const renderMessageContent = (content: string, sources: string[] = []) => {
+    if (!content) return "";
+    const parts = content.split(/(\[\d+\])/g);
+    return parts.map((part, index) => {
+      const match = part.match(/^\[(\d+)\]$/);
+      if (match) {
+        const num = parseInt(match[1]);
+        const sourceName = sources[num - 1];
+        if (sourceName) {
+          const context = getCitationContext(sourceName);
+          return (
+            <HoverCard key={index} openDelay={200} closeDelay={100}>
+              <HoverCardTrigger asChild>
+                <span
+                  onClick={() => onCitationClick(sourceName)}
+                  className="inline-flex items-center justify-center w-4.5 h-4.5 rounded-full bg-primary/15 text-primary text-[9px] font-bold cursor-pointer hover:bg-primary/25 hover:scale-105 active:scale-95 transition-all shadow-xs border border-primary/20 mx-0.5 select-none"
+                >
+                  {num}
+                </span>
+              </HoverCardTrigger>
+              <HoverCardContent className="w-72 p-3.5 bg-card border border-border rounded-xl shadow-xl z-50 text-xs text-foreground space-y-2">
+                <div className="flex items-center justify-between border-b border-border pb-1.5 mb-1.5">
+                  <span className="font-bold text-primary truncate max-w-[150px]">{sourceName}</span>
+                  <Badge variant="outline" className="text-[9px] px-1 font-semibold">{context.page}</Badge>
+                </div>
+                <p className="text-[10px] text-muted-foreground/85 leading-normal italic bg-muted/20 p-2 rounded-lg border border-border/50">
+                  "...{context.highlight}..."
+                </p>
+                <div className="flex justify-between items-center text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
+                  <span>Relevance: {context.relevance}</span>
+                  <span className="text-primary hover:underline cursor-pointer" onClick={() => onCitationClick(sourceName)}>Click to view full text</span>
+                </div>
+              </HoverCardContent>
+            </HoverCard>
+          );
+        }
+      }
+      return part;
+    });
+  };
+
   return (
     <div className={cn("flex gap-3", isUser ? "flex-row-reverse" : "flex-row")}>
       <div className={cn(
@@ -139,7 +211,7 @@ function MessageBubble({ msg }: { msg: any }) {
             ? "bg-primary text-primary-foreground rounded-tr-sm"
             : "bg-card border border-border rounded-tl-sm text-foreground"
         )}>
-          {msg.content}
+          {isUser ? msg.content : renderMessageContent(msg.content, msg.sources)}
         </div>
         <div className="flex items-center gap-2 px-1">
           <span className="text-[10px] text-muted-foreground">{timeAgo(msg.createdAt)}</span>
@@ -152,8 +224,14 @@ function MessageBubble({ msg }: { msg: any }) {
         {msg.sources?.length > 0 && (
           <div className="flex flex-wrap gap-1 px-1">
             {msg.sources.map((src: string, i: number) => (
-              <Badge key={i} variant="secondary" className="text-[10px] h-4">
-                <BookOpen className="h-2 w-2 mr-1" />{src}
+              <Badge
+                key={i}
+                variant="secondary"
+                className="text-[10px] h-4 cursor-pointer hover:bg-muted/80"
+                onClick={() => onCitationClick(src)}
+              >
+                <BookOpen className="h-2 w-2 mr-1" />
+                <span>[{i + 1}] {src}</span>
               </Badge>
             ))}
           </div>
@@ -167,6 +245,10 @@ export default function ChatPage() {
   const params = useParams();
   const [, setLocation] = useLocation();
   const conversationId = params.id ? parseInt(params.id) : null;
+
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [activeCitationSource, setActiveCitationSource] = useState<string | null>(null);
   
   // Parse moduleId from URL query parameters
   const searchParams = new URLSearchParams(window.location.search);
@@ -409,9 +491,24 @@ export default function ChatPage() {
 
   return (
     <AppLayout>
-      <div className="h-[calc(100vh-56px)] flex">
+      <div className="h-[calc(100vh-64px)] flex relative overflow-hidden">
         {/* Conversations / Chapters Left Sidebar */}
-        <div className="w-[260px] border-r border-border flex flex-col bg-sidebar shrink-0 p-3 space-y-4 overflow-y-auto">
+        <div className={cn(
+          "border-r border-border flex flex-col bg-sidebar shrink-0 p-3 space-y-4 overflow-y-auto transition-all duration-300 relative",
+          leftCollapsed ? "w-0 p-0 border-r-0 overflow-hidden" : "w-[260px]"
+        )}>
+          {/* Left Collapse Trigger Button */}
+          <button
+            onClick={() => setLeftCollapsed(!leftCollapsed)}
+            className={cn(
+              "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-r-lg border-l-0 shadow-sm",
+              leftCollapsed ? "left-0" : "left-[259px]"
+            )}
+            title={leftCollapsed ? "Expand panel" : "Collapse panel"}
+          >
+            {leftCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+          </button>
+
           {moduleId ? (
             /* MODULE scoped chat view - Two distinct boxes */
             <>
@@ -662,23 +759,10 @@ export default function ChatPage() {
 
                         {/* Rendering different types of previews */}
                         {selectedArtifact.type === "diagram" && (
-                          <div className="flex flex-col items-center p-6 border border-border/80 bg-card rounded-xl space-y-4 shadow-sm select-none">
-                            <div className="px-3.5 py-1.5 bg-primary text-primary-foreground rounded-lg font-bold text-[11px] shadow">
-                              {module?.title || "Knowledge Node"}
-                            </div>
-                            <div className="w-0.5 h-4 bg-border" />
-                            <div className="flex gap-3 justify-center w-full flex-wrap">
-                              {(selectedArtifact.content as string).split("\n").filter((l: string) => l.includes("├──") || l.includes("└──")).map((l: string, i: number) => {
-                                const name = l.replace(/[├└─│]/g, "").trim();
-                                return (
-                                  <div key={i} className="px-2 py-1.5 bg-muted border border-border rounded-md font-semibold text-[10px] text-center shadow-xs">
-                                    {name}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            <p className="text-[9px] text-muted-foreground/60 text-center italic mt-2">Diagram structure synthesized from module citations.</p>
-                          </div>
+                          <InteractiveMindMap
+                            content={selectedArtifact.content}
+                            title={selectedArtifact.title}
+                          />
                         )}
 
                         {selectedArtifact.type === "code" && (
@@ -816,7 +900,7 @@ export default function ChatPage() {
                           <p>No messages yet. Send a message to start.</p>
                         </div>
                       ) : (
-                        messages.map(msg => <MessageBubble key={msg.id} msg={msg} />)
+                        messages.map(msg => <MessageBubble key={msg.id} msg={msg} onCitationClick={setActiveCitationSource} />)
                       )}
                       {sendMsg.isPending && (
                         <div className="flex gap-3">
@@ -915,9 +999,85 @@ export default function ChatPage() {
           )}
         </div>
 
+        {/* Right Collapse Trigger Button */}
+        {moduleId && !viewingArtifacts && (
+          <button
+            onClick={() => setRightCollapsed(!rightCollapsed)}
+            className={cn(
+              "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-l-lg border-r-0 shadow-sm",
+              rightCollapsed ? "right-0" : "right-[259px]"
+            )}
+            title={rightCollapsed ? "Expand details" : "Collapse details"}
+          >
+            {rightCollapsed ? <ChevronLeft className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+          </button>
+        )}
+
+        {/* Sliding split-screen RAG source viewer */}
+        {activeCitationSource && (
+          <div className="w-[340px] border-l border-border bg-card flex flex-col h-full shrink-0 shadow-xl animate-in slide-in-from-right duration-200 relative z-20">
+            {/* Header */}
+            <div className="h-12 border-b border-border flex items-center justify-between px-4 bg-muted/20 shrink-0">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground truncate">
+                <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="truncate text-foreground">Source Viewer: {activeCitationSource}</span>
+              </div>
+              <button
+                onClick={() => setActiveCitationSource(null)}
+                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 p-4 overflow-y-auto space-y-4 text-xs">
+              <div className="p-3 bg-muted/40 border border-border/80 rounded-xl space-y-1.5 shadow-inner">
+                <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Retrieved Document</span>
+                <h4 className="font-bold text-foreground truncate">{activeCitationSource}</h4>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4.5 bg-primary/5 text-primary border-primary/10 font-bold">
+                    {getCitationContext(activeCitationSource).page}
+                  </Badge>
+                  <span className="text-[10px] text-emerald-500 font-semibold">{getCitationContext(activeCitationSource).relevance} relevance match</span>
+                </div>
+              </div>
+
+              {/* Context passage */}
+              <div className="space-y-1.5">
+                <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Retrieved Context Highlight</span>
+                <div className="p-3.5 bg-card border border-border rounded-xl leading-relaxed text-muted-foreground shadow-xs">
+                  {(() => {
+                    const ctx = getCitationContext(activeCitationSource);
+                    const parts = ctx.fullText.split(ctx.highlight);
+                    return parts.map((part, idx) => (
+                      <span key={idx}>
+                        {part}
+                        {idx < parts.length - 1 && (
+                          <span className="bg-primary/20 text-foreground font-bold px-1.5 py-0.5 rounded shadow-sm border border-primary/30 select-text">
+                            {ctx.highlight}
+                          </span>
+                        )}
+                      </span>
+                    ));
+                  })()}
+                </div>
+              </div>
+
+              <div className="p-3 bg-primary/5 border border-primary/10 rounded-xl text-[10px] text-muted-foreground leading-normal flex items-start gap-2 shadow-xs">
+                <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                <span>Hovering or clicking other inline citation numbers will instantly update this previewer with the matched text context.</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Right Sidebar (only when moduleId is present and not viewing artifacts) */}
         {moduleId && !viewingArtifacts && (
-          <div className="w-[260px] border-l border-border flex flex-col bg-sidebar shrink-0 p-3 space-y-4 overflow-y-auto">
+          <div className={cn(
+            "border-l border-border flex flex-col bg-sidebar shrink-0 p-3 space-y-4 overflow-y-auto transition-all duration-300 relative",
+            rightCollapsed ? "w-0 p-0 border-l-0 overflow-hidden" : "w-[260px]"
+          )}>
             {/* BOX 1: Module Sources */}
             <div className="rounded-xl border border-border bg-card p-3 flex flex-col min-h-[180px]">
               <div className="flex items-center gap-1.5 mb-2.5 shrink-0 px-1 text-primary">

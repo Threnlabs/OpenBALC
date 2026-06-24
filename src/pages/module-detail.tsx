@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import InteractiveMindMap from "@/components/InteractiveMindMap";
+import { ChevronLeft } from "lucide-react";
 
 // Modal component to add sources
 function AddSourceModal({
@@ -470,6 +472,8 @@ export default function ModuleDetailPage() {
   const [activeTab, setActiveTab] = useState<"study" | "chat" | "quizzes" | "artifacts">("study");
   const [addSourceOpen, setAddSourceOpen] = useState(false);
   const [selectedChapter, setSelectedChapter] = useState<any | null>(null);
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
 
   // Chat conversation state
   const [chatInput, setChatInput] = useState("");
@@ -708,10 +712,24 @@ export default function ModuleDetailPage() {
         </div>
 
         {/* 3-panel layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-[230px_1fr_250px] gap-6 flex-1 items-stretch min-h-0">
+        <div className="flex flex-col lg:flex-row gap-6 flex-1 items-stretch min-h-0 relative overflow-hidden">
           
           {/* LEFT PANEL (Dynamic based on active tab) */}
-          <div className="rounded-xl border border-border bg-card p-4 flex flex-col h-full min-h-[300px]">
+          <div className={cn(
+            "rounded-xl border border-border bg-card p-4 flex flex-col h-full min-h-[300px] transition-all duration-300 relative",
+            leftCollapsed ? "w-0 p-0 border-0 overflow-hidden lg:min-h-0" : "w-full lg:w-[230px]"
+          )}>
+            {/* Left Collapse Trigger Button */}
+            <button
+              onClick={() => setLeftCollapsed(!leftCollapsed)}
+              className={cn(
+                "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-r-lg border-l-0 shadow-sm",
+                leftCollapsed ? "left-0" : "left-[229px]"
+              )}
+              title={leftCollapsed ? "Expand index" : "Collapse index"}
+            >
+              {leftCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+            </button>
             
             {/* STUDY GUIDE Left Side */}
             {activeTab === "study" && (
@@ -838,7 +856,7 @@ export default function ModuleDetailPage() {
           </div>
 
           {/* CENTER PANEL (Main Area) */}
-          <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col h-full min-h-[400px]">
+          <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col h-full min-h-[400px] flex-1">
             
             {/* STUDY GUIDE Center Panel */}
             {activeTab === "study" && (
@@ -993,28 +1011,11 @@ export default function ModuleDetailPage() {
                       <p className="text-xs text-muted-foreground mb-6">Structured hierarchy of topics generated from module content.</p>
                       
                       {/* Interactive Custom Node tree diagram */}
-                      <div className="flex flex-col items-center space-y-6 p-4 border border-border/80 bg-muted/20 rounded-xl relative">
-                        <div className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-bold text-xs shadow-md">
-                          {module.title}
-                        </div>
-                        <div className="w-0.5 h-6 bg-border" />
-                        <div className="flex gap-4 items-start w-full justify-around flex-wrap">
-                          {chapters.slice(0, 3).map((ch, i) => (
-                            <div key={ch} className="flex flex-col items-center min-w-[120px] max-w-[150px]">
-                              <div className="px-2.5 py-1.5 bg-card border border-primary/30 rounded-md font-semibold text-[11px] text-center shadow-sm w-full truncate">
-                                Chapter {i+1}: {ch}
-                              </div>
-                              <div className="w-0.5 h-4 bg-border" />
-                              <div className="px-2 py-1 bg-muted border border-border rounded text-[9px] text-muted-foreground w-full text-center truncate">
-                                Topic Definition
-                              </div>
-                              <div className="w-0.5 h-3 bg-border" />
-                              <div className="px-2 py-1 bg-muted border border-border rounded text-[9px] text-muted-foreground w-full text-center truncate">
-                                Key Applications
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                      <div className="h-[380px] w-full mt-2">
+                        <InteractiveMindMap
+                          title={`${module.title} Mind Map`}
+                          content={`${module.title}\n` + (chapters.length > 0 ? chapters.map(ch => `├── Chapter: ${ch}\n│   ├── Topic Breakdown\n│   └── Concepts`).join("\n") : "├── Concepts\n└── Overview")}
+                        />
                       </div>
                     </div>
                   </div>
@@ -1095,8 +1096,23 @@ export default function ModuleDetailPage() {
 
           </div>
 
+          {/* Right Collapse Trigger Button */}
+          <button
+            onClick={() => setRightCollapsed(!rightCollapsed)}
+            className={cn(
+              "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-l-lg border-r-0 shadow-sm",
+              rightCollapsed ? "right-0" : "right-[249px]"
+            )}
+            title={rightCollapsed ? "Expand details" : "Collapse details"}
+          >
+            {rightCollapsed ? <ChevronLeft className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+          </button>
+
           {/* RIGHT PANEL (Sources & details, persistent) */}
-          <div className="space-y-4 shrink-0 flex flex-col h-full min-h-[300px]">
+          <div className={cn(
+            "space-y-4 shrink-0 flex flex-col h-full transition-all duration-300 relative",
+            rightCollapsed ? "w-0 p-0 overflow-hidden lg:min-h-0" : "w-full lg:w-[250px] min-h-[300px]"
+          )}>
             
             {/* Sources list */}
             <div

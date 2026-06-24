@@ -8,8 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
-const STEPS = ["Profile", "Courses", "Micro Courses", "Interests"];
-
 const COURSES = [
   "Computer Science", "Mathematics", "Physics", "Chemistry", "Biology",
   "History", "Literature", "Economics", "Psychology", "Philosophy",
@@ -28,24 +26,36 @@ const INTERESTS = [
 ];
 
 function StepIndicator({ current }: { current: number }) {
+  const steps = ["Profile Setup", "Course Select", "Certifications", "Complete"];
   return (
-    <div className="flex items-center gap-2 mb-8">
-      {STEPS.map((step, i) => (
-        <div key={step} className="flex items-center gap-2">
+    <div className="w-full flex items-center justify-between mb-10 select-none relative px-2">
+      {/* Background Track Line */}
+      <div className="absolute top-[14px] left-[40px] right-[40px] h-[3px] bg-border rounded-full -z-10 overflow-hidden">
+        {/* Animated fill line */}
+        <div 
+          className="h-full bg-primary transition-all duration-500 ease-out" 
+          style={{ width: `${(current / (steps.length - 1)) * 100}%` }}
+        />
+      </div>
+
+      {steps.map((step, i) => (
+        <div key={step} className="flex flex-col items-center gap-2 relative">
+          {/* Node */}
           <div className={cn(
-            "w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-all",
-            i < current ? "bg-primary text-primary-foreground" :
-            i === current ? "bg-primary/20 text-primary border-2 border-primary" :
-            "bg-muted text-muted-foreground"
+            "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-500 border-2 z-10",
+            i < current ? "bg-primary border-primary text-primary-foreground scale-105 shadow-md shadow-primary/20" :
+            i === current ? "bg-background border-primary text-primary scale-110 ring-4 ring-primary/10 shadow-lg" :
+            "bg-card border-border text-muted-foreground scale-95"
           )}>
-            {i < current ? <Check className="h-3.5 w-3.5" /> : i + 1}
+            {i < current ? <Check className="h-4 w-4" /> : i + 1}
           </div>
-          <span className={cn("text-xs hidden sm:block", i === current ? "text-foreground" : "text-muted-foreground")}>
+          {/* Label */}
+          <span className={cn(
+            "text-[9px] font-bold uppercase tracking-wider transition-colors duration-300",
+            i <= current ? "text-foreground" : "text-muted-foreground/60"
+          )}>
             {step}
           </span>
-          {i < STEPS.length - 1 && (
-            <div className={cn("h-px w-8 mx-1", i < current ? "bg-primary" : "bg-border")} />
-          )}
         </div>
       ))}
     </div>
@@ -57,10 +67,10 @@ function ToggleChip({ label, selected, onClick }: { label: string; selected: boo
     <button
       onClick={onClick}
       className={cn(
-        "px-4 py-2 rounded-full border text-sm font-medium transition-all",
+        "px-4 py-2 rounded-full border text-xs font-semibold transition-all hover:scale-[1.02] cursor-pointer",
         selected
-          ? "border-primary bg-primary/10 text-primary"
-          : "border-border text-muted-foreground hover:border-muted-foreground/50"
+          ? "border-primary bg-primary/10 text-primary shadow-xs"
+          : "border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
       )}
     >
       {label}
@@ -96,109 +106,120 @@ export default function OnboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-8">
       <div className="w-full max-w-lg">
         {/* Logo */}
-        <div className="flex items-center gap-2 mb-8">
-          <div className="w-8 h-8 rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-xs">
+        <div className="flex items-center gap-2 mb-8 justify-center sm:justify-start">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-xs shadow-md shadow-indigo-500/20">
             OB
           </div>
-          <span className="font-bold text-sm">OpenBALC</span>
+          <span className="font-bold text-sm tracking-tight">OpenBALC</span>
         </div>
 
         <StepIndicator current={step} />
 
-        {/* Step 0: Profile */}
-        {step === 0 && (
-          <div className="space-y-5">
-            <div>
-              <h2 className="text-xl font-bold mb-1">Set up your profile</h2>
-              <p className="text-sm text-muted-foreground">Tell us a bit about yourself</p>
-            </div>
-            <div>
-              <Label>Display Name *</Label>
-              <Input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Your full name" className="mt-1.5" />
-            </div>
-            <div>
-              <Label>Username *</Label>
-              <Input value={username} onChange={e => setUsername(e.target.value)} placeholder="your_username" className="mt-1.5" />
-            </div>
-            <div>
-              <Label>Phone (optional)</Label>
-              <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 234 567 8900" className="mt-1.5" />
-            </div>
-            <Button
-              className="w-full" onClick={() => setStep(1)}
-              disabled={!displayName.trim() || !username.trim()}
-            >
-              Continue <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
-          </div>
-        )}
-
-        {/* Step 1: Courses */}
-        {step === 1 && (
-          <div className="space-y-5">
-            <div>
-              <h2 className="text-xl font-bold mb-1">Choose your courses</h2>
-              <p className="text-sm text-muted-foreground">Select subjects you're studying or interested in</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {COURSES.map(c => (
-                <ToggleChip key={c} label={c} selected={courses.includes(c)} onClick={() => setCourses(toggle(courses, c))} />
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(0)}>Back</Button>
-              <Button className="flex-1" onClick={() => setStep(2)}>
+        {/* Carousel Slide Container */}
+        <div className="w-full overflow-hidden relative bg-card/85 backdrop-blur-md border border-border/80 rounded-2xl shadow-xl mb-6">
+          <div 
+            className="flex transition-transform duration-500 ease-out p-6"
+            style={{ 
+              width: "400%", 
+              transform: `translateX(-${step * 25}%)` 
+            }}
+          >
+            {/* Slide 0: Profile */}
+            <div className="w-1/4 px-2 space-y-5">
+              <div>
+                <h2 className="text-lg font-bold mb-1">Set up your profile</h2>
+                <p className="text-xs text-muted-foreground">Tell us a bit about yourself</p>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-xs font-semibold">Display Name *</Label>
+                  <Input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Your full name" className="mt-1.5 h-9 text-xs" />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold">Username *</Label>
+                  <Input value={username} onChange={e => setUsername(e.target.value)} placeholder="your_username" className="mt-1.5 h-9 text-xs" />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold">Phone (optional)</Label>
+                  <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 234 567 8900" className="mt-1.5 h-9 text-xs" />
+                </div>
+              </div>
+              <Button
+                className="w-full mt-4 h-9 text-xs font-bold" onClick={() => setStep(1)}
+                disabled={!displayName.trim() || !username.trim()}
+              >
                 Continue <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             </div>
-          </div>
-        )}
 
-        {/* Step 2: Micro courses */}
-        {step === 2 && (
-          <div className="space-y-5">
-            <div>
-              <h2 className="text-xl font-bold mb-1">Micro courses</h2>
-              <p className="text-sm text-muted-foreground">What skills are you picking up?</p>
+            {/* Slide 1: Courses */}
+            <div className="w-1/4 px-2 space-y-5 flex flex-col justify-between">
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-lg font-bold mb-1">Choose your courses</h2>
+                  <p className="text-xs text-muted-foreground font-semibold">Select subjects you're studying or interested in</p>
+                </div>
+                <div className="flex flex-wrap gap-2 max-h-[190px] overflow-y-auto pr-1 scrollbar-thin">
+                  {COURSES.map(c => (
+                    <ToggleChip key={c} label={c} selected={courses.includes(c)} onClick={() => setCourses(toggle(courses, c))} />
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2.5 pt-4">
+                <Button variant="outline" className="h-9 text-xs font-bold" onClick={() => setStep(0)}>Back</Button>
+                <Button className="flex-1 h-9 text-xs font-bold" onClick={() => setStep(2)}>
+                  Continue <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {MICRO_COURSES.map(c => (
-                <ToggleChip key={c} label={c} selected={microCourses.includes(c)} onClick={() => setMicroCourses(toggle(microCourses, c))} />
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-              <Button className="flex-1" onClick={() => setStep(3)}>
-                Continue <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
-          </div>
-        )}
 
-        {/* Step 3: Interests */}
-        {step === 3 && (
-          <div className="space-y-5">
-            <div>
-              <h2 className="text-xl font-bold mb-1">Your interests</h2>
-              <p className="text-sm text-muted-foreground">Help us personalize your experience</p>
+            {/* Slide 2: Micro courses */}
+            <div className="w-1/4 px-2 space-y-5 flex flex-col justify-between">
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-lg font-bold mb-1">Micro courses</h2>
+                  <p className="text-xs text-muted-foreground font-semibold">What skills are you picking up?</p>
+                </div>
+                <div className="flex flex-wrap gap-2 max-h-[190px] overflow-y-auto pr-1 scrollbar-thin">
+                  {MICRO_COURSES.map(c => (
+                    <ToggleChip key={c} label={c} selected={microCourses.includes(c)} onClick={() => setMicroCourses(toggle(microCourses, c))} />
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2.5 pt-4">
+                <Button variant="outline" className="h-9 text-xs font-bold" onClick={() => setStep(1)}>Back</Button>
+                <Button className="flex-1 h-9 text-xs font-bold" onClick={() => setStep(3)}>
+                  Continue <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {INTERESTS.map(i => (
-                <ToggleChip key={i} label={i} selected={interests.includes(i)} onClick={() => setInterests(toggle(interests, i))} />
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
-              <Button className="flex-1" onClick={handleSubmit} disabled={completeOnboarding.isPending}>
-                {completeOnboarding.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Finish Setup
-              </Button>
+
+            {/* Slide 3: Interests */}
+            <div className="w-1/4 px-2 space-y-5 flex flex-col justify-between">
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-lg font-bold mb-1">Your interests</h2>
+                  <p className="text-xs text-muted-foreground font-semibold">Help us personalize your experience</p>
+                </div>
+                <div className="flex flex-wrap gap-2 max-h-[190px] overflow-y-auto pr-1 scrollbar-thin">
+                  {INTERESTS.map(i => (
+                    <ToggleChip key={i} label={i} selected={interests.includes(i)} onClick={() => setInterests(toggle(interests, i))} />
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2.5 pt-4">
+                <Button variant="outline" className="h-9 text-xs font-bold" onClick={() => setStep(2)}>Back</Button>
+                <Button className="flex-1 h-9 text-xs font-bold" onClick={handleSubmit} disabled={completeOnboarding.isPending}>
+                  {completeOnboarding.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Finish Setup
+                </Button>
+              </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
