@@ -544,6 +544,22 @@ export default function ChatPage() {
     });
   }
 
+  // Auto-resize textarea: expand up to maxLines, then scroll
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    // Reset so scrollHeight reflects the natural content height
+    ta.style.height = "auto";
+    // Determine line-height in px (fallback to 20px)
+    const lineHeightPx = parseFloat(getComputedStyle(ta).lineHeight) || 20;
+    // Max lines: 9 on desktop (≥768px), 4 on mobile
+    const maxLines = window.innerWidth >= 768 ? 9 : 4;
+    const maxHeight = lineHeightPx * maxLines + /* vertical padding */ 16;
+    const newHeight = Math.min(ta.scrollHeight, maxHeight);
+    ta.style.height = `${newHeight}px`;
+    ta.style.overflowY = ta.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [input]);
+
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     const caret = e.target.selectionStart ?? value.length;
@@ -1130,8 +1146,8 @@ export default function ChatPage() {
                         }}
                         placeholder="Ask a question or tag a module with @..."
                         rows={1}
-                        className="w-full resize-none bg-transparent py-2 text-xs outline-none placeholder:text-muted-foreground/60 disabled:opacity-50 font-medium"
-                        style={{ maxHeight: "150px", overflowY: "auto" }}
+                        className="w-full resize-none bg-transparent py-2 text-xs outline-none placeholder:text-muted-foreground/60 disabled:opacity-50 font-medium leading-5"
+                        style={{ overflowY: "hidden", minHeight: "36px" }}
                       />
 
                       {/* Mention Picker Popup */}
