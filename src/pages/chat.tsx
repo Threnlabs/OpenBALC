@@ -27,6 +27,7 @@ import {
   HoverCard, HoverCardTrigger, HoverCardContent
 } from "@/components/ui/hover-card";
 import InteractiveMindMap from "@/components/InteractiveMindMap";
+import MarkdownRenderer from "@/components/MarkdownRenderer";
 
 const SUGGESTED_PROMPTS = [
   "Explain the key concepts in my latest module",
@@ -960,9 +961,7 @@ export default function ChatPage() {
                         )}
 
                         {selectedArtifact.type === "markdown" && (
-                          <div className="prose prose-sm dark:prose-invert max-w-none text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                            {selectedArtifact.content}
-                          </div>
+                          <MarkdownRenderer content={selectedArtifact.content} className="text-xs text-muted-foreground leading-relaxed" />
                         )}
                       </div>
                     </div>
