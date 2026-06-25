@@ -1,10 +1,12 @@
 import { Link } from "wouter";
 import { useState, useEffect } from "react";
-import { Check, Zap, Send, Bot, User, Loader2, MessageSquare, ArrowRight, BookOpen, Sparkles, Clock, Globe } from "lucide-react";
+import { Check, Zap, Send, Bot, User, Loader2, MessageSquare, ArrowRight, BookOpen, Sparkles, Clock, Globe, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+import { useTheme } from "@/hooks/use-theme";
 
 export default function Landing() {
+  const { isDark, toggleTheme } = useTheme();
   const [chatInput, setChatInput] = useState("");
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -137,6 +139,17 @@ export default function Landing() {
           <Link href="/ads" className="hover:text-foreground transition-colors">Advertisers</Link>
         </nav>
         <div className="flex items-center gap-4">
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-150 cursor-pointer group"
+            title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {isDark ? (
+              <Sun className="h-5 w-5 text-amber-500 group-hover:rotate-45 transition-transform" />
+            ) : (
+              <Moon className="h-5 w-5 text-indigo-500 group-hover:-rotate-12 transition-transform" />
+            )}
+          </button>
           <Link href="/login" className="text-sm font-medium hover:text-primary transition-colors">Sign in</Link>
           <Link href="/login" className="text-sm font-medium bg-primary text-primary-foreground px-4 py-2 rounded-md hover:opacity-90 transition-opacity">
             Get Started
