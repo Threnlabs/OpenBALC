@@ -28,7 +28,35 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleTheme = () => {
-    setThemeState((prev) => (prev === "dark" ? "light" : "dark"));
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    const doc = document as any;
+
+    if (!doc.startViewTransition) {
+      setThemeState(nextTheme);
+      return;
+    }
+
+    const root = window.document.documentElement;
+    root.classList.add("theme-transitioning");
+    if (nextTheme === "dark") {
+      root.classList.add("theme-transition-to-dark");
+      root.classList.remove("theme-transition-to-light");
+    } else {
+      root.classList.add("theme-transition-to-light");
+      root.classList.remove("theme-transition-to-dark");
+    }
+
+    const transition = doc.startViewTransition(() => {
+      setThemeState(nextTheme);
+    });
+
+    transition.finished.finally(() => {
+      root.classList.remove(
+        "theme-transitioning",
+        "theme-transition-to-dark",
+        "theme-transition-to-light"
+      );
+    });
   };
 
   useEffect(() => {
