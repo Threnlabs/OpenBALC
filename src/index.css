@@ -67,58 +67,58 @@
 }
 
 :root {
-  --button-outline: rgba(255,255,255, .10);
-  --badge-outline: rgba(255,255,255, .05);
+  --button-outline: rgba(0,0,0, .06);
+  --badge-outline: rgba(0,0,0, .03);
 
-  --opaque-button-border-intensity: 9;
+  --opaque-button-border-intensity: 1;
 
-  --elevate-1: rgba(255,255,255, .04);
-  --elevate-2: rgba(255,255,255, .09);
+  --elevate-1: rgba(0,0,0, .02);
+  --elevate-2: rgba(0,0,0, .04);
 
-  /* Premium Deep Indigo / Dark Slate color system */
-  --background: 240 10% 4%;           /* Deep dark slate */
-  --foreground: 0 0% 98%;             /* Soft white */
-  --border: 240 10% 12%;              /* Sleek, thin borders */
+  /* Premium Light Mode - Slate / Soft Indigo system */
+  --background: 240 20% 98%;           /* Clean, soft off-white/light-grey */
+  --foreground: 240 10% 3.9%;          /* Deep carbon/slate for readability */
+  --border: 240 5.9% 90%;              /* Subtly defined border */
   
-  --card: 240 10% 6%;                 /* Surface cards */
-  --card-foreground: 0 0% 98%;
-  --card-border: 240 10% 12%;
+  --card: 0 0% 100%;                   /* Pure white card surface */
+  --card-foreground: 240 10% 3.9%;
+  --card-border: 240 5.9% 90%;
   
-  --sidebar: 240 10% 6%;
-  --sidebar-border: 240 10% 12%;
-  --sidebar-foreground: 0 0% 98%;
+  --sidebar: 240 15% 96.5%;            /* Distinct light-grey sidebar panel */
+  --sidebar-border: 240 5.9% 90%;
+  --sidebar-foreground: 240 10% 15%;
   --sidebar-primary: 243 75% 59%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 240 10% 12%;
-  --sidebar-accent-foreground: 0 0% 98%;
+  --sidebar-accent: 240 5% 90%;
+  --sidebar-accent-foreground: 240 10% 15%;
   --sidebar-ring: 243 75% 59%;
 
-  --popover: 240 10% 6%;
-  --popover-foreground: 0 0% 98%;
-  --popover-border: 240 10% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 3.9%;
+  --popover-border: 240 5.9% 90%;
   
-  --primary: 243 75% 59%;             /* Indigo accent */
+  --primary: 243 75% 59%;             /* Premium Indigo accent */
   --primary-foreground: 0 0% 100%;
   
-  --secondary: 240 10% 12%;
-  --secondary-foreground: 0 0% 98%;
+  --secondary: 240 4.8% 95.9%;
+  --secondary-foreground: 240 5.9% 10%;
   
-  --muted: 240 10% 12%;
-  --muted-foreground: 240 5% 64.9%;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
   
-  --accent: 210 40% 96%;              /* Light highlights */
-  --accent-foreground: 240 10% 15%;
+  --accent: 240 4.8% 95.9%;
+  --accent-foreground: 240 5.9% 10%;
   
-  --destructive: 0 62.8% 30.6%;
+  --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 0 0% 98%;
   
-  --input: 240 10% 16%;
+  --input: 240 5.9% 90%;
   --ring: 243 75% 59%;
 
-  --chart-1: 220 70% 50%;
-  --chart-2: 160 60% 45%;
-  --chart-3: 30 80% 55%;
-  --chart-4: 280 65% 60%;
+  --chart-1: 243 75% 59%;
+  --chart-2: 262 80% 50%;
+  --chart-3: 142 70% 45%;
+  --chart-4: 30 90% 50%;
   --chart-5: 340 75% 55%;
 
   --app-font-sans: 'Outfit', sans-serif;
@@ -175,6 +175,9 @@
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
   * {
     @apply border-border;
   }

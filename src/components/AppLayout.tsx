@@ -6,10 +6,12 @@ import { getInitials, cn } from "@/lib/utils";
 import {
   LayoutDashboard, MessageSquare, BookOpen, StickyNote, FlaskConical,
   Users, Building2, Megaphone, Bell, Settings, ChevronLeft, ChevronRight,
-  LogOut, Menu, X, Zap, ChevronsUpDown, Plus, ArrowLeft, Shield, Loader2
+  LogOut, Menu, X, Zap, ChevronsUpDown, Plus, ArrowLeft, Shield, Loader2,
+  Sun, Moon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useTheme } from "@/hooks/use-theme";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger
@@ -60,6 +62,7 @@ function NavItem({ href, label, icon: Icon, collapsed, exact }: {
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const { isDark, toggleTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [location] = useLocation();
@@ -222,6 +225,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {bottomItems.map(item => (
               <NavItem key={item.href} {...item} collapsed={collapsed} />
             ))}
+            
+            {/* Theme Toggle Button */}
+            <button
+              onClick={toggleTheme}
+              className={cn(
+                "flex items-center gap-3 py-3 rounded-r-full mr-4 pl-6 pr-4 text-muted-foreground hover:text-foreground hover:bg-muted/50 w-full transition-all duration-150 cursor-pointer group",
+                collapsed && "justify-center px-0 w-12 mx-auto rounded-xl mr-auto ml-auto"
+              )}
+              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {isDark ? (
+                <>
+                  <Sun className="h-5 w-5 shrink-0 text-amber-500 group-hover:rotate-45 transition-transform" />
+                  {!collapsed && <span className="text-[15px] font-medium truncate">Light Mode</span>}
+                </>
+              ) : (
+                <>
+                  <Moon className="h-5 w-5 shrink-0 text-indigo-500 group-hover:-rotate-12 transition-transform" />
+                  {!collapsed && <span className="text-[15px] font-medium truncate">Dark Mode</span>}
+                </>
+              )}
+            </button>
+
             <button
               onClick={() => setCollapsed(!collapsed)}
               className={cn(
@@ -270,7 +296,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center gap-2">
             {/* Credits badge */}
-            <div className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 text-amber-400 text-base font-medium">
+            <div className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-base font-medium">
               <Zap className="h-4 w-4" />
               <span>{credits?.balance ?? user?.credits ?? 0}</span>
             </div>
