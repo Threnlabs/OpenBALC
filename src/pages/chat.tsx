@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import AppLayout from "@/components/AppLayout";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Skeleton } from "@/components/Skeleton";
 import {
   useListConversations, useGetConversation, useGetMessages, useSendMessage,
@@ -389,6 +390,31 @@ export default function ChatPage() {
   const [, setLocation] = useLocation();
   const conversationId = params.id ? parseInt(params.id) : null;
 
+  const isMobile = useIsMobile();
+  const [mobileActiveTab, setMobileActiveTab] = useState<'conversations' | 'chat' | 'info' | 'artifacts'>('conversations');
+
+  // Automatically switch tab on mobile when conversationId changes
+  useEffect(() => {
+    if (isMobile) {
+      if (conversationId) {
+        setMobileActiveTab('chat');
+      } else {
+        setMobileActiveTab('conversations');
+      }
+    }
+  }, [conversationId, isMobile]);
+
+  // Keep viewingArtifacts in sync with mobileActiveTab
+  useEffect(() => {
+    if (isMobile) {
+      if (mobileActiveTab === 'artifacts') {
+        setViewingArtifacts(true);
+      } else {
+        setViewingArtifacts(false);
+      }
+    }
+  }, [mobileActiveTab, isMobile]);
+
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [activeCitationSource, setActiveCitationSource] = useState<string | null>(null);
@@ -676,7 +702,9 @@ export default function ChatPage() {
         {/* Conversations / Chapters Left Sidebar */}
         <div className={cn(
           "border-r border-border flex flex-col bg-sidebar shrink-0 p-3 space-y-4 overflow-y-auto transition-all duration-300 relative",
-          leftCollapsed ? "w-0 p-0 border-r-0 overflow-hidden" : "w-[260px]"
+          isMobile
+            ? (mobileActiveTab === 'conversations' ? "w-full border-r-0" : "hidden")
+            : (leftCollapsed ? "w-0 p-0 border-r-0 overflow-hidden" : "w-[260px]")
         )}>
 
           {moduleId ? (
@@ -709,6 +737,9 @@ export default function ChatPage() {
                     size="sm"
                     onClick={() => {
                       setViewingArtifacts(true);
+                      if (isMobile) {
+                        setMobileActiveTab('artifacts');
+                      }
                       if (visibleArtifacts.length > 0 && !activeArtifactId) {
                         setActiveArtifactId(visibleArtifacts[0].id);
                       }
@@ -782,6 +813,9 @@ export default function ChatPage() {
                   size="sm"
                   onClick={() => {
                     setViewingArtifacts(true);
+                    if (isMobile) {
+                      setMobileActiveTab('artifacts');
+                    }
                     if (visibleArtifacts.length > 0 && !activeArtifactId) {
                       setActiveArtifactId(visibleArtifacts[0].id);
                     }
@@ -860,7 +894,7 @@ export default function ChatPage() {
           onClick={() => setLeftCollapsed(!leftCollapsed)}
           className={cn(
             "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-r-lg border-l-0 shadow-sm",
-            leftCollapsed ? "left-0" : "left-[259px]"
+            isMobile ? "hidden" : (leftCollapsed ? "left-0" : "left-[259px]")
           )}
           title={leftCollapsed ? "Expand panel" : "Collapse panel"}
         >
@@ -868,7 +902,10 @@ export default function ChatPage() {
         </button>
 
         {/* Chat / Artifacts Workspace Main Area */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-background">
+        <div className={cn(
+          "flex-1 flex flex-col overflow-hidden bg-background",
+          isMobile && (mobileActiveTab !== 'chat' && mobileActiveTab !== 'artifacts') && "hidden"
+        )}>
           {viewingArtifacts ? (
             /* ARTIFACTS VIEW taking over the main content area */
             <div className="flex-1 flex flex-col overflow-hidden">
@@ -883,7 +920,12 @@ export default function ChatPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setViewingArtifacts(false)}
+                  onClick={() => {
+                    setViewingArtifacts(false);
+                    if (isMobile) {
+                      setMobileActiveTab(conversationId ? 'chat' : 'conversations');
+                    }
+                  }}
                   className="h-7 px-2 text-xs font-semibold"
                 >
                   <X className="h-3.5 w-3.5 mr-1" /> Exit Workspace
@@ -891,9 +933,16 @@ export default function ChatPage() {
               </div>
 
               {/* Workspace Split Body */}
-              <div className="flex-1 grid grid-cols-[250px_1fr] gap-4 p-4 min-h-0 overflow-hidden bg-muted/5">
+              <div className={cn(
+                "flex-1 gap-4 p-4 min-h-0 overflow-hidden bg-muted/5",
+                isMobile ? "flex flex-col" : "grid grid-cols-[250px_1fr]"
+              )}>
                 {/* Left side: Artifacts list */}
-                <div className="border border-border/80 bg-card rounded-2xl p-3 flex flex-col space-y-2 overflow-y-auto min-h-0 shadow-sm">
+                <div className={cn(
+                  "border border-border/80 bg-card rounded-2xl p-3 flex flex-col space-y-2 overflow-y-auto min-h-0 shadow-sm",
+                  isMobile && activeArtifactId !== null && "hidden",
+                  isMobile && "flex-1 w-full"
+                )}>
                   <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-1 mb-1">
                     Available Items ({visibleArtifacts.length})
                   </h3>
@@ -931,13 +980,29 @@ export default function ChatPage() {
                 </div>
 
                 {/* Right side: Selected Artifact interactive preview */}
-                <div className="border border-border/80 bg-card rounded-2xl p-6 flex flex-col min-h-0 overflow-y-auto justify-between shadow-sm">
+                <div className={cn(
+                  "border border-border/80 bg-card rounded-2xl p-6 flex flex-col min-h-0 overflow-y-auto justify-between shadow-sm",
+                  isMobile && activeArtifactId === null && "hidden",
+                  isMobile && "flex-1 w-full p-4"
+                )}>
                   {selectedArtifact ? (
                     <div className="space-y-4 flex-1 flex flex-col justify-between">
                       <div className="space-y-4 flex-1">
                         <div className="flex items-center justify-between border-b border-border/60 pb-3">
-                          <h4 className="font-bold text-sm text-foreground">{selectedArtifact.title}</h4>
-                          <Badge className="uppercase text-[9px] font-bold h-5 bg-primary/10 text-primary border-0">{selectedArtifact.type}</Badge>
+                          <div className="flex items-center min-w-0">
+                            {isMobile && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setActiveArtifactId(null)}
+                                className="h-7 px-2 text-xs font-semibold mr-2 shrink-0"
+                              >
+                                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
+                              </Button>
+                            )}
+                            <h4 className="font-bold text-sm text-foreground truncate">{selectedArtifact.title}</h4>
+                          </div>
+                          <Badge className="uppercase text-[9px] font-bold h-5 bg-primary/10 text-primary border-0 shrink-0">{selectedArtifact.type}</Badge>
                         </div>
 
                         {/* Rendering different types of previews */}
@@ -1071,15 +1136,59 @@ export default function ChatPage() {
                   <>
                     {/* Chat header */}
                     <div className="h-12 border-b border-border flex items-center justify-between px-4 gap-2 shrink-0 bg-card">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        {isMobile && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 mr-1 shrink-0"
+                            onClick={() => {
+                              setMobileActiveTab('conversations');
+                              setLocation(moduleId ? `/app/chat?moduleId=${moduleId}` : "/app/chat");
+                            }}
+                          >
+                            <ArrowLeft className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <MessageSquare className="h-4 w-4 text-muted-foreground shrink-0" />
                         <span className="text-xs font-bold text-foreground truncate">{conversation?.title ?? "Chat"}</span>
                         {moduleId && (
-                          <Badge variant="secondary" className="text-[9px] font-semibold tracking-wide uppercase px-1 py-0 h-4 bg-primary/10 text-primary border-0">
-                            {module?.title} Scoped
+                          <Badge variant="secondary" className="text-[9px] font-semibold tracking-wide uppercase px-1 py-0 h-4 bg-primary/10 text-primary border-0 shrink-0">
+                            {module?.title ? (module.title.length > 15 ? `${module.title.slice(0, 15)}...` : module.title) : "Scoped"}
                           </Badge>
                         )}
                       </div>
+
+                      {isMobile && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => {
+                              setViewingArtifacts(true);
+                              setMobileActiveTab('artifacts');
+                              if (visibleArtifacts.length > 0 && !activeArtifactId) {
+                                setActiveArtifactId(visibleArtifacts[0].id);
+                              }
+                            }}
+                            title="View Study Artifacts"
+                          >
+                            <Layers className="h-4 w-4 text-primary" />
+                          </Button>
+                          {moduleId && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => setMobileActiveTab('info')}
+                              title="Module Info & Sources"
+                            >
+                              <Info className="h-4 w-4 text-primary" />
+                            </Button>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Messages Log */}
@@ -1207,7 +1316,7 @@ export default function ChatPage() {
             onClick={() => setRightCollapsed(!rightCollapsed)}
             className={cn(
               "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-l-lg border-r-0 shadow-sm",
-              rightCollapsed ? "right-0" : "right-[259px]"
+              isMobile ? "hidden" : (rightCollapsed ? "right-0" : "right-[259px]")
             )}
             title={rightCollapsed ? "Expand details" : "Collapse details"}
           >
@@ -1217,7 +1326,10 @@ export default function ChatPage() {
 
         {/* Sliding split-screen RAG source viewer */}
         {activeCitationSource && (
-          <div className="w-[340px] border-l border-border bg-card flex flex-col h-full shrink-0 shadow-xl animate-in slide-in-from-right duration-200 relative z-20">
+          <div className={cn(
+            "border-l border-border bg-card flex flex-col h-full shrink-0 shadow-xl animate-in slide-in-from-right duration-200 z-20",
+            isMobile ? "w-full absolute inset-0 border-l-0" : "w-[340px] relative"
+          )}>
             {/* Header */}
             <div className="h-12 border-b border-border flex items-center justify-between px-4 bg-muted/20 shrink-0">
               <div className="flex items-center gap-1.5 text-xs font-bold text-foreground truncate">
@@ -1278,8 +1390,28 @@ export default function ChatPage() {
         {moduleId && !viewingArtifacts && (
           <div className={cn(
             "border-l border-border flex flex-col bg-sidebar shrink-0 p-3 space-y-4 overflow-y-auto transition-all duration-300 relative",
-            rightCollapsed ? "w-0 p-0 border-l-0 overflow-hidden" : "w-[260px]"
+            isMobile
+              ? (mobileActiveTab === 'info' ? "w-full border-l-0" : "hidden")
+              : (rightCollapsed ? "w-0 p-0 border-l-0 overflow-hidden" : "w-[260px]")
           )}>
+            {/* Mobile Header */}
+            {isMobile && (
+              <div className="h-12 border-b border-border flex items-center justify-between px-1 bg-card shrink-0">
+                <div className="flex items-center gap-2">
+                  <Info className="h-4 w-4 text-primary" />
+                  <span className="text-xs font-bold text-foreground">Module Info & Sources</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setMobileActiveTab('chat')}
+                  className="h-7 px-2 text-xs font-semibold"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to Chat
+                </Button>
+              </div>
+            )}
+
             {/* BOX 1: Module Sources */}
             <div className="rounded-xl border border-border bg-card p-3 flex flex-col min-h-[180px]">
               <div className="flex items-center gap-1.5 mb-2.5 shrink-0 px-1 text-primary">

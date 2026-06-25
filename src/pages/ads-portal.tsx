@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { useTheme } from "@/hooks/use-theme";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
@@ -202,6 +203,7 @@ function RegistrationWizard({ onComplete }: { onComplete: () => void }) {
 }
 
 export default function AdsPortal() {
+  const { isDark } = useTheme();
   const [view, setView] = useState<"landing" | "register" | "dashboard">("landing");
   const { data: campaigns, isLoading } = useListAdCampaigns();
 
@@ -211,8 +213,12 @@ export default function AdsPortal() {
         <header className="h-14 border-b border-border flex items-center justify-between px-6">
           <Link href="/">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-xs">OB</div>
-              <span className="font-bold text-sm">OpenBALC Ads</span>
+              <img 
+                src={isDark ? "/logo/light_logo.svg" : "/logo/dark_logo.svg"} 
+                alt="OpenBALC Logo" 
+                className="h-7 object-contain" 
+              />
+              <span className="font-bold text-sm text-primary uppercase tracking-wider ml-1">Ads</span>
             </div>
           </Link>
           <Button variant="ghost" size="sm" onClick={() => setView("landing")}>Back</Button>
@@ -231,8 +237,12 @@ export default function AdsPortal() {
       <div className="min-h-screen bg-background">
         <header className="h-14 border-b border-border flex items-center justify-between px-6">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-xs">OB</div>
-            <span className="font-bold text-sm">OpenBALC Ads</span>
+            <img 
+              src={isDark ? "/logo/light_logo.svg" : "/logo/dark_logo.svg"} 
+              alt="OpenBALC Logo" 
+              className="h-7 object-contain" 
+            />
+            <span className="font-bold text-sm text-primary uppercase tracking-wider ml-1">Ads</span>
           </div>
           <Button size="sm" onClick={() => setView("register")}>
             <Plus className="h-4 w-4 mr-1.5" /> New Campaign
@@ -283,8 +293,11 @@ export default function AdsPortal() {
       <header className="h-14 border-b border-border flex items-center justify-between px-6">
         <Link href="/">
           <div className="flex items-center gap-2 cursor-pointer">
-            <div className="w-7 h-7 rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-xs">OB</div>
-            <span className="font-bold text-sm">OpenBALC</span>
+            <img 
+              src={isDark ? "/logo/light_logo.svg" : "/logo/dark_logo.svg"} 
+              alt="OpenBALC Logo" 
+              className="h-7 object-contain" 
+            />
           </div>
         </Link>
         <div className="flex gap-2">

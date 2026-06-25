@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ModuleCardSkeleton } from "@/components/Skeleton";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useTheme } from "@/hooks/use-theme";
 
 function PublicModuleCard({ module }: { module: any }) {
   const color = getModuleColor(module.id);
@@ -65,6 +66,7 @@ function PublicModuleCard({ module }: { module: any }) {
 }
 
 export default function PublicModulesPage() {
+  const { isDark } = useTheme();
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<string>("newest");
   const [, setLocation] = useLocation();
@@ -79,10 +81,11 @@ export default function PublicModulesPage() {
       <header className="fixed top-0 left-0 right-0 h-16 border-b border-border bg-background/80 backdrop-blur flex items-center justify-between px-6 z-50">
         <Link href="/">
           <div className="flex items-center gap-2 cursor-pointer">
-            <div className="w-8 h-8 rounded bg-primary flex items-center justify-center font-bold text-white">
-              OB
-            </div>
-            <span className="font-bold text-lg tracking-tight">OpenBALC</span>
+            <img 
+              src={isDark ? "/logo/light_logo.svg" : "/logo/dark_logo.svg"} 
+              alt="OpenBALC Logo" 
+              className="h-8 object-contain" 
+            />
           </div>
         </Link>
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">

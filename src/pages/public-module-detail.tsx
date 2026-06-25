@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
+import { useTheme } from "@/hooks/use-theme";
 
 export default function PublicModuleDetailPage() {
+  const { isDark } = useTheme();
   const params = useParams();
   const id = parseInt(params.id as string);
   const [, setLocation] = useLocation();
@@ -63,10 +65,11 @@ export default function PublicModuleDetailPage() {
       <header className="fixed top-0 left-0 right-0 h-16 border-b border-border bg-background/80 backdrop-blur flex items-center justify-between px-6 z-50">
         <Link href="/">
           <div className="flex items-center gap-2 cursor-pointer">
-            <div className="w-8 h-8 rounded bg-primary flex items-center justify-center font-bold text-white">
-              OB
-            </div>
-            <span className="font-bold text-lg tracking-tight">OpenBALC</span>
+            <img 
+              src={isDark ? "/logo/light_logo.svg" : "/logo/dark_logo.svg"} 
+              alt="OpenBALC Logo" 
+              className="h-8 object-contain" 
+            />
           </div>
         </Link>
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">

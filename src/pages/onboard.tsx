@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useCompleteOnboarding } from "@workspace/api-client-react";
+import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
 import { Loader2, Check, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -79,6 +80,7 @@ function ToggleChip({ label, selected, onClick }: { label: string; selected: boo
 }
 
 export default function OnboardPage() {
+  const { isDark } = useTheme();
   const [step, setStep] = useState(0);
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
@@ -110,10 +112,11 @@ export default function OnboardPage() {
       <div className="w-full max-w-lg">
         {/* Logo */}
         <div className="flex items-center gap-2 mb-8 justify-center sm:justify-start">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-xs shadow-md shadow-indigo-500/20">
-            OB
-          </div>
-          <span className="font-bold text-sm tracking-tight">OpenBALC</span>
+          <img 
+            src={isDark ? "/logo/light_logo.svg" : "/logo/dark_logo.svg"} 
+            alt="OpenBALC Logo" 
+            className="h-8 object-contain" 
+          />
         </div>
 
         <StepIndicator current={step} />

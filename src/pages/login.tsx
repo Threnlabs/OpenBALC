@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTheme } from "@/hooks/use-theme";
 
 // Custom SVG Icons for Google, GitHub, and Meta
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -39,6 +40,7 @@ const MetaIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export default function Login() {
   const { login, signUp, loginWithOAuth } = useAuth();
+  const { isDark } = useTheme();
   const [isLogin, setIsLogin] = useState(true);
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   
@@ -82,8 +84,12 @@ export default function Login() {
       <div className="hidden lg:flex w-1/2 bg-card border-r border-border p-12 flex-col justify-between relative overflow-hidden">
         <div className="absolute inset-0 bg-primary/5 pointer-events-none" />
         <div className="relative z-10">
-          <div className="w-10 h-10 rounded bg-primary flex items-center justify-center font-bold text-white mb-8">
-            OB
+          <div className="mb-8">
+            <img 
+              src={isDark ? "/logo/light_logo.svg" : "/logo/dark_logo.svg"} 
+              alt="OpenBALC Logo" 
+              className="h-10 object-contain" 
+            />
           </div>
           <h2 className="text-4xl font-bold tracking-tight mt-12">
             Welcome to OpenBALC<br/>for serious learners.
@@ -97,6 +103,13 @@ export default function Login() {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-sm space-y-8">
           <div className="text-center">
+            <div className="flex justify-center lg:hidden mb-6">
+              <img 
+                src={isDark ? "/logo/light_logo.svg" : "/logo/dark_logo.svg"} 
+                alt="OpenBALC Logo" 
+                className="h-8 object-contain" 
+              />
+            </div>
             <h1 className="text-3xl font-bold tracking-tight">{isLogin ? "Welcome back" : "Create an account"}</h1>
             <p className="text-muted-foreground mt-2">
               {isLogin ? "Enter your credentials to access your workspace." : "Join OpenBALC to start building your knowledge ecosystem."}
