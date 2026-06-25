@@ -64,45 +64,81 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  const width = 600;
+  // Gather all leaves to count them and position them sequentially
+  interface LeafPos {
+    gIdx: number;
+    lIdx: number;
+    node: MindMapNode;
+    name: string;
+  }
+  const allLeaves: LeafPos[] = [];
+  rootNode.children.forEach((group, gIdx) => {
+    group.children.forEach((leaf, lIdx) => {
+      allLeaves.push({ gIdx, lIdx, node: leaf, name: leaf.name });
+    });
+  });
+  const totalLeaves = allLeaves.length;
+
+  // Determine canvas width dynamically to prevent overlaps based on leaf count
+  const minLeafSpacing = 145; // Cards are 120px wide, 145px spacing leaves a 25px gap
+  const width = Math.max(640, totalLeaves * minLeafSpacing + 120);
   const height = 400;
 
-  // Center coordinate
   const cx = width / 2;
   const rootX = cx;
   const rootY = 60;
 
-  // Layout calculations
   const nodes: { id: string; label: string; x: number; y: number; level: number }[] = [];
   const links: { source: { x: number; y: number }; target: { x: number; y: number } }[] = [];
 
   nodes.push({ id: "root", label: rootNode.name, x: rootX, y: rootY, level: 0 });
 
+  // 1. Position Leaf Nodes (Level 2) first
+  const leafSpacing = totalLeaves > 1 ? (width - 160) / (totalLeaves - 1) : minLeafSpacing;
+  const leafStartX = cx - ((totalLeaves - 1) * leafSpacing) / 2;
+
+  const leafPositions: Record<string, number> = {};
+  allLeaves.forEach((leaf, idx) => {
+    const lX = leafStartX + idx * leafSpacing;
+    const lY = 280;
+    const lId = `l-${leaf.gIdx}-${leaf.lIdx}`;
+    nodes.push({ id: lId, label: leaf.name, x: lX, y: lY, level: 2 });
+    leafPositions[lId] = lX;
+  });
+
+  // 2. Position Group Nodes (Level 1) centered above their children leaves
   const groupCount = rootNode.children.length;
   if (groupCount > 0) {
     const groupSpacing = Math.min(width / (groupCount + 0.5), 180);
-    const startX = cx - ((groupCount - 1) * groupSpacing) / 2;
+    const defaultStartX = cx - ((groupCount - 1) * groupSpacing) / 2;
 
     rootNode.children.forEach((group, gIdx) => {
-      const gX = startX + gIdx * groupSpacing;
-      const gY = 160;
       const gId = `g-${gIdx}`;
+      const gY = 160;
+      
+      let gX = 0;
+      const leafCount = group.children.length;
+      if (leafCount > 0) {
+        let sumX = 0;
+        group.children.forEach((_, lIdx) => {
+          const lId = `l-${gIdx}-${lIdx}`;
+          sumX += leafPositions[lId] || 0;
+        });
+        gX = sumX / leafCount;
+      } else {
+        gX = defaultStartX + gIdx * groupSpacing;
+      }
+
       nodes.push({ id: gId, label: group.name, x: gX, y: gY, level: 1 });
       links.push({ source: { x: rootX, y: rootY }, target: { x: gX, y: gY } });
 
-      const leafCount = group.children.length;
-      if (leafCount > 0) {
-        const leafSpacing = Math.min(100, (width * 0.8) / (leafCount + 0.5));
-        const leafStartX = gX - ((leafCount - 1) * leafSpacing) / 2;
-
-        group.children.forEach((leaf, lIdx) => {
-          const lX = leafStartX + lIdx * leafSpacing;
-          const lY = 280;
-          const lId = `l-${gIdx}-${lIdx}`;
-          nodes.push({ id: lId, label: leaf.name, x: lX, y: lY, level: 2 });
-          links.push({ source: { x: gX, y: gY }, target: { x: lX, y: lY } });
-        });
-      }
+      group.children.forEach((_, lIdx) => {
+        const lId = `l-${gIdx}-${lIdx}`;
+        const lX = leafPositions[lId];
+        if (lX !== undefined) {
+          links.push({ source: { x: gX, y: gY }, target: { x: lX, y: 280 } });
+        }
+      });
     });
   }
 
@@ -142,8 +178,51 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
   const handleExport = () => {
     const svgEl = svgRef.current;
     if (!svgEl) return;
+    
+    // Clone original SVG to manipulate properties for standalone download
+    const clone = svgEl.cloneNode(true) as SVGSVGElement;
+    clone.removeAttribute("class");
+    
+    // Set a solid background color on the exported SVG matching the current theme background
+    const themeBg = window.getComputedStyle(document.body).backgroundColor || "#ffffff";
+    clone.style.backgroundColor = themeBg;
+    
+    // Get all nested child elements
+    const originalElements = Array.from(svgEl.querySelectorAll("*"));
+    const clonedElements = Array.from(clone.querySelectorAll("*"));
+    
+    originalElements.forEach((orig, idx) => {
+      const cloned = clonedElements[idx] as HTMLElement;
+      if (!cloned) return;
+      
+      const style = window.getComputedStyle(orig);
+      cloned.removeAttribute("class"); // Clear responsive classes to avoid stylesheet overrides
+      
+      // Resolve fills & strokes into solid color styles for rect, circle, path
+      if (orig.tagName === "rect" || orig.tagName === "circle" || orig.tagName === "path") {
+        const fill = style.fill;
+        const stroke = style.stroke;
+        
+        if (fill && fill !== "none") {
+          cloned.setAttribute("fill", fill);
+        }
+        if (stroke && stroke !== "none") {
+          cloned.setAttribute("stroke", stroke);
+        }
+      }
+      
+      // Resolve text fill, font family, sizes and weights for typography
+      if (orig.tagName === "text") {
+        const fill = style.fill;
+        cloned.setAttribute("fill", fill || "black");
+        cloned.style.fontFamily = style.fontFamily || "sans-serif";
+        cloned.style.fontSize = style.fontSize || "9px";
+        cloned.style.fontWeight = style.fontWeight || "bold";
+      }
+    });
+    
     const serializer = new XMLSerializer();
-    const source = serializer.serializeToString(svgEl);
+    const source = serializer.serializeToString(clone);
     const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
     const link = document.createElement("a");
     link.href = url;
@@ -196,9 +275,7 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
               <path
                 key={idx}
                 d={pathData}
-                fill="none"
-                stroke="var(--primary)"
-                strokeOpacity={0.25}
+                className="fill-none stroke-primary/30"
                 strokeWidth={1.5}
               />
             );
@@ -213,18 +290,23 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
                 width={120}
                 height={36}
                 rx={8}
-                fill={node.level === 0 ? "hsl(var(--primary))" : "hsl(var(--card))"}
-                stroke={node.level === 0 ? "none" : "hsl(var(--border))"}
                 strokeWidth={1.5}
-                className="shadow-sm"
+                className={cn(
+                  "shadow-sm",
+                  node.level === 0 
+                    ? "fill-primary stroke-none" 
+                    : "fill-card stroke-border"
+                )}
               />
               <text
                 dy={4}
                 textAnchor="middle"
-                fill={node.level === 0 ? "white" : "hsl(var(--foreground))"}
-                fontSize={node.level === 0 ? "10px" : "9px"}
-                fontWeight="bold"
-                className="select-none pointer-events-none"
+                className={cn(
+                  "select-none pointer-events-none font-bold",
+                  node.level === 0 
+                    ? "fill-primary-foreground text-[10px]" 
+                    : "fill-foreground text-[9px]"
+                )}
               >
                 {node.label.length > 20 ? `${node.label.substring(0, 18)}...` : node.label}
               </text>

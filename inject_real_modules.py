@@ -220,6 +220,305 @@ where $\text{head}_i = \text{Attention}(QW_i^Q, KW_i^K, VW_i^V)$."""
     }
 ]
 
+ARTIFACTS_MAPPING = {
+    "Introduction to Quantum Computing": [
+        {
+            "title": "Quantum Computing Essentials Mindmap",
+            "type": "diagram",
+            "content": json.dumps({
+                "name": "Quantum Computing",
+                "children": [
+                  {
+                    "name": "Qubits & States",
+                    "children": [
+                      {"name": "Superposition", "children": []},
+                      {"name": "Entanglement", "children": []},
+                      {"name": "Born Rule", "children": []}
+                    ]
+                  },
+                  {
+                    "name": "Quantum Gates",
+                    "children": [
+                      {"name": "Hadamard (H)", "children": []},
+                      {"name": "Pauli X/Z", "children": []},
+                      {"name": "CNOT Gate", "children": []}
+                    ]
+                  }
+                ]
+            })
+        },
+        {
+            "title": "Quantum Vocab Flashcards",
+            "type": "document",
+            "content": json.dumps([
+                {"front": "Qubit", "back": "A quantum bit, the basic unit of quantum information, capable of superposition."},
+                {"front": "Superposition", "back": "A principle where a system can exist in multiple states simultaneously until measured."},
+                {"front": "Entanglement", "back": "A state where two particles are correlated so that one determines the other instantly."}
+            ])
+        },
+        {
+            "title": "Quantum Gates & Operators Cheatsheet",
+            "type": "markdown",
+            "content": """# Quantum Computing Cheatsheet
+
+## Bell States (Entangled Pairs)
+The four Bell states are maximally entangled two-qubit states:
+$$|\\Phi^+\\rangle = \\frac{1}{\\sqrt{2}}(|00\\rangle + |11\\rangle)$$
+$$|\\Phi^-\\rangle = \\frac{1}{\\sqrt{2}}(|00\\rangle - |11\\rangle)$$
+$$|\\Psi^+\\rangle = \\frac{1}{\\sqrt{2}}(|01\\rangle + |10\\rangle)$$
+$$|\\Psi^-\\rangle = \\frac{1}{\\sqrt{2}}(|01\\rangle - |10\\rangle)$$
+
+## Quantum Gates Reference
+- **Hadamard Gate ($H$)**: Creates superposition.
+  $$H = \\frac{1}{\\sqrt{2}}\\begin{pmatrix} 1 & 1 \\\\ 1 & -1 \\end{pmatrix}$$
+- **Pauli-X Gate ($X$)**: Bit-flip (equivalent to classical NOT).
+  $$X = \\begin{pmatrix} 0 & 1 \\\\ 1 & 0 \\end{pmatrix}$$
+- **Pauli-Z Gate ($Z$)**: Phase-flip (flips the sign of $|1\\rangle$).
+  $$Z = \\begin{pmatrix} 1 & 0 \\\\ 0 & -1 \\end{pmatrix}$$
+"""
+        },
+        {
+            "title": "Python Quantum Gate Simulation",
+            "type": "code",
+            "content": """import numpy as np
+
+# Define computational basis states
+zero_state = np.array([[1], [0]]) # |0>
+one_state = np.array([[0], [1]])  # |1>
+
+# Define quantum gates
+H = (1/np.sqrt(2)) * np.array([[1, 1], [1, -1]])
+X = np.array([[0, 1], [1, 0]])
+
+# Apply Hadamard gate to |0>
+plus_state = np.dot(H, zero_state)
+print("|+> State after H gate:\\n", plus_state)
+"""
+        }
+    ],
+    "Advanced TypeScript Design Patterns": [
+        {
+            "title": "TypeScript Advanced Types Mindmap",
+            "type": "diagram",
+            "content": json.dumps({
+                "name": "TS Advanced Types",
+                "children": [
+                  {
+                    "name": "Generic Constraints",
+                    "children": [
+                      {"name": "extends clause", "children": []},
+                      {"name": "keyof operator", "children": []}
+                    ]
+                  },
+                  {
+                    "name": "Conditional Types",
+                    "children": [
+                      {"name": "infer extraction", "children": []},
+                      {"name": "Distributive unions", "children": []}
+                    ]
+                  }
+                ]
+            })
+        },
+        {
+            "title": "TypeScript Advanced Flashcards",
+            "type": "document",
+            "content": json.dumps([
+                {"front": "Conditional Types", "back": "Allows choosing types based on condition: T extends U ? X : Y"},
+                {"front": "Mapped Types", "back": "Iterates over keys of a type to create new keys and values: { [P in keyof T]: T[P] }"},
+                {"front": "infer keyword", "back": "Introduces a type variable to be inferred within a conditional type clause."}
+            ])
+        },
+        {
+            "title": "TypeScript Type Utilities Cheatsheet",
+            "type": "markdown",
+            "content": """# TypeScript Type Utilities
+
+## Extract Return Type of a Function
+Using the `infer` keyword inside conditional types:
+```typescript
+type MyReturnType<T> = T extends (...args: any[]) => infer R ? R : any;
+
+const fetchUser = () => ({ id: 1, name: "Alice" });
+type User = MyReturnType<typeof fetchUser>; // { id: number; name: string; }
+```
+
+## Distributive Conditional Types
+Conditional types act on generic parameter union types:
+```typescript
+type ToArray<Type> = Type extends any ? Type[] : never;
+type StrArrOrNumArr = ToArray<string | number>; // string[] | number[]
+```
+"""
+        },
+        {
+            "title": "TypeScript Dynamic Event Handlers",
+            "type": "code",
+            "content": """type EventType = "click" | "hover" | "submit";
+type HandlerName = `on${Capitalize<EventType>}`;
+
+interface HandlerConfig {
+  [key: string]: () => void;
+}
+
+// Ensure the config contains only valid handlers
+type EventHandlers<T extends EventType> = {
+  [K in T as `on${Capitalize<K>}`]: (event: { type: K; timestamp: number }) => void;
+};
+"""
+        }
+    ],
+    "Mastering Neural Networks and Deep Learning": [
+        {
+            "title": "Deep Learning Architecture Mindmap",
+            "type": "diagram",
+            "content": json.dumps({
+                "name": "Neural Networks",
+                "children": [
+                  {
+                    "name": "Activation Functions",
+                    "children": [
+                      {"name": "Sigmoid", "children": []},
+                      {"name": "ReLU", "children": []},
+                      {"name": "Softmax", "children": []}
+                    ]
+                  },
+                  {
+                    "name": "Optimization",
+                    "children": [
+                      {"name": "Backpropagation", "children": []},
+                      {"name": "Gradient Descent", "children": []}
+                    ]
+                  }
+                ]
+            })
+        },
+        {
+            "title": "Deep Learning Vocabulary Flashcards",
+            "type": "document",
+            "content": json.dumps([
+                {"front": "ReLU", "back": "Rectified Linear Unit activation function: f(x) = max(0, x)"},
+                {"front": "Softmax", "back": "Normalizes logits into probability distribution: e^zi / sum(e^zj)"},
+                {"front": "Self-Attention", "back": "Calculates how much attention tokens pay to each other using Queries, Keys, and Values."}
+            ])
+        },
+        {
+            "title": "Deep Learning Formulas Cheatsheet",
+            "type": "markdown",
+            "content": """# Deep Learning Formulas
+
+## 1. Activation Functions
+- **Sigmoid**:
+  $$\\sigma(z) = \\frac{1}{1 + e^{-z}}$$
+- **ReLU (Rectified Linear Unit)**:
+  $$f(z) = \\max(0, z)$$
+- **Softmax**:
+  $$\\text{Softmax}(z_i) = \\frac{e^{z_i}}{\\sum_{j} e^{z_j}}$$
+
+## 2. Transformer Self-Attention
+Self-attention maps queries ($Q$), keys ($K$), and values ($V$) to outputs:
+$$\\text{Attention}(Q, K, V) = \\text{softmax}\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right)V$$
+"""
+        },
+        {
+            "title": "Python NumPy Self-Attention Implementation",
+            "type": "code",
+            "content": """import numpy as np
+
+def softmax(x):
+    e_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
+    return e_x / e_x.sum(axis=-1, keepdims=True)
+
+def self_attention(Q, K, V):
+    d_k = Q.shape[-1]
+    scores = np.matmul(Q, K.T) / np.sqrt(d_k)
+    weights = softmax(scores)
+    return np.matmul(weights, V)
+"""
+        }
+    ]
+}
+
+QUIZZES_MAPPING = {
+    "Introduction to Quantum Computing": {
+        "title": "Quantum Foundations Quiz",
+        "difficulty": "medium",
+        "questions": [
+            {
+                "question": "What is the probability of measuring state |0> for the qubit state: |psi> = 1/sqrt(2)|0> + 1/sqrt(2)|1>?",
+                "options": {
+                    "A": "0.25",
+                    "B": "0.50",
+                    "C": "0.75",
+                    "D": "1.00"
+                },
+                "answer": "B"
+            },
+            {
+                "question": "Which quantum gate acts as a controlled bit-flip operator?",
+                "options": {
+                    "A": "Hadamard",
+                    "B": "Pauli-X",
+                    "C": "CNOT",
+                    "D": "Pauli-Z"
+                },
+                "answer": "C"
+            }
+        ]
+    },
+    "Advanced TypeScript Design Patterns": {
+        "title": "TypeScript Advanced Types Quiz",
+        "difficulty": "medium",
+        "questions": [
+            {
+                "question": "What keyword is used inside a conditional type to declare a variable to be inferred?",
+                "options": {
+                    "A": "extends",
+                    "B": "infer",
+                    "C": "keyof",
+                    "D": "typeof"
+                },
+                "answer": "B"
+            },
+            {
+                "question": "Which of the following is distributive when passed a union type parameter?",
+                "options": {
+                    "A": "Generic constraint",
+                    "B": "Mapped type",
+                    "C": "Generic conditional type",
+                    "D": "Template literal type"
+                },
+                "answer": "C"
+            }
+        ]
+    },
+    "Mastering Neural Networks and Deep Learning": {
+        "title": "Deep Learning & Transformer Quiz",
+        "difficulty": "medium",
+        "questions": [
+            {
+                "question": "What is the formula for the standard self-attention mechanism?",
+                "options": {
+                    "A": "softmax(QK^T) * V",
+                    "B": "softmax(QK^T / sqrt(d_k)) * V",
+                    "C": "softmax(QW^T / d_k) * V",
+                    "D": "sigmoid(QK^T) * V"
+                },
+                "answer": "B"
+            },
+            {
+                "question": "Which activation function is defined as f(x) = max(0, x)?",
+                "options": {
+                    "A": "Sigmoid",
+                    "B": "Tanh",
+                    "C": "ReLU",
+                    "D": "Softmax"
+                },
+                "answer": "C"
+            }
+        ]
+    }
+}
 
 # ─── HELPER FUNCTIONS ──────────────────────────────────────────────────────────
 def load_env():
@@ -427,66 +726,155 @@ def main():
         module_id = None
         if res_chk_mod.status_code == 200 and len(res_chk_mod.json()) > 0:
             module_id = res_chk_mod.json()[0]["id"]
-            print(f"Module '{title}' already exists with ID: {module_id}. Skipping creation.")
-            continue
-            
-        print(f"Creating module '{title}'...")
-        mod_data = {
-            "user_id": user_id,
-            "workspace_id": workspace_id,
-            "title": title,
-            "description": description,
-            "subject": subject,
-            "visibility": "public",
-            "method": "topic",
-            "status": "active",
-            "topic_count": len(topics),
-            "chapter_count": len(topics)
-        }
-        
-        res_mod = requests.post(f"{url}/rest/v1/modules", headers=headers, json=mod_data)
-        if res_mod.status_code not in (200, 201):
-            print(f"Failed to create module '{title}': {res_mod.status_code} - {res_mod.text}")
-            continue
-            
-        module_id = res_mod.json()[0]["id"]
-        print(f"Module created with ID: {module_id}")
-        
-        # 5. Insert Topics & Module Content
-        for idx, t_data in enumerate(topics):
-            name = t_data["name"]
-            desc = t_data["description"]
-            content = t_data["content"]
-            
-            print(f"  Adding topic: '{name}'...")
-            topic_payload = {
-                "module_id": module_id,
-                "name": name,
-                "description": desc,
-                "order_index": idx
+            print(f"Module '{title}' already exists with ID: {module_id}.")
+        else:
+            print(f"Creating module '{title}'...")
+            mod_data = {
+                "user_id": user_id,
+                "workspace_id": workspace_id,
+                "title": title,
+                "description": description,
+                "subject": subject,
+                "visibility": "public",
+                "method": "topic",
+                "status": "active",
+                "topic_count": len(topics),
+                "chapter_count": len(topics)
             }
             
-            res_topic = requests.post(f"{url}/rest/v1/topics", headers=headers, json=topic_payload)
-            if res_topic.status_code not in (200, 201):
-                print(f"  Failed to create topic '{name}': {res_topic.status_code} - {res_topic.text}")
+            res_mod = requests.post(f"{url}/rest/v1/modules", headers=headers, json=mod_data)
+            if res_mod.status_code not in (200, 201):
+                print(f"Failed to create module '{title}': {res_mod.status_code} - {res_mod.text}")
                 continue
                 
-            topic_id = res_topic.json()[0]["id"]
+            module_id = res_mod.json()[0]["id"]
+            print(f"Module created with ID: {module_id}")
             
-            # Insert Chapter Content
-            print(f"    Adding chapter content for: '{content['chapter']}'...")
-            content_payload = {
-                "module_id": module_id,
-                "topic_id": topic_id,
-                "chapter": content["chapter"],
-                "topic": name,
-                "content": content["body"],
-                "format": "markdown"
-            }
+            # 5. Insert Topics & Module Content
+            for idx, t_data in enumerate(topics):
+                name = t_data["name"]
+                desc = t_data["description"]
+                content = t_data["content"]
+                
+                print(f"  Adding topic: '{name}'...")
+                topic_payload = {
+                    "module_id": module_id,
+                    "name": name,
+                    "description": desc,
+                    "order_index": idx
+                }
+                
+                res_topic = requests.post(f"{url}/rest/v1/topics", headers=headers, json=topic_payload)
+                if res_topic.status_code not in (200, 201):
+                    print(f"  Failed to create topic '{name}': {res_topic.status_code} - {res_topic.text}")
+                    continue
+                    
+                topic_id = res_topic.json()[0]["id"]
+                
+                # Insert Chapter Content
+                print(f"    Adding chapter content for: '{content['chapter']}'...")
+                content_payload = {
+                    "module_id": module_id,
+                    "topic_id": topic_id,
+                    "chapter": content["chapter"],
+                    "topic": name,
+                    "content": content["body"],
+                    "format": "markdown"
+                }
+                
+                res_content = requests.post(f"{url}/rest/v1/module_content", headers=headers, json=content_payload)
+                if res_content.status_code not in (200, 201):
+                    print(f"    Failed to create chapter content: {res_content.status_code} - {res_content.text}")
+
+        # Seeding Conversations & Artifacts linked to this module
+        if module_id:
+            # 1. Create or Find Conversation for this module
+            conv_title = f"Study Guide Chat: {title}"
+            print(f"  Checking if conversation '{conv_title}' exists...")
+            res_chk_conv = requests.get(f"{url}/rest/v1/conversations?title=eq.{conv_title}&user_id=eq.{user_id}", headers=headers)
             
-            res_content = requests.post(f"{url}/rest/v1/module_content", headers=headers, json=content_payload)
-            if res_content.status_code not in (200, 201):
-                print(f"    Failed to create chapter content: {res_content.status_code} - {res_content.text}")
+            conversation_id = None
+            if res_chk_conv.status_code == 200 and len(res_chk_conv.json()) > 0:
+                conversation_id = res_chk_conv.json()[0]["id"]
+                print(f"  Conversation '{conv_title}' already exists with ID: {conversation_id}")
+            else:
+                print(f"  Creating conversation '{conv_title}'...")
+                conv_payload = {
+                    "user_id": user_id,
+                    "workspace_id": workspace_id,
+                    "title": conv_title,
+                    "tagged_module_ids": [module_id]
+                }
+                res_conv = requests.post(f"{url}/rest/v1/conversations", headers=headers, json=conv_payload)
+                if res_conv.status_code in (200, 201):
+                    conversation_id = res_conv.json()[0]["id"]
+                    print(f"  Conversation created with ID: {conversation_id}")
+                else:
+                    print(f"  Failed to create conversation: {res_conv.status_code} - {res_conv.text}")
+            
+            # 2. Seed Artifacts (if conversation is available)
+            if conversation_id and title in ARTIFACTS_MAPPING:
+                print(f"  Seeding artifacts for module '{title}'...")
+                for art in ARTIFACTS_MAPPING[title]:
+                    # Check if artifact exists
+                    res_chk_art = requests.get(f"{url}/rest/v1/artifacts?title=eq.{art['title']}&conversation_id=eq.{conversation_id}", headers=headers)
+                    if res_chk_art.status_code == 200 and len(res_chk_art.json()) > 0:
+                        print(f"    Artifact '{art['title']}' already exists. Skipping.")
+                    else:
+                        print(f"    Creating artifact '{art['title']}' of type '{art['type']}'...")
+                        art_payload = {
+                            "user_id": user_id,
+                            "workspace_id": workspace_id,
+                            "conversation_id": conversation_id,
+                            "title": art["title"],
+                            "type": art["type"],
+                            "content": art["content"],
+                            "version": 1
+                        }
+                        res_art = requests.post(f"{url}/rest/v1/artifacts", headers=headers, json=art_payload)
+                        if res_art.status_code not in (200, 201):
+                            print(f"    Failed to create artifact '{art['title']}': {res_art.status_code} - {res_art.text}")
+
+            # 3. Seed Practice Quizzes (test_sets and test_questions)
+            if title in QUIZZES_MAPPING:
+                quiz = QUIZZES_MAPPING[title]
+                print(f"  Checking if quiz '{quiz['title']}' exists...")
+                res_chk_quiz = requests.get(f"{url}/rest/v1/test_sets?module_id=eq.{module_id}&title=eq.{quiz['title']}", headers=headers)
+                
+                test_set_id = None
+                if res_chk_quiz.status_code == 200 and len(res_chk_quiz.json()) > 0:
+                    test_set_id = res_chk_quiz.json()[0]["id"]
+                    print(f"  Quiz '{quiz['title']}' already exists with ID: {test_set_id}.")
+                else:
+                    print(f"  Creating quiz '{quiz['title']}'...")
+                    test_payload = {
+                        "module_id": module_id,
+                        "workspace_id": workspace_id,
+                        "title": quiz["title"],
+                        "difficulty": quiz["difficulty"],
+                        "created_by": user_id,
+                        "source_title": "AI Seeder"
+                    }
+                    res_quiz = requests.post(f"{url}/rest/v1/test_sets", headers=headers, json=test_payload)
+                    if res_quiz.status_code in (200, 201):
+                        test_set_id = res_quiz.json()[0]["id"]
+                        print(f"  Quiz test set created with ID: {test_set_id}")
+                        
+                        # Seed questions
+                        for q in quiz["questions"]:
+                            print(f"    Adding question: '{q['question'][:40]}...'")
+                            question_payload = {
+                                "test_set_id": test_set_id,
+                                "type": "mcq",
+                                "question": q["question"],
+                                "options": q["options"],
+                                "answer": q["answer"]
+                            }
+                            res_q = requests.post(f"{url}/rest/v1/test_questions", headers=headers, json=question_payload)
+                            if res_q.status_code not in (200, 201):
+                                print(f"    Failed to create question: {res_q.status_code} - {res_q.text}")
+                    else:
+                        print(f"  Failed to create quiz test set: {res_quiz.status_code} - {res_quiz.text}")
 
     print("\nDatabase seeding completed successfully!")
 
