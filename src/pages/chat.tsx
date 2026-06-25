@@ -6,14 +6,15 @@ import {
   useListConversations, useGetConversation, useGetMessages, useSendMessage,
   useCreateConversation, useDeleteConversation, useUpdateConversation,
   useListModules, useGetModule, useGetModuleContent, useGetModuleSources,
-  useListArtifacts, getListConversationsQueryKey, getGetMessagesQueryKey
+  useListArtifacts, getListConversationsQueryKey, getGetMessagesQueryKey,
+  useCreateNote, getListArtifactsQueryKey
 } from "@workspace/api-client-react";
 import { cn, timeAgo } from "@/lib/utils";
 import {
   MessageSquare, Plus, Search, Trash2, Pin, PinOff, Send, Loader2,
   BookOpen, Globe, User, Bot, Zap, ChevronRight, MoreVertical,
   Layers, BrainCircuit, FileText, ArrowLeft, GraduationCap, X, Award, Sparkles,
-  Link2, Info, ChevronLeft
+  Link2, Info, ChevronLeft, ThumbsUp, ThumbsDown, StickyNote, Quote
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,7 @@ import {
 } from "@/components/ui/hover-card";
 import InteractiveMindMap from "@/components/InteractiveMindMap";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
+import ArtifactQuizPlayer from "@/components/ArtifactQuizPlayer";
 
 const SUGGESTED_PROMPTS = [
   "Explain the key concepts in my latest module",
@@ -103,8 +105,78 @@ export const getCitationContext = (sourceName: string) => {
   };
 };
 
-function MessageBubble({ msg, onCitationClick }: { msg: any; onCitationClick: (sourceName: string) => void }) {
+function parseArtifactsFromContent(content: string) {
+  if (!content) return { cleanContent: "", artifacts: [] as Array<{ type: string; title: string; content: string }> };
+  const regex = /<artifact\s+type="([^"]+)"\s+title="([^"]+)">[\s\S]*?<\/artifact>/gi;
+  const artifacts: Array<{ type: string; title: string; content: string }> = [];
+  let match: RegExpExecArray | null;
+  const re = /<artifact\s+type="([^"]+)"\s+title="([^"]+)">[\s\S]*?<\/artifact>/gi;
+  const reInner = /<artifact\s+type="([^"]+)"\s+title="([^"]+)">(([\s\S]*?))<\/artifact>/i;
+  const allMatches = content.match(re) || [];
+  for (const m of allMatches) {
+    const inner = reInner.exec(m);
+    if (inner) {
+      artifacts.push({ type: inner[1], title: inner[2], content: inner[3].trim() });
+    }
+  }
+  const cleanContent = content.replace(/<artifact[\s\S]*?<\/artifact>/gi, "").trim();
+  return { cleanContent, artifacts };
+}
+
+function InlineFlashcardPlayer({ flashcards }: { flashcards: any[] }) {
+  const [index, setIndex] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+
+  useEffect(() => { setIndex(0); setFlipped(false); }, [flashcards]);
+
+  if (!flashcards || flashcards.length === 0) return null;
+  return (
+    <div className="flex flex-col items-center py-2 w-full">
+      <div
+        onClick={() => setFlipped(!flipped)}
+        className={cn(
+          "w-full max-w-[320px] h-[150px] rounded-2xl border flex items-center justify-center p-5 text-center cursor-pointer transition-all duration-300 shadow-sm relative select-none",
+          flipped
+            ? "border-primary bg-primary/5 text-primary scale-[1.01]"
+            : "border-border bg-card text-foreground hover:border-primary/30"
+        )}
+      >
+        <div className="absolute top-2.5 left-3 text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
+          {flipped ? "Answer" : "Question"}
+        </div>
+        <span className="text-xs font-bold leading-relaxed">
+          {flipped ? flashcards[index].back : flashcards[index].front}
+        </span>
+      </div>
+      <p className="text-[9px] text-muted-foreground/60 mt-1.5 font-medium">Click to flip card</p>
+      <div className="flex items-center justify-between w-full max-w-[320px] mt-3">
+        <Button variant="ghost" size="sm" disabled={index === 0}
+          onClick={(e) => { e.stopPropagation(); setIndex(p => p - 1); setFlipped(false); }}
+          className="text-xs h-7 px-2">Prev</Button>
+        <span className="text-[10px] font-semibold text-muted-foreground">Card {index + 1} / {flashcards.length}</span>
+        <Button variant="ghost" size="sm" disabled={index === flashcards.length - 1}
+          onClick={(e) => { e.stopPropagation(); setIndex(p => p + 1); setFlipped(false); }}
+          className="text-xs h-7 px-2">Next</Button>
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({
+  msg,
+  onCitationClick,
+  onAddToNote,
+  onReference
+}: {
+  msg: any;
+  onCitationClick: (sourceName: string) => void;
+  onAddToNote?: (content: string) => void;
+  onReference?: (content: string) => void;
+}) {
   const isUser = msg.role === "user";
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+
+  const { cleanContent, artifacts } = parseArtifactsFromContent(msg.content || "");
 
   const renderMessageContent = (content: string, sources: string[] = []) => {
     if (!content) return "";
@@ -155,30 +227,86 @@ function MessageBubble({ msg, onCitationClick }: { msg: any; onCitationClick: (s
       )}>
         {isUser ? "U" : "AI"}
       </div>
-      <div className={cn("max-w-[75%] space-y-1", isUser && "items-end flex flex-col")}>
+      <div className={cn("max-w-[85%] space-y-1.5 flex flex-col", isUser ? "items-end" : "items-start")}>
         <div className={cn(
-          "px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap",
+          "px-4 py-3 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap font-medium shadow-sm",
           isUser
             ? "bg-primary text-primary-foreground rounded-tr-sm"
             : "bg-card border border-border rounded-tl-sm text-foreground"
         )}>
-          {isUser ? msg.content : renderMessageContent(msg.content, msg.sources)}
+          {isUser ? cleanContent : renderMessageContent(cleanContent, msg.sources)}
         </div>
+
+        {/* AI action bar */}
+        {!isUser && (
+          <div className="flex items-center gap-1 px-1">
+            <button
+              onClick={() => {
+                const next = feedback === "up" ? null : "up";
+                setFeedback(next);
+                if (next) toast.success("Thanks for your feedback!");
+              }}
+              title="Helpful"
+              className={cn(
+                "p-1 rounded-md hover:bg-muted/60 hover:text-foreground transition-all",
+                feedback === "up" ? "text-primary bg-primary/10" : "text-muted-foreground"
+              )}
+            >
+              <ThumbsUp className="h-3 w-3" />
+            </button>
+            <button
+              onClick={() => {
+                const next = feedback === "down" ? null : "down";
+                setFeedback(next);
+                if (next) toast.success("Feedback received — we'll improve.");
+              }}
+              title="Not helpful"
+              className={cn(
+                "p-1 rounded-md hover:bg-muted/60 hover:text-foreground transition-all",
+                feedback === "down" ? "text-destructive bg-destructive/10" : "text-muted-foreground"
+              )}
+            >
+              <ThumbsDown className="h-3 w-3" />
+            </button>
+            {onAddToNote && (
+              <button
+                onClick={() => onAddToNote(cleanContent)}
+                title="Add to Note"
+                className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-muted/60 hover:text-foreground transition-all text-muted-foreground text-[10px] font-semibold"
+              >
+                <StickyNote className="h-3 w-3" />
+                Add to Note
+              </button>
+            )}
+            {onReference && (
+              <button
+                onClick={() => onReference(cleanContent)}
+                title="Quote in chat"
+                className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-muted/60 hover:text-foreground transition-all text-muted-foreground text-[10px] font-semibold"
+              >
+                <Quote className="h-3 w-3" />
+                Reference
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center gap-2 px-1">
-          <span className="text-[10px] text-muted-foreground">{timeAgo(msg.createdAt)}</span>
+          <span className="text-[9px] font-medium text-muted-foreground/70">{timeAgo(msg.createdAt)}</span>
           {msg.creditsUsed > 0 && (
-            <span className="text-[10px] text-amber-500 flex items-center gap-0.5">
+            <span className="text-[9px] text-amber-500 font-bold flex items-center gap-0.5">
               <Zap className="h-2.5 w-2.5" />{msg.creditsUsed}
             </span>
           )}
         </div>
+
         {msg.sources?.length > 0 && (
           <div className="flex flex-wrap gap-1 px-1">
             {msg.sources.map((src: string, i: number) => (
               <Badge
                 key={i}
                 variant="secondary"
-                className="text-[10px] h-4 cursor-pointer hover:bg-muted/80"
+                className="text-[9px] font-bold h-4 cursor-pointer hover:bg-muted/80"
                 onClick={() => onCitationClick(src)}
               >
                 <BookOpen className="h-2 w-2 mr-1" />
@@ -187,175 +315,70 @@ function MessageBubble({ msg, onCitationClick }: { msg: any; onCitationClick: (s
             ))}
           </div>
         )}
-      </div>
-    </div>
-  );
-}
 
-function ArtifactQuizPlayer({ questions, artifactId }: { questions: any[]; artifactId: any }) {
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [showResult, setShowResult] = useState(false);
-  const [score, setScore] = useState<number | null>(null);
+        {/* Inline artifact cards */}
+        {!isUser && artifacts.length > 0 && (
+          <div className="mt-2.5 w-full max-w-xl bg-card/80 backdrop-blur-xl border border-primary/20 rounded-2xl p-4 shadow-lg space-y-4">
+            <div className="flex items-center gap-1.5 pb-2 border-b border-border/50">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span className="text-[10px] font-bold tracking-widest uppercase text-primary">AI Study Artifact</span>
+            </div>
+            {artifacts.map((art, idx) => (
+              <div key={idx} className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    {art.type === "diagram" && <BrainCircuit className="h-3.5 w-3.5 text-primary" />}
+                    {art.type === "code" && <FileText className="h-3.5 w-3.5 text-primary" />}
+                    {art.type === "document" && <Layers className="h-3.5 w-3.5 text-primary" />}
+                    {art.type === "test" && <GraduationCap className="h-3.5 w-3.5 text-primary" />}
+                    {art.type === "markdown" && <FileText className="h-3.5 w-3.5 text-primary" />}
+                    {art.title}
+                  </h4>
+                  <Badge className="uppercase text-[8px] font-bold tracking-widest bg-primary/10 text-primary border-0 px-2">{art.type}</Badge>
+                </div>
 
-  // Reset when artifact changes
-  useEffect(() => {
-    setCurrentIdx(0);
-    setAnswers({});
-    setShowResult(false);
-    setScore(null);
-  }, [artifactId]);
-
-  const currentQuestion = questions[currentIdx];
-
-  const handleSelectOption = (optionKey: string) => {
-    setAnswers(prev => ({
-      ...prev,
-      [currentQuestion.id || currentIdx]: optionKey
-    }));
-  };
-
-  const handleNext = () => {
-    if (currentIdx < questions.length - 1) {
-      setCurrentIdx(prev => prev + 1);
-    } else {
-      // Calculate score
-      let correct = 0;
-      questions.forEach((q, idx) => {
-        const qId = q.id || idx;
-        const userAnswer = answers[qId];
-        if (userAnswer === q.answer) {
-          correct++;
-        }
-      });
-      const finalScore = Math.round((correct / questions.length) * 100);
-      setScore(finalScore);
-      setShowResult(true);
-    }
-  };
-
-  const handlePrev = () => {
-    if (currentIdx > 0) {
-      setCurrentIdx(prev => prev - 1);
-    }
-  };
-
-  const handleReset = () => {
-    setCurrentIdx(0);
-    setAnswers({});
-    setShowResult(false);
-    setScore(null);
-  };
-
-  if (showResult) {
-    const passed = (score || 0) >= 70;
-    return (
-      <div className="flex flex-col items-center justify-center p-6 space-y-6 flex-1 text-center">
-        <div className={cn(
-          "w-16 h-16 rounded-full flex items-center justify-center shadow-lg",
-          passed ? "bg-emerald-500/10 text-emerald-500" : "bg-destructive/10 text-destructive"
-        )}>
-          {passed ? <Award className="h-8 w-8" /> : <GraduationCap className="h-8 w-8" />}
-        </div>
-        <div className="space-y-2">
-          <h4 className="text-base font-bold text-foreground">Quiz Completed!</h4>
-          <p className="text-xs text-muted-foreground">You got {questions.filter((q, idx) => answers[q.id || idx] === q.answer).length} out of {questions.length} questions correct.</p>
-        </div>
-        
-        <div className="p-4 bg-muted/30 border border-border/80 rounded-2xl w-full max-w-sm">
-          <div className="text-2xl font-bold text-primary">{score}%</div>
-          <div className="text-[10px] text-muted-foreground font-semibold uppercase mt-1">Your Score</div>
-        </div>
-
-        <Button onClick={handleReset} size="sm" className="h-8 px-4 text-xs font-semibold">
-          Try Again
-        </Button>
-      </div>
-    );
-  }
-
-  if (!currentQuestion) {
-    return (
-      <div className="text-center py-8 text-xs text-muted-foreground font-semibold">
-        No questions in this test artifact.
-      </div>
-    );
-  }
-
-  const selectedAnswer = answers[currentQuestion.id || currentIdx];
-
-  return (
-    <div className="flex flex-col flex-1 justify-between gap-6">
-      <div className="space-y-4">
-        {/* Progress Bar */}
-        <div className="space-y-1.5">
-          <div className="flex justify-between items-center text-[10px] text-muted-foreground font-semibold">
-            <span>Question {currentIdx + 1} of {questions.length}</span>
-            <span>{Math.round((currentIdx / questions.length) * 100)}% Complete</span>
-          </div>
-          <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-primary transition-all duration-300"
-              style={{ width: `${(currentIdx / questions.length) * 100}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Question Text */}
-        <div className="p-4 border border-border/80 bg-muted/15 rounded-2xl">
-          <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Question</span>
-          <p className="text-xs font-bold text-foreground leading-relaxed mt-1">
-            {currentQuestion.question}
-          </p>
-        </div>
-
-        {/* Options */}
-        {currentQuestion.options && (
-          <div className="space-y-2">
-            {Object.entries(currentQuestion.options).map(([key, value]: [string, any]) => (
-              <button
-                key={key}
-                onClick={() => handleSelectOption(key)}
-                className={cn(
-                  "w-full text-left p-3.5 rounded-xl border text-xs font-semibold transition-all flex items-start gap-3 hover:scale-[1.005]",
-                  selectedAnswer === key
-                    ? "border-primary bg-primary/5 text-primary shadow-sm"
-                    : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/10"
+                {art.type === "diagram" && (
+                  <div className="border border-border/40 rounded-xl overflow-hidden bg-background/60" style={{ height: 280 }}>
+                    <InteractiveMindMap content={art.content} title={art.title} />
+                  </div>
                 )}
-              >
-                <span className={cn(
-                  "h-5 w-5 rounded-md flex items-center justify-center shrink-0 border text-[10px] font-bold",
-                  selectedAnswer === key 
-                    ? "bg-primary border-primary text-primary-foreground" 
-                    : "border-border bg-card"
-                )}>
-                  {key}
-                </span>
-                <span className="leading-relaxed mt-0.5">{value}</span>
-              </button>
+
+                {art.type === "code" && (
+                  <div className="bg-slate-950 text-slate-200 p-4 rounded-xl font-mono text-[10px] overflow-x-auto whitespace-pre leading-relaxed border border-border/40 shadow-inner">
+                    {art.content}
+                  </div>
+                )}
+
+                {art.type === "document" && (() => {
+                  try {
+                    const cards = JSON.parse(art.content);
+                    if (Array.isArray(cards)) return (
+                      <div className="border border-border/40 rounded-xl bg-background/50 p-3">
+                        <InlineFlashcardPlayer flashcards={cards} />
+                      </div>
+                    );
+                  } catch (_) {}
+                  return <div className="text-xs text-muted-foreground whitespace-pre-wrap p-3 border border-border/40 rounded-xl">{art.content}</div>;
+                })()}
+
+                {art.type === "test" && (
+                  <div className="border border-border/40 rounded-xl bg-background/50 p-3">
+                    <ArtifactQuizPlayer
+                      questions={(() => { try { const q = JSON.parse(art.content); if (Array.isArray(q)) return q; } catch (_) {} return []; })()}
+                      artifactId={`inline-${idx}-${msg.id}`}
+                    />
+                  </div>
+                )}
+
+                {art.type === "markdown" && (
+                  <div className="border border-border/40 rounded-xl bg-background/50 p-3">
+                    <MarkdownRenderer content={art.content} className="text-xs text-muted-foreground leading-relaxed" />
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
-      </div>
-
-      <div className="flex items-center justify-between border-t border-border pt-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={currentIdx === 0}
-          onClick={handlePrev}
-          className="text-xs h-8 px-3 font-semibold"
-        >
-          Previous
-        </Button>
-        <Button
-          size="sm"
-          disabled={!selectedAnswer}
-          onClick={handleNext}
-          className="text-xs h-8 px-4 font-semibold"
-        >
-          {currentIdx === questions.length - 1 ? "Finish Quiz" : "Next Question"}
-        </Button>
       </div>
     </div>
   );
@@ -416,8 +439,31 @@ export default function ChatPage() {
   const deleteConv = useDeleteConversation();
   const updateConv = useUpdateConversation();
   const sendMsg = useSendMessage();
+  const createNote = useCreateNote();
   const { data: artifactsData } = useListArtifacts();
   const artifactsList = Array.isArray(artifactsData) ? artifactsData : [];
+
+  const handleAddToNote = (content: string) => {
+    const snippet = content.slice(0, 60).replace(/\n/g, " ");
+    createNote.mutate({
+      data: {
+        title: `AI Note: ${snippet}${content.length > 60 ? "…" : ""}`,
+        content,
+        color: "#6366f1",
+        pinned: false,
+        sourceTitle: conversation?.title ?? undefined
+      }
+    }, {
+      onSuccess: () => toast.success("Saved to Notes!"),
+      onError: () => toast.error("Failed to save note.")
+    });
+  };
+
+  const handleReference = (content: string) => {
+    const quoted = content.split("\n").map(l => `> ${l}`).join("\n");
+    setInput(prev => (prev ? `${quoted}\n\n${prev}` : `${quoted}\n\n`));
+    textareaRef.current?.focus();
+  };
 
   useEffect(() => {
     if (!viewingArtifacts) {
@@ -572,6 +618,7 @@ export default function ChatPage() {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getGetMessagesQueryKey(conversationId) });
         qc.invalidateQueries({ queryKey: getListConversationsQueryKey() });
+        qc.invalidateQueries({ queryKey: getListArtifactsQueryKey() });
       },
       onError: () => {
         toast.error("Failed to send message");
@@ -1031,7 +1078,15 @@ export default function ChatPage() {
                           <p>No messages yet. Send a message to start.</p>
                         </div>
                       ) : (
-                        messages.map(msg => <MessageBubble key={msg.id} msg={msg} onCitationClick={setActiveCitationSource} />)
+                        messages.map(msg => (
+                          <MessageBubble
+                            key={msg.id}
+                            msg={msg}
+                            onCitationClick={setActiveCitationSource}
+                            onAddToNote={handleAddToNote}
+                            onReference={handleReference}
+                          />
+                        ))
                       )}
                       {sendMsg.isPending && (
                         <div className="flex gap-3">

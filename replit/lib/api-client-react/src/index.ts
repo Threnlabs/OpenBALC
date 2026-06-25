@@ -890,6 +890,129 @@ export function useUpdateConversation(options?: any): any {
   });
 }
 
+function generateDynamicReply(userPrompt: string) {
+  const prompt = userPrompt.toLowerCase();
+  let content = "";
+  let artifactData: { type: string; title: string; content: string } | null = null;
+
+  if (prompt.includes("mindmap") || prompt.includes("mind map") || prompt.includes("diagram")) {
+    const mindmapTitle = "Quantum Computing Foundations Mindmap";
+    const mindmapJson = JSON.stringify({
+      nodes: [
+        { id: "1", text: "Quantum Computing", group: "Root" },
+        { id: "2", text: "Superposition", group: "Principles" },
+        { id: "3", text: "Entanglement", group: "Principles" },
+        { id: "4", text: "Qubits", group: "Hardware" },
+        { id: "5", text: "Quantum Gates", group: "Operations" }
+      ],
+      connections: [
+        { from: "1", to: "2" },
+        { from: "1", to: "3" },
+        { from: "1", to: "4" },
+        { from: "1", to: "5" }
+      ]
+    }, null, 2);
+
+    content = `I have generated an interactive mindmap diagram outlining the core components of Quantum Computing. You can explore the nodes and relationships below:
+
+<artifact type="diagram" title="${mindmapTitle}">
+${mindmapJson}
+</artifact>`;
+
+    artifactData = {
+      type: "diagram",
+      title: mindmapTitle,
+      content: mindmapJson
+    };
+  } else if (prompt.includes("quiz") || prompt.includes("test") || prompt.includes("question")) {
+    const quizTitle = "Quantum Mechanics Basics Quiz";
+    const quizJson = JSON.stringify([
+      {
+        id: 1,
+        question: "What is superposition in quantum mechanics?",
+        options: {
+          A: "A qubit exists in both 0 and 1 states simultaneously until measured",
+          B: "The instantaneous correlation between distant qubits",
+          C: "The process of copying quantum states exactly"
+        },
+        answer: "A"
+      },
+      {
+        id: 2,
+        question: "Which of the following gates is used to put a qubit into superposition?",
+        options: {
+          A: "CNOT gate",
+          B: "Hadamard (H) gate",
+          C: "Pauli-X gate"
+        },
+        answer: "B"
+      }
+    ], null, 2);
+
+    content = `Here is a custom practice quiz to test your understanding of Quantum Mechanics basics. Try answering the questions inline:
+
+<artifact type="test" title="${quizTitle}">
+${quizJson}
+</artifact>`;
+
+    artifactData = {
+      type: "test",
+      title: quizTitle,
+      content: quizJson
+    };
+  } else if (prompt.includes("code") || prompt.includes("typescript") || prompt.includes("program")) {
+    const codeTitle = "Advanced TypeScript Utility Types";
+    const codeContent = `// TypeScript Mapped Types Example
+type ReadonlyOptional<T> = {
+  readonly [P in keyof T]?: T[P];
+};
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+// Resulting type has all fields as optional and readonly
+type ReadonlyUser = ReadonlyOptional<User>;`;
+
+    content = `Here is an example code snippet illustrating advanced TypeScript mapped and utility types:
+
+<artifact type="code" title="${codeTitle}">
+${codeContent}
+</artifact>`;
+
+    artifactData = {
+      type: "code",
+      title: codeTitle,
+      content: codeContent
+    };
+  } else if (prompt.includes("flashcard") || prompt.includes("flash card") || prompt.includes("vocab")) {
+    const docTitle = "Quantum Computing Terms Flashcards";
+    const docJson = JSON.stringify([
+      { front: "Qubit", back: "The basic unit of quantum information, capable of superposition of 0 and 1." },
+      { front: "Entanglement", back: "A quantum connection where state changes to one particle instantly affect the other." },
+      { front: "Shor's Algorithm", back: "A famous quantum algorithm capable of factoring large integers in polynomial time." }
+    ], null, 2);
+
+    content = `I have compiled a list of vocabulary flashcards covering key Quantum Computing terms. Click the cards below to flip them:
+
+<artifact type="document" title="${docTitle}">
+${docJson}
+</artifact>`;
+
+    artifactData = {
+      type: "document",
+      title: docTitle,
+      content: docJson
+    };
+  } else {
+    content = `Let's discuss "${userPrompt.replace(/@\w+/g, "").trim()}". Based on your learning profile and linked study materials, here is a detailed overview. Let me know if you would like me to generate a mindmap, a practice quiz, or custom flashcards on this topic!`;
+  }
+
+  return { content, artifactData };
+}
+
 export function useSendMessage(options?: any): any {
   return useMutation({
     mutationFn: async ({ id, data }: { id: number; data: { content: string; webSearch?: boolean } }) => {
@@ -916,9 +1039,7 @@ export function useSendMessage(options?: any): any {
         };
         conversationMsgs.push(userMsg);
 
-        const replyContent = data.webSearch 
-          ? `[Web Search Active] I searched for details related to your query. Based on that and the context: "${data.content.replace(/@\w+/g, "").trim()}", here is what I found. Let me know if you need more details!`
-          : `Interesting question! Let's explore "${data.content.replace(/@\w+/g, "").trim()}". Based on your learning profile and modules, here is a structured breakdown. Let me know if you would like me to generate a quick practice test on this topic.`;
+        const { content: replyContent, artifactData } = generateDynamicReply(data.content);
 
         const logs = getStorageItem("openbalc_ai_logs", DEFAULT_AI_LOGS);
         const newLogId = logs.length > 0 ? Math.max(...logs.map(l => l.id)) + 1 : 1;
@@ -948,6 +1069,24 @@ export function useSendMessage(options?: any): any {
         conversationMsgs.push(aiMsg);
         msgs[String(id)] = conversationMsgs;
         setStorageItem("openbalc_messages", msgs);
+
+        if (artifactData) {
+          const artList = getStorageItem("openbalc_artifacts", MOCK_ARTIFACTS);
+          const newArtId = artList.length > 0 ? Math.max(...artList.map((a: any) => typeof a.id === "number" ? a.id : 0)) + 1 : 1;
+          artList.unshift({
+            id: newArtId,
+            moduleId: null,
+            workspaceId: null,
+            conversationId: id,
+            title: artifactData.title,
+            type: artifactData.type,
+            content: artifactData.content,
+            version: 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+          setStorageItem("openbalc_artifacts", artList);
+        }
 
         const convs = getStorageItem("openbalc_conversations", DEFAULT_CONVERSATIONS);
         const convIdx = convs.findIndex(c => c.id === id);
@@ -995,10 +1134,7 @@ export function useSendMessage(options?: any): any {
         sources: []
       });
 
-      // Perform simulation reply
-      const replyContent = data.webSearch 
-        ? `[Web Search Active] I searched for details related to your query. Based on that and the context: "${data.content.replace(/@\w+/g, "").trim()}", here is what I found. Let me know if you need more details!`
-        : `Interesting question! Let's explore "${data.content.replace(/@\w+/g, "").trim()}". Based on your learning profile and modules, here is a structured breakdown. Let me know if you would like me to generate a quick practice test on this topic.`;
+      const { content: replyContent, artifactData } = generateDynamicReply(data.content);
 
       // Insert Assistant response
       const { data: aiMsg, error } = await supabase.from("messages").insert({
@@ -1009,6 +1145,17 @@ export function useSendMessage(options?: any): any {
       }).select("*").single();
 
       if (error) throw error;
+
+      if (artifactData) {
+        await supabase.from("artifacts").insert({
+          user_id: userId,
+          conversation_id: id,
+          title: artifactData.title,
+          type: artifactData.type,
+          content: artifactData.content,
+          version: 1
+        });
+      }
 
       // Update last message in Conversation
       await supabase.from("conversations").update({

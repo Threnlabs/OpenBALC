@@ -41,14 +41,50 @@ const parseOutlineText = (text: string): MindMapNode => {
 const parseContent = (text: string): MindMapNode => {
   try {
     const parsed = JSON.parse(text);
-    if (parsed && typeof parsed === "object" && typeof parsed.name === "string") {
-      const sanitizeNode = (node: any): MindMapNode => {
-        return {
+    if (parsed && typeof parsed === "object") {
+      
+      // ── Format 1: hierarchical { name, children[] } ──────────────────────
+      if (typeof parsed.name === "string") {
+        const sanitizeNode = (node: any): MindMapNode => ({
           name: String(node.name || ""),
           children: Array.isArray(node.children) ? node.children.map(sanitizeNode) : []
-        };
-      };
-      return sanitizeNode(parsed);
+        });
+        return sanitizeNode(parsed);
+      }
+      
+      // ── Format 2: flat graph { nodes[], connections[] } ───────────────────
+      if (Array.isArray(parsed.nodes) && Array.isArray(parsed.connections)) {
+        const nodeMap: Record<string, MindMapNode & { id: string }> = {};
+        
+        // Build a map of id → { id, name, children }
+        for (const n of parsed.nodes) {
+          nodeMap[String(n.id)] = { id: String(n.id), name: String(n.text || n.name || n.id), children: [] };
+        }
+        
+        // Track which nodes have incoming edges (non-root)
+        const hasParent = new Set<string>();
+        for (const c of parsed.connections) {
+          const from = String(c.from ?? c.source);
+          const to   = String(c.to   ?? c.target);
+          if (nodeMap[from] && nodeMap[to]) {
+            nodeMap[from].children.push(nodeMap[to]);
+            hasParent.add(to);
+          }
+        }
+        
+        // The root is the node with no incoming edges
+        const roots = Object.values(nodeMap).filter(n => !hasParent.has(n.id));
+        if (roots.length === 1) return roots[0];
+        
+        // If multiple roots exist (disconnected or multi-root graph), wrap them
+        if (roots.length > 1) {
+          return { name: "Mind Map", children: roots };
+        }
+        
+        // Fallback: use first node as root
+        const first = Object.values(nodeMap)[0];
+        if (first) return first;
+      }
     }
   } catch (_) {}
   
