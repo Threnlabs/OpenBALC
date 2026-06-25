@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 const CAROUSEL_IMAGES = [
   "/carousel/image1.png",
   "/carousel/image2.png",
+  "/carousel/image3.png",
 ];
 
 // Custom SVG Icons for Google, GitHub, and Meta
@@ -40,7 +41,7 @@ const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 const MetaIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" {...props}>
-    <path fillRule="evenodd" d="M8.217 5.243C9.145 3.988 10.171 3 11.483 3 13.96 3 16 6.153 16.001 9.907c0 2.29-.986 3.725-2.757 3.725-1.543 0-2.395-.866-3.924-3.424l-.667-1.123-.118-.197a55 55 0 0 0-.53-.877l-1.178 2.08c-1.673 2.925-2.615 3.541-3.923 3.541C1.086 13.632 0 12.217 0 9.973 0 6.388 1.995 3 4.598 3q.477-.001.924.122c.31.086.611.22.913.407.577.359 1.154.915 1.782 1.714m1.516 2.224q-.378-.615-.727-1.133L9 6.326c.845-1.305 1.543-1.954 2.372-1.954 1.723 0 3.102 2.537 3.102 5.653 0 1.188-.39 1.877-1.195 1.877-.773 0-1.142-.51-2.61-2.87zM4.846 4.756c.725.1 1.385.634 2.34 2.001A212 212 0 0 0 5.551 9.3c-1.357 2.126-1.826 2.603-2.581 2.603-.777 0-1.24-.682-1.24-1.9 0-2.602 1.298-5.264 2.846-5.264q.137 0 .27.018"/>
+    <path fillRule="evenodd" d="M8.217 5.243C9.145 3.988 10.171 3 11.483 3 13.96 3 16 6.153 16.001 9.907c0 2.29-.986 3.725-2.757 3.725-1.543 0-2.395-.866-3.924-3.424l-.667-1.123-.118-.197a55 55 0 0 0-.53-.877l-1.178 2.08c-1.673 2.925-2.615 3.541-3.923 3.541C1.086 13.632 0 12.217 0 9.973 0 6.388 1.995 3 4.598 3q.477-.001.924.122c.31.086.611.22.913.407.577.359 1.154.915 1.782 1.714m1.516 2.224q-.378-.615-.727-1.133L9 6.326c.845-1.305 1.543-1.954 2.372-1.954 1.723 0 3.102 2.537 3.102 5.653 0 1.188-.39 1.877-1.195 1.877-.773 0-1.142-.51-2.61-2.87zM4.846 4.756c.725.1 1.385.634 2.34 2.001A212 212 0 0 0 5.551 9.3c-1.357 2.126-1.826 2.603-2.581 2.603-.777 0-1.24-.682-1.24-1.9 0-2.602 1.298-5.264 2.846-5.264q.137 0 .27.018" />
   </svg>
 );
 
@@ -72,16 +73,15 @@ function Carousel() {
           />
         </motion.div>
       </AnimatePresence>
-      
+
       {/* Slide indicators */}
       <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 z-20">
         {CAROUSEL_IMAGES.map((_, i) => (
           <button
             key={i}
             onClick={() => setIndex(i)}
-            className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
-              i === index ? "bg-primary w-6" : "bg-muted-foreground/30 hover:bg-muted-foreground/50"
-            }`}
+            className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${i === index ? "bg-primary w-6" : "bg-muted-foreground/30 hover:bg-muted-foreground/50"
+              }`}
             aria-label={`Go to slide ${i + 1}`}
           />
         ))}
@@ -151,7 +151,7 @@ export default function Login() {
   const { isDark } = useTheme();
   const [isLogin, setIsLogin] = useState(true);
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
-  
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -193,17 +193,17 @@ export default function Login() {
         <div className="absolute inset-0 bg-primary/5 pointer-events-none" />
         <div className="relative z-10">
           <div className="mb-8">
-            <img 
-              src={isDark ? "/logo/light_logo.svg" : "/logo/dark_logo.svg"} 
-              alt="OpenBALC Logo" 
-              className="h-10 object-contain" 
+            <img
+              src={isDark ? "/logo/light_logo.svg" : "/logo/dark_logo.svg"}
+              alt="OpenBALC Logo"
+              className="h-10 object-contain"
             />
           </div>
           <h2 className="text-4xl font-bold tracking-tight mt-12">
-            Welcome to OpenBALC<br/>for serious learners.
+            Welcome to OpenBALC<br />for serious learners.
           </h2>
         </div>
-        
+
         <div className="relative z-10 flex-grow flex flex-col justify-center gap-8 my-6 overflow-hidden">
           <Carousel />
           <OrganizationMarquee />
@@ -213,15 +213,15 @@ export default function Login() {
           © {new Date().getFullYear()} OpenBALC. All rights reserved.
         </div>
       </div>
-      
+
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-sm space-y-8">
           <div className="text-center">
             <div className="flex justify-center lg:hidden mb-6">
-              <img 
-                src={isDark ? "/logo/light_logo.svg" : "/logo/dark_logo.svg"} 
-                alt="OpenBALC Logo" 
-                className="h-8 object-contain" 
+              <img
+                src={isDark ? "/logo/light_logo.svg" : "/logo/dark_logo.svg"}
+                alt="OpenBALC Logo"
+                className="h-8 object-contain"
               />
             </div>
             <h1 className="text-3xl font-bold tracking-tight">{isLogin ? "Welcome back" : "Create an account"}</h1>
@@ -235,9 +235,9 @@ export default function Login() {
               <>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Display Name</label>
-                  <input 
-                    type="text" 
-                    required 
+                  <input
+                    type="text"
+                    required
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     className="w-full px-3 py-2 bg-input/50 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
@@ -246,9 +246,9 @@ export default function Login() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Username</label>
-                  <input 
-                    type="text" 
-                    required 
+                  <input
+                    type="text"
+                    required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     className="w-full px-3 py-2 bg-input/50 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
@@ -259,9 +259,9 @@ export default function Login() {
             )}
             <div className="space-y-2">
               <label className="text-sm font-medium">Email</label>
-              <input 
-                type="email" 
-                required 
+              <input
+                type="email"
+                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 bg-input/50 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
@@ -270,16 +270,16 @@ export default function Login() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Password</label>
-              <input 
-                type="password" 
-                required 
+              <input
+                type="password"
+                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-3 py-2 bg-input/50 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                 placeholder="••••••••"
               />
             </div>
-            <button 
+            <button
               type="submit"
               disabled={loading}
               className="w-full bg-primary text-primary-foreground font-medium py-2.5 rounded-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
@@ -337,7 +337,7 @@ export default function Login() {
           </div>
 
           <div className="text-center">
-            <button 
+            <button
               onClick={() => setIsLogin(!isLogin)}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
