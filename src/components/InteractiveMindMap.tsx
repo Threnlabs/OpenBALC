@@ -38,8 +38,25 @@ const parseOutlineText = (text: string): MindMapNode => {
   return root;
 };
 
+const parseContent = (text: string): MindMapNode => {
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === "object" && typeof parsed.name === "string") {
+      const sanitizeNode = (node: any): MindMapNode => {
+        return {
+          name: String(node.name || ""),
+          children: Array.isArray(node.children) ? node.children.map(sanitizeNode) : []
+        };
+      };
+      return sanitizeNode(parsed);
+    }
+  } catch (_) {}
+  
+  return parseOutlineText(text);
+};
+
 export default function InteractiveMindMap({ content, title }: InteractiveMindMapProps) {
-  const rootNode = parseOutlineText(content);
+  const rootNode = parseContent(content);
   const svgRef = useRef<SVGSVGElement>(null);
   
   const [pan, setPan] = useState({ x: 0, y: 0 });

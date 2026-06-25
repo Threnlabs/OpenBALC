@@ -6,7 +6,7 @@ import {
   useListConversations, useGetConversation, useGetMessages, useSendMessage,
   useCreateConversation, useDeleteConversation, useUpdateConversation,
   useListModules, useGetModule, useGetModuleContent, useGetModuleSources,
-  getListConversationsQueryKey, getGetMessagesQueryKey
+  useListArtifacts, getListConversationsQueryKey, getGetMessagesQueryKey
 } from "@workspace/api-client-react";
 import { cn, timeAgo } from "@/lib/utils";
 import {
@@ -35,56 +35,6 @@ const SUGGESTED_PROMPTS = [
   "Compare and contrast different topics",
   "Create a study plan for my modules",
   "What are the main themes across my knowledge base?",
-];
-
-const MOCK_ARTIFACTS = [
-  {
-    id: "art-ml-mindmap",
-    moduleId: 1,
-    title: "Visual Machine Learning Mindmap",
-    type: "diagram",
-    content: "Machine Learning Basics\n├── Supervised Learning\n│   ├── Linear Regression\n│   └── Decision Trees\n└── Unsupervised Learning\n    ├── K-Means Clustering\n    └── PCA Dimensionality Reduction",
-    createdAt: new Date(Date.now() - 86400000).toISOString()
-  },
-  {
-    id: "art-ml-flashcards",
-    moduleId: 1,
-    title: "Vocabulary Flashcards - ML Basics",
-    type: "document",
-    content: JSON.stringify([
-      { front: "Supervised Learning", back: "Model is trained on labeled training data containing both inputs and correct outputs." },
-      { front: "Unsupervised Learning", back: "Model finds patterns and structures in unlabeled data without explicit outcomes." },
-      { front: "Feature Extraction", back: "Selecting or transforming raw variables into informative predictors for ML models." },
-      { front: "Overfitting", back: "When a model learns noise in training data too well, failing to generalize to new datasets." },
-      { front: "Mean Squared Error (MSE)", back: "A common loss function measuring the average squared difference between true and predicted values." }
-    ]),
-    createdAt: new Date(Date.now() - 43200000).toISOString()
-  },
-  {
-    id: "art-ml-cheatsheet",
-    moduleId: 1,
-    title: "Linear Regression Python Script",
-    type: "code",
-    content: `import numpy as np
-from sklearn.linear_model import LinearRegression
-
-# Sample data
-X = np.array([[1, 1], [1, 2], [2, 2], [2, 3]])
-y = np.dot(X, np.array([1, 2])) + 3
-
-# Fit model
-reg = LinearRegression().fit(X, y)
-print(f"Coefficients: {reg.coef_}")
-print(f"Intercept: {reg.intercept_}")`,
-    createdAt: new Date(Date.now() - 3600000).toISOString()
-  },
-  {
-    id: "art-gen-study",
-    title: "General Study Guidelines & Roadmap",
-    type: "markdown",
-    content: `# Ultimate Study Roadmap\n\n1. **Define Core Objectives**: Always outline the goal of your module.\n2. **Break Down Concepts**: Map complex ideas to daily study units.\n3. **Assess & Review**: Practice quizzes regularly to reinforce learning.\n4. **Utilize citations**: Connect answers back to source material.`,
-    createdAt: new Date(Date.now() - 172800000).toISOString()
-  }
 ];
 
 function ConversationItem({ conv, active, onSelect, onDelete, onPin }: {
@@ -241,6 +191,175 @@ function MessageBubble({ msg, onCitationClick }: { msg: any; onCitationClick: (s
   );
 }
 
+function ArtifactQuizPlayer({ questions, artifactId }: { questions: any[]; artifactId: any }) {
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [showResult, setShowResult] = useState(false);
+  const [score, setScore] = useState<number | null>(null);
+
+  // Reset when artifact changes
+  useEffect(() => {
+    setCurrentIdx(0);
+    setAnswers({});
+    setShowResult(false);
+    setScore(null);
+  }, [artifactId]);
+
+  const currentQuestion = questions[currentIdx];
+
+  const handleSelectOption = (optionKey: string) => {
+    setAnswers(prev => ({
+      ...prev,
+      [currentQuestion.id || currentIdx]: optionKey
+    }));
+  };
+
+  const handleNext = () => {
+    if (currentIdx < questions.length - 1) {
+      setCurrentIdx(prev => prev + 1);
+    } else {
+      // Calculate score
+      let correct = 0;
+      questions.forEach((q, idx) => {
+        const qId = q.id || idx;
+        const userAnswer = answers[qId];
+        if (userAnswer === q.answer) {
+          correct++;
+        }
+      });
+      const finalScore = Math.round((correct / questions.length) * 100);
+      setScore(finalScore);
+      setShowResult(true);
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentIdx > 0) {
+      setCurrentIdx(prev => prev - 1);
+    }
+  };
+
+  const handleReset = () => {
+    setCurrentIdx(0);
+    setAnswers({});
+    setShowResult(false);
+    setScore(null);
+  };
+
+  if (showResult) {
+    const passed = (score || 0) >= 70;
+    return (
+      <div className="flex flex-col items-center justify-center p-6 space-y-6 flex-1 text-center">
+        <div className={cn(
+          "w-16 h-16 rounded-full flex items-center justify-center shadow-lg",
+          passed ? "bg-emerald-500/10 text-emerald-500" : "bg-destructive/10 text-destructive"
+        )}>
+          {passed ? <Award className="h-8 w-8" /> : <GraduationCap className="h-8 w-8" />}
+        </div>
+        <div className="space-y-2">
+          <h4 className="text-base font-bold text-foreground">Quiz Completed!</h4>
+          <p className="text-xs text-muted-foreground">You got {questions.filter((q, idx) => answers[q.id || idx] === q.answer).length} out of {questions.length} questions correct.</p>
+        </div>
+        
+        <div className="p-4 bg-muted/30 border border-border/80 rounded-2xl w-full max-w-sm">
+          <div className="text-2xl font-bold text-primary">{score}%</div>
+          <div className="text-[10px] text-muted-foreground font-semibold uppercase mt-1">Your Score</div>
+        </div>
+
+        <Button onClick={handleReset} size="sm" className="h-8 px-4 text-xs font-semibold">
+          Try Again
+        </Button>
+      </div>
+    );
+  }
+
+  if (!currentQuestion) {
+    return (
+      <div className="text-center py-8 text-xs text-muted-foreground font-semibold">
+        No questions in this test artifact.
+      </div>
+    );
+  }
+
+  const selectedAnswer = answers[currentQuestion.id || currentIdx];
+
+  return (
+    <div className="flex flex-col flex-1 justify-between gap-6">
+      <div className="space-y-4">
+        {/* Progress Bar */}
+        <div className="space-y-1.5">
+          <div className="flex justify-between items-center text-[10px] text-muted-foreground font-semibold">
+            <span>Question {currentIdx + 1} of {questions.length}</span>
+            <span>{Math.round((currentIdx / questions.length) * 100)}% Complete</span>
+          </div>
+          <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-primary transition-all duration-300"
+              style={{ width: `${(currentIdx / questions.length) * 100}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Question Text */}
+        <div className="p-4 border border-border/80 bg-muted/15 rounded-2xl">
+          <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Question</span>
+          <p className="text-xs font-bold text-foreground leading-relaxed mt-1">
+            {currentQuestion.question}
+          </p>
+        </div>
+
+        {/* Options */}
+        {currentQuestion.options && (
+          <div className="space-y-2">
+            {Object.entries(currentQuestion.options).map(([key, value]: [string, any]) => (
+              <button
+                key={key}
+                onClick={() => handleSelectOption(key)}
+                className={cn(
+                  "w-full text-left p-3.5 rounded-xl border text-xs font-semibold transition-all flex items-start gap-3 hover:scale-[1.005]",
+                  selectedAnswer === key
+                    ? "border-primary bg-primary/5 text-primary shadow-sm"
+                    : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/10"
+                )}
+              >
+                <span className={cn(
+                  "h-5 w-5 rounded-md flex items-center justify-center shrink-0 border text-[10px] font-bold",
+                  selectedAnswer === key 
+                    ? "bg-primary border-primary text-primary-foreground" 
+                    : "border-border bg-card"
+                )}>
+                  {key}
+                </span>
+                <span className="leading-relaxed mt-0.5">{value}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between border-t border-border pt-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={currentIdx === 0}
+          onClick={handlePrev}
+          className="text-xs h-8 px-3 font-semibold"
+        >
+          Previous
+        </Button>
+        <Button
+          size="sm"
+          disabled={!selectedAnswer}
+          onClick={handleNext}
+          className="text-xs h-8 px-4 font-semibold"
+        >
+          {currentIdx === questions.length - 1 ? "Finish Quiz" : "Next Question"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const params = useParams();
   const [, setLocation] = useLocation();
@@ -269,10 +388,9 @@ export default function ChatPage() {
 
   // Artifacts viewport workspace state (rendered in main area instead of modal)
   const [viewingArtifacts, setViewingArtifacts] = useState(false);
-  const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null);
+  const [activeArtifactId, setActiveArtifactId] = useState<string | number | null>(null);
   const [flashcardIndex, setFlashcardIndex] = useState(0);
   const [flashcardFlipped, setFlashcardFlipped] = useState(false);
-  const [artifactsList, setArtifactsList] = useState<any[]>([]);
 
   // API hooks
   const { data: myModules } = useListModules({ visibility: "all" });
@@ -297,17 +415,8 @@ export default function ChatPage() {
   const deleteConv = useDeleteConversation();
   const updateConv = useUpdateConversation();
   const sendMsg = useSendMessage();
-
-  // Initialize artifacts in localStorage
-  useEffect(() => {
-    const stored = localStorage.getItem("openbalc_artifacts");
-    if (stored) {
-      setArtifactsList(JSON.parse(stored));
-    } else {
-      localStorage.setItem("openbalc_artifacts", JSON.stringify(MOCK_ARTIFACTS));
-      setArtifactsList(MOCK_ARTIFACTS);
-    }
-  }, []);
+  const { data: artifactsData } = useListArtifacts();
+  const artifactsList = Array.isArray(artifactsData) ? artifactsData : [];
 
   useEffect(() => {
     if (!viewingArtifacts) {
@@ -330,9 +439,17 @@ export default function ChatPage() {
   const moduleConvs = filteredConvs.filter(c => c.taggedModuleIds?.includes(moduleId ?? 0));
 
   // Artifact filtering
-  const visibleArtifacts = moduleId 
-    ? artifactsList.filter(a => a.moduleId === moduleId)
-    : artifactsList;
+  const visibleArtifacts = artifactsList.filter(a => {
+    if (!moduleId) return true;
+    if (Number(a.moduleId) === Number(moduleId)) return true;
+    if (a.conversationId) {
+      const conv = conversations?.find((c: any) => c.id === a.conversationId);
+      if (conv && conv.taggedModuleIds?.includes(moduleId)) {
+        return true;
+      }
+    }
+    return false;
+  });
 
   function handleNewChat() {
     setViewingArtifacts(false);
@@ -487,7 +604,7 @@ export default function ChatPage() {
     }
   }
 
-  const selectedArtifact = artifactsList.find(a => a.id === activeArtifactId);
+  const selectedArtifact = artifactsList.find(a => String(a.id) === String(activeArtifactId));
 
   return (
     <AppLayout>
@@ -612,8 +729,8 @@ export default function ChatPage() {
                   size="sm"
                   onClick={() => {
                     setViewingArtifacts(true);
-                    if (artifactsList.length > 0 && !activeArtifactId) {
-                      setActiveArtifactId(artifactsList[0].id);
+                    if (visibleArtifacts.length > 0 && !activeArtifactId) {
+                      setActiveArtifactId(visibleArtifacts[0].id);
                     }
                   }}
                 >
@@ -726,7 +843,7 @@ export default function ChatPage() {
                         onClick={() => setActiveArtifactId(art.id)}
                         className={cn(
                           "w-full text-left p-2.5 rounded-xl border text-xs font-semibold transition-all flex flex-col gap-1.5 hover:scale-[1.01]",
-                          activeArtifactId === art.id
+                          String(activeArtifactId) === String(art.id)
                             ? "border-primary bg-primary/5 text-primary shadow-sm"
                             : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/30"
                         )}
@@ -735,6 +852,7 @@ export default function ChatPage() {
                           {art.type === "diagram" ? <BrainCircuit className="h-4 w-4 shrink-0 text-primary" /> :
                            art.type === "code" ? <FileText className="h-4 w-4 shrink-0 text-primary" /> :
                            art.type === "document" ? <Layers className="h-4 w-4 shrink-0 text-primary" /> :
+                           art.type === "test" ? <GraduationCap className="h-4 w-4 shrink-0 text-primary" /> :
                            <FileText className="h-4 w-4 shrink-0 text-primary" />}
                           <span className="truncate w-full">{art.title}</span>
                         </div>
@@ -826,6 +944,19 @@ export default function ChatPage() {
                               return <div className="text-xs text-muted-foreground whitespace-pre-wrap">{selectedArtifact.content}</div>;
                             })()}
                           </div>
+                        )}
+
+                        {selectedArtifact.type === "test" && (
+                          <ArtifactQuizPlayer
+                            questions={(() => {
+                              try {
+                                const q = JSON.parse(selectedArtifact.content);
+                                if (Array.isArray(q)) return q;
+                              } catch (_) {}
+                              return [];
+                            })()}
+                            artifactId={selectedArtifact.id}
+                          />
                         )}
 
                         {selectedArtifact.type === "markdown" && (

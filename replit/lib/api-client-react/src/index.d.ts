@@ -66,6 +66,8 @@ export declare function useGetOrg(options?: any): any;
 export declare function useCreateOrg(options?: any): any;
 export declare function useListOrgMembers(options?: any): any;
 export declare function useInviteOrgMember(options?: any): any;
+export declare function useListWorkspaces(options?: any): any;
+export declare function useSwitchWorkspace(options?: any): any;
 export declare function useGetOrgAnalytics(params?: any, options?: any): any;
 export declare function useListExpertQueue(params?: any, options?: any): any;
 export declare function useReplyExpertTicket(options?: any): any;
