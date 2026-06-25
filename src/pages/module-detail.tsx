@@ -720,18 +720,6 @@ export default function ModuleDetailPage() {
             "rounded-xl border border-border bg-card p-4 flex flex-col h-full min-h-[300px] transition-all duration-300 relative",
             leftCollapsed ? "w-0 p-0 border-0 overflow-hidden lg:min-h-0" : "w-full lg:w-[230px]"
           )}>
-            {/* Left Collapse Trigger Button */}
-            <button
-              onClick={() => setLeftCollapsed(!leftCollapsed)}
-              className={cn(
-                "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-r-lg border-l-0 shadow-sm",
-                leftCollapsed ? "left-0" : "left-[229px]"
-              )}
-              title={leftCollapsed ? "Expand index" : "Collapse index"}
-            >
-              {leftCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
-            </button>
-            
             {/* STUDY GUIDE Left Side */}
             {activeTab === "study" && (
               <div className="flex flex-col h-full">
@@ -855,6 +843,18 @@ export default function ModuleDetailPage() {
             )}
 
           </div>
+
+          {/* Left Collapse Trigger Button */}
+          <button
+            onClick={() => setLeftCollapsed(!leftCollapsed)}
+            className={cn(
+              "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-r-lg border-l-0 shadow-sm",
+              leftCollapsed ? "left-0" : "left-[229px]"
+            )}
+            title={leftCollapsed ? "Expand index" : "Collapse index"}
+          >
+            {leftCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+          </button>
 
           {/* CENTER PANEL (Main Area) */}
           <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col h-full min-h-[400px] flex-1">

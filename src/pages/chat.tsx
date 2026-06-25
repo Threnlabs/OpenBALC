@@ -615,17 +615,6 @@ export default function ChatPage() {
           "border-r border-border flex flex-col bg-sidebar shrink-0 p-3 space-y-4 overflow-y-auto transition-all duration-300 relative",
           leftCollapsed ? "w-0 p-0 border-r-0 overflow-hidden" : "w-[260px]"
         )}>
-          {/* Left Collapse Trigger Button */}
-          <button
-            onClick={() => setLeftCollapsed(!leftCollapsed)}
-            className={cn(
-              "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-r-lg border-l-0 shadow-sm",
-              leftCollapsed ? "left-0" : "left-[259px]"
-            )}
-            title={leftCollapsed ? "Expand panel" : "Collapse panel"}
-          >
-            {leftCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
-          </button>
 
           {moduleId ? (
             /* MODULE scoped chat view - Two distinct boxes */
@@ -802,6 +791,18 @@ export default function ChatPage() {
             </>
           )}
         </div>
+
+        {/* Left Collapse Trigger Button */}
+        <button
+          onClick={() => setLeftCollapsed(!leftCollapsed)}
+          className={cn(
+            "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-r-lg border-l-0 shadow-sm",
+            leftCollapsed ? "left-0" : "left-[259px]"
+          )}
+          title={leftCollapsed ? "Expand panel" : "Collapse panel"}
+        >
+          {leftCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+        </button>
 
         {/* Chat / Artifacts Workspace Main Area */}
         <div className="flex-1 flex flex-col overflow-hidden bg-background">

@@ -64,46 +64,69 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  // Gather all leaves to count them and position them sequentially
+  // Helper to calculate node width dynamically based on text length
+  const getNodeWidth = (label: string) => {
+    return Math.max(120, label.length * 6.5 + 24);
+  };
+
+  // Gather all leaves and compute their widths
   interface LeafPos {
     gIdx: number;
     lIdx: number;
     node: MindMapNode;
     name: string;
+    width: number;
   }
   const allLeaves: LeafPos[] = [];
+  let totalLeafRowWidth = 0;
+  
   rootNode.children.forEach((group, gIdx) => {
     group.children.forEach((leaf, lIdx) => {
-      allLeaves.push({ gIdx, lIdx, node: leaf, name: leaf.name });
+      const nodeW = getNodeWidth(leaf.name);
+      allLeaves.push({ gIdx, lIdx, node: leaf, name: leaf.name, width: nodeW });
+      totalLeafRowWidth += nodeW;
     });
   });
+  
   const totalLeaves = allLeaves.length;
+  const leafGap = 25; // 25px gap between card borders
+  if (totalLeaves > 0) {
+    totalLeafRowWidth += (totalLeaves - 1) * leafGap;
+  }
 
-  // Determine canvas width dynamically to prevent overlaps based on leaf count
-  const minLeafSpacing = 145; // Cards are 120px wide, 145px spacing leaves a 25px gap
-  const width = Math.max(640, totalLeaves * minLeafSpacing + 120);
+  // Determine canvas width dynamically to prevent overlaps based on leaf count & node widths
+  const width = Math.max(640, totalLeafRowWidth + 160);
   const height = 400;
 
   const cx = width / 2;
   const rootX = cx;
   const rootY = 60;
 
-  const nodes: { id: string; label: string; x: number; y: number; level: number }[] = [];
+  const nodes: { id: string; label: string; x: number; y: number; level: number; width: number }[] = [];
   const links: { source: { x: number; y: number }; target: { x: number; y: number } }[] = [];
 
-  nodes.push({ id: "root", label: rootNode.name, x: rootX, y: rootY, level: 0 });
+  nodes.push({ 
+    id: "root", 
+    label: rootNode.name, 
+    x: rootX, 
+    y: rootY, 
+    level: 0,
+    width: getNodeWidth(rootNode.name)
+  });
 
-  // 1. Position Leaf Nodes (Level 2) first
-  const leafSpacing = totalLeaves > 1 ? (width - 160) / (totalLeaves - 1) : minLeafSpacing;
-  const leafStartX = cx - ((totalLeaves - 1) * leafSpacing) / 2;
-
+  // 1. Position Leaf Nodes (Level 2) sequentially
+  const leafStartX = cx - totalLeafRowWidth / 2;
   const leafPositions: Record<string, number> = {};
-  allLeaves.forEach((leaf, idx) => {
-    const lX = leafStartX + idx * leafSpacing;
+  
+  let currentX = leafStartX;
+  allLeaves.forEach((leaf) => {
+    const lX = currentX + leaf.width / 2;
     const lY = 280;
     const lId = `l-${leaf.gIdx}-${leaf.lIdx}`;
-    nodes.push({ id: lId, label: leaf.name, x: lX, y: lY, level: 2 });
+    nodes.push({ id: lId, label: leaf.name, x: lX, y: lY, level: 2, width: leaf.width });
     leafPositions[lId] = lX;
+    
+    currentX += leaf.width + leafGap;
   });
 
   // 2. Position Group Nodes (Level 1) centered above their children leaves
@@ -115,6 +138,7 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
     rootNode.children.forEach((group, gIdx) => {
       const gId = `g-${gIdx}`;
       const gY = 160;
+      const gWidth = getNodeWidth(group.name);
       
       let gX = 0;
       const leafCount = group.children.length;
@@ -129,7 +153,7 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
         gX = defaultStartX + gIdx * groupSpacing;
       }
 
-      nodes.push({ id: gId, label: group.name, x: gX, y: gY, level: 1 });
+      nodes.push({ id: gId, label: group.name, x: gX, y: gY, level: 1, width: gWidth });
       links.push({ source: { x: rootX, y: rootY }, target: { x: gX, y: gY } });
 
       group.children.forEach((_, lIdx) => {
@@ -285,9 +309,9 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
           {nodes.map(node => (
             <g key={node.id} transform={`translate(${node.x}, ${node.y})`}>
               <rect
-                x={-60}
+                x={-node.width / 2}
                 y={-18}
-                width={120}
+                width={node.width}
                 height={36}
                 rx={8}
                 strokeWidth={1.5}
@@ -308,7 +332,7 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
                     : "fill-foreground text-[9px]"
                 )}
               >
-                {node.label.length > 20 ? `${node.label.substring(0, 18)}...` : node.label}
+                {node.label}
               </text>
             </g>
           ))}
