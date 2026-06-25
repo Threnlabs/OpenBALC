@@ -38,8 +38,61 @@ const parseOutlineText = (text: string): MindMapNode => {
   return root;
 };
 
+const parseContent = (text: string): MindMapNode => {
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === "object") {
+      
+      // ── Format 1: hierarchical { name, children[] } ──────────────────────
+      if (typeof parsed.name === "string") {
+        const sanitizeNode = (node: any): MindMapNode => ({
+          name: String(node.name || ""),
+          children: Array.isArray(node.children) ? node.children.map(sanitizeNode) : []
+        });
+        return sanitizeNode(parsed);
+      }
+      
+      // ── Format 2: flat graph { nodes[], connections[] } ───────────────────
+      if (Array.isArray(parsed.nodes) && Array.isArray(parsed.connections)) {
+        const nodeMap: Record<string, MindMapNode & { id: string }> = {};
+        
+        // Build a map of id → { id, name, children }
+        for (const n of parsed.nodes) {
+          nodeMap[String(n.id)] = { id: String(n.id), name: String(n.text || n.name || n.id), children: [] };
+        }
+        
+        // Track which nodes have incoming edges (non-root)
+        const hasParent = new Set<string>();
+        for (const c of parsed.connections) {
+          const from = String(c.from ?? c.source);
+          const to   = String(c.to   ?? c.target);
+          if (nodeMap[from] && nodeMap[to]) {
+            nodeMap[from].children.push(nodeMap[to]);
+            hasParent.add(to);
+          }
+        }
+        
+        // The root is the node with no incoming edges
+        const roots = Object.values(nodeMap).filter(n => !hasParent.has(n.id));
+        if (roots.length === 1) return roots[0];
+        
+        // If multiple roots exist (disconnected or multi-root graph), wrap them
+        if (roots.length > 1) {
+          return { name: "Mind Map", children: roots };
+        }
+        
+        // Fallback: use first node as root
+        const first = Object.values(nodeMap)[0];
+        if (first) return first;
+      }
+    }
+  } catch (_) {}
+  
+  return parseOutlineText(text);
+};
+
 export default function InteractiveMindMap({ content, title }: InteractiveMindMapProps) {
-  const rootNode = parseOutlineText(content);
+  const rootNode = parseContent(content);
   const svgRef = useRef<SVGSVGElement>(null);
   
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -47,45 +100,105 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  const width = 600;
+  // Helper to calculate node width dynamically based on text length
+  const getNodeWidth = (label: string) => {
+    return Math.max(120, label.length * 6.5 + 24);
+  };
+
+  // Gather all leaves and compute their widths
+  interface LeafPos {
+    gIdx: number;
+    lIdx: number;
+    node: MindMapNode;
+    name: string;
+    width: number;
+  }
+  const allLeaves: LeafPos[] = [];
+  let totalLeafRowWidth = 0;
+  
+  rootNode.children.forEach((group, gIdx) => {
+    group.children.forEach((leaf, lIdx) => {
+      const nodeW = getNodeWidth(leaf.name);
+      allLeaves.push({ gIdx, lIdx, node: leaf, name: leaf.name, width: nodeW });
+      totalLeafRowWidth += nodeW;
+    });
+  });
+  
+  const totalLeaves = allLeaves.length;
+  const leafGap = 25; // 25px gap between card borders
+  if (totalLeaves > 0) {
+    totalLeafRowWidth += (totalLeaves - 1) * leafGap;
+  }
+
+  // Determine canvas width dynamically to prevent overlaps based on leaf count & node widths
+  const width = Math.max(640, totalLeafRowWidth + 160);
   const height = 400;
 
-  // Center coordinate
   const cx = width / 2;
   const rootX = cx;
   const rootY = 60;
 
-  // Layout calculations
-  const nodes: { id: string; label: string; x: number; y: number; level: number }[] = [];
+  const nodes: { id: string; label: string; x: number; y: number; level: number; width: number }[] = [];
   const links: { source: { x: number; y: number }; target: { x: number; y: number } }[] = [];
 
-  nodes.push({ id: "root", label: rootNode.name, x: rootX, y: rootY, level: 0 });
+  nodes.push({ 
+    id: "root", 
+    label: rootNode.name, 
+    x: rootX, 
+    y: rootY, 
+    level: 0,
+    width: getNodeWidth(rootNode.name)
+  });
 
+  // 1. Position Leaf Nodes (Level 2) sequentially
+  const leafStartX = cx - totalLeafRowWidth / 2;
+  const leafPositions: Record<string, number> = {};
+  
+  let currentX = leafStartX;
+  allLeaves.forEach((leaf) => {
+    const lX = currentX + leaf.width / 2;
+    const lY = 280;
+    const lId = `l-${leaf.gIdx}-${leaf.lIdx}`;
+    nodes.push({ id: lId, label: leaf.name, x: lX, y: lY, level: 2, width: leaf.width });
+    leafPositions[lId] = lX;
+    
+    currentX += leaf.width + leafGap;
+  });
+
+  // 2. Position Group Nodes (Level 1) centered above their children leaves
   const groupCount = rootNode.children.length;
   if (groupCount > 0) {
     const groupSpacing = Math.min(width / (groupCount + 0.5), 180);
-    const startX = cx - ((groupCount - 1) * groupSpacing) / 2;
+    const defaultStartX = cx - ((groupCount - 1) * groupSpacing) / 2;
 
     rootNode.children.forEach((group, gIdx) => {
-      const gX = startX + gIdx * groupSpacing;
-      const gY = 160;
       const gId = `g-${gIdx}`;
-      nodes.push({ id: gId, label: group.name, x: gX, y: gY, level: 1 });
-      links.push({ source: { x: rootX, y: rootY }, target: { x: gX, y: gY } });
-
+      const gY = 160;
+      const gWidth = getNodeWidth(group.name);
+      
+      let gX = 0;
       const leafCount = group.children.length;
       if (leafCount > 0) {
-        const leafSpacing = Math.min(100, (width * 0.8) / (leafCount + 0.5));
-        const leafStartX = gX - ((leafCount - 1) * leafSpacing) / 2;
-
-        group.children.forEach((leaf, lIdx) => {
-          const lX = leafStartX + lIdx * leafSpacing;
-          const lY = 280;
+        let sumX = 0;
+        group.children.forEach((_, lIdx) => {
           const lId = `l-${gIdx}-${lIdx}`;
-          nodes.push({ id: lId, label: leaf.name, x: lX, y: lY, level: 2 });
-          links.push({ source: { x: gX, y: gY }, target: { x: lX, y: lY } });
+          sumX += leafPositions[lId] || 0;
         });
+        gX = sumX / leafCount;
+      } else {
+        gX = defaultStartX + gIdx * groupSpacing;
       }
+
+      nodes.push({ id: gId, label: group.name, x: gX, y: gY, level: 1, width: gWidth });
+      links.push({ source: { x: rootX, y: rootY }, target: { x: gX, y: gY } });
+
+      group.children.forEach((_, lIdx) => {
+        const lId = `l-${gIdx}-${lIdx}`;
+        const lX = leafPositions[lId];
+        if (lX !== undefined) {
+          links.push({ source: { x: gX, y: gY }, target: { x: lX, y: 280 } });
+        }
+      });
     });
   }
 
@@ -125,8 +238,51 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
   const handleExport = () => {
     const svgEl = svgRef.current;
     if (!svgEl) return;
+    
+    // Clone original SVG to manipulate properties for standalone download
+    const clone = svgEl.cloneNode(true) as SVGSVGElement;
+    clone.removeAttribute("class");
+    
+    // Set a solid background color on the exported SVG matching the current theme background
+    const themeBg = window.getComputedStyle(document.body).backgroundColor || "#ffffff";
+    clone.style.backgroundColor = themeBg;
+    
+    // Get all nested child elements
+    const originalElements = Array.from(svgEl.querySelectorAll("*"));
+    const clonedElements = Array.from(clone.querySelectorAll("*"));
+    
+    originalElements.forEach((orig, idx) => {
+      const cloned = clonedElements[idx] as HTMLElement;
+      if (!cloned) return;
+      
+      const style = window.getComputedStyle(orig);
+      cloned.removeAttribute("class"); // Clear responsive classes to avoid stylesheet overrides
+      
+      // Resolve fills & strokes into solid color styles for rect, circle, path
+      if (orig.tagName === "rect" || orig.tagName === "circle" || orig.tagName === "path") {
+        const fill = style.fill;
+        const stroke = style.stroke;
+        
+        if (fill && fill !== "none") {
+          cloned.setAttribute("fill", fill);
+        }
+        if (stroke && stroke !== "none") {
+          cloned.setAttribute("stroke", stroke);
+        }
+      }
+      
+      // Resolve text fill, font family, sizes and weights for typography
+      if (orig.tagName === "text") {
+        const fill = style.fill;
+        cloned.setAttribute("fill", fill || "black");
+        cloned.style.fontFamily = style.fontFamily || "sans-serif";
+        cloned.style.fontSize = style.fontSize || "9px";
+        cloned.style.fontWeight = style.fontWeight || "bold";
+      }
+    });
+    
     const serializer = new XMLSerializer();
-    const source = serializer.serializeToString(svgEl);
+    const source = serializer.serializeToString(clone);
     const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
     const link = document.createElement("a");
     link.href = url;
@@ -179,9 +335,7 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
               <path
                 key={idx}
                 d={pathData}
-                fill="none"
-                stroke="var(--primary)"
-                strokeOpacity={0.25}
+                className="fill-none stroke-primary/30"
                 strokeWidth={1.5}
               />
             );
@@ -191,25 +345,30 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
           {nodes.map(node => (
             <g key={node.id} transform={`translate(${node.x}, ${node.y})`}>
               <rect
-                x={-60}
+                x={-node.width / 2}
                 y={-18}
-                width={120}
+                width={node.width}
                 height={36}
                 rx={8}
-                fill={node.level === 0 ? "hsl(var(--primary))" : "hsl(var(--card))"}
-                stroke={node.level === 0 ? "none" : "hsl(var(--border))"}
                 strokeWidth={1.5}
-                className="shadow-sm"
+                className={cn(
+                  "shadow-sm",
+                  node.level === 0 
+                    ? "fill-primary stroke-none" 
+                    : "fill-card stroke-border"
+                )}
               />
               <text
                 dy={4}
                 textAnchor="middle"
-                fill={node.level === 0 ? "white" : "hsl(var(--foreground))"}
-                fontSize={node.level === 0 ? "10px" : "9px"}
-                fontWeight="bold"
-                className="select-none pointer-events-none"
+                className={cn(
+                  "select-none pointer-events-none font-bold",
+                  node.level === 0 
+                    ? "fill-primary-foreground text-[10px]" 
+                    : "fill-foreground text-[9px]"
+                )}
               >
-                {node.label.length > 20 ? `${node.label.substring(0, 18)}...` : node.label}
+                {node.label}
               </text>
             </g>
           ))}

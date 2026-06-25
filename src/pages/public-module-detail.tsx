@@ -7,6 +7,7 @@ import { BookOpen, Globe, Star, MessageSquare, FileText, Link2, Type, ChevronRig
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import MarkdownRenderer from "@/components/MarkdownRenderer";
 
 export default function PublicModuleDetailPage() {
   const params = useParams();
@@ -71,7 +72,7 @@ export default function PublicModuleDetailPage() {
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
           <Link href="/#features" className="hover:text-foreground transition-colors">Features</Link>
           <Link href="/#how-it-works" className="hover:text-foreground transition-colors">How it works</Link>
-          <Link href="/pricing" className="hover:text-foreground transition-colors">Pricing</Link>
+          <Link href="/#pricing" className="hover:text-foreground transition-colors">Pricing</Link>
           <Link href="/modules" className="text-foreground transition-colors font-bold">Modules</Link>
           <Link href="/ads" className="hover:text-foreground transition-colors">Advertisers</Link>
         </nav>
@@ -175,11 +176,11 @@ export default function PublicModuleDetailPage() {
                   <p className="text-sm text-muted-foreground">No content details available</p>
                 </div>
               ) : (
-                <div className="prose prose-sm dark:prose-invert max-w-none">
+                <div className="space-y-6">
                   {selectedContent?.map((c: any) => (
                     <div key={c.id} className="mb-6 last:mb-0">
                       <h3 className="text-lg font-bold text-foreground mb-3">{c.topic}</h3>
-                      <div className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{c.content}</div>
+                      <MarkdownRenderer content={c.content} className="text-sm text-muted-foreground leading-relaxed" />
                     </div>
                   ))}
                 </div>

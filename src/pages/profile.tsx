@@ -1,5 +1,6 @@
 import { useState } from "react";
 import AppLayout from "@/components/AppLayout";
+import { useTheme } from "@/hooks/use-theme";
 import { Skeleton } from "@/components/Skeleton";
 import {
   useGetMe, useUpdateMe, useGetCreditsBalance, useListCreditTransactions, useGetBufferMode, useUpdateBufferMode,
@@ -211,14 +212,25 @@ function BufferTab() {
 }
 
 function AppearanceTab() {
-  const [theme, setTheme] = useState("system");
+  const { theme, setTheme, accentColor, setAccentColor } = useTheme();
   return (
     <div className="space-y-8 max-w-md">
       <div>
         <h3 className="text-sm font-semibold mb-4">Theme</h3>
         <div className="grid grid-cols-3 gap-3">
           {["Light", "Dark", "System"].map(t => (
-            <button key={t} onClick={() => setTheme(t.toLowerCase())} className={cn("px-4 py-3 border rounded-xl text-sm font-medium transition-colors", theme === t.toLowerCase() ? "border-primary bg-primary/10 text-primary" : "border-border bg-card hover:bg-muted")}>{t}</button>
+            <button
+              key={t}
+              onClick={() => setTheme(t.toLowerCase() as any)}
+              className={cn(
+                "px-4 py-3 border rounded-xl text-sm font-semibold transition-all cursor-pointer shadow-sm",
+                theme === t.toLowerCase()
+                  ? "border-primary bg-primary/10 text-primary scale-[1.02]"
+                  : "border-border bg-card hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {t}
+            </button>
           ))}
         </div>
       </div>
@@ -232,9 +244,24 @@ function AppearanceTab() {
             { id: "rose", color: "#f43f5e" },
             { id: "amber", color: "#f59e0b" },
             { id: "blue", color: "#3b82f6" }
-          ].map(c => (
-            <button key={c.id} className="w-10 h-10 rounded-full cursor-pointer hover:scale-110 transition-transform shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary" style={{ backgroundColor: c.color }} />
-          ))}
+          ].map(c => {
+            const isSelected = accentColor === c.id;
+            return (
+              <button
+                key={c.id}
+                onClick={() => setAccentColor(c.id as any)}
+                className={cn(
+                  "w-10 h-10 rounded-full cursor-pointer hover:scale-110 transition-all shadow-sm focus:outline-none flex items-center justify-center border-2",
+                  isSelected
+                    ? "border-foreground ring-2 ring-primary ring-offset-2 scale-105"
+                    : "border-transparent"
+                )}
+                style={{ backgroundColor: c.color }}
+              >
+                {isSelected && <Check className="h-4.5 w-4.5 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]" />}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

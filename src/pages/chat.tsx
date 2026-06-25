@@ -6,14 +6,15 @@ import {
   useListConversations, useGetConversation, useGetMessages, useSendMessage,
   useCreateConversation, useDeleteConversation, useUpdateConversation,
   useListModules, useGetModule, useGetModuleContent, useGetModuleSources,
-  getListConversationsQueryKey, getGetMessagesQueryKey
+  useListArtifacts, getListConversationsQueryKey, getGetMessagesQueryKey,
+  useCreateNote, getListArtifactsQueryKey
 } from "@workspace/api-client-react";
 import { cn, timeAgo } from "@/lib/utils";
 import {
   MessageSquare, Plus, Search, Trash2, Pin, PinOff, Send, Loader2,
   BookOpen, Globe, User, Bot, Zap, ChevronRight, MoreVertical,
   Layers, BrainCircuit, FileText, ArrowLeft, GraduationCap, X, Award, Sparkles,
-  Link2, Info, ChevronLeft
+  Link2, Info, ChevronLeft, ThumbsUp, ThumbsDown, StickyNote, Quote
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,8 @@ import {
   HoverCard, HoverCardTrigger, HoverCardContent
 } from "@/components/ui/hover-card";
 import InteractiveMindMap from "@/components/InteractiveMindMap";
+import MarkdownRenderer from "@/components/MarkdownRenderer";
+import ArtifactQuizPlayer from "@/components/ArtifactQuizPlayer";
 
 const SUGGESTED_PROMPTS = [
   "Explain the key concepts in my latest module",
@@ -35,56 +38,6 @@ const SUGGESTED_PROMPTS = [
   "Compare and contrast different topics",
   "Create a study plan for my modules",
   "What are the main themes across my knowledge base?",
-];
-
-const MOCK_ARTIFACTS = [
-  {
-    id: "art-ml-mindmap",
-    moduleId: 1,
-    title: "Visual Machine Learning Mindmap",
-    type: "diagram",
-    content: "Machine Learning Basics\n├── Supervised Learning\n│   ├── Linear Regression\n│   └── Decision Trees\n└── Unsupervised Learning\n    ├── K-Means Clustering\n    └── PCA Dimensionality Reduction",
-    createdAt: new Date(Date.now() - 86400000).toISOString()
-  },
-  {
-    id: "art-ml-flashcards",
-    moduleId: 1,
-    title: "Vocabulary Flashcards - ML Basics",
-    type: "document",
-    content: JSON.stringify([
-      { front: "Supervised Learning", back: "Model is trained on labeled training data containing both inputs and correct outputs." },
-      { front: "Unsupervised Learning", back: "Model finds patterns and structures in unlabeled data without explicit outcomes." },
-      { front: "Feature Extraction", back: "Selecting or transforming raw variables into informative predictors for ML models." },
-      { front: "Overfitting", back: "When a model learns noise in training data too well, failing to generalize to new datasets." },
-      { front: "Mean Squared Error (MSE)", back: "A common loss function measuring the average squared difference between true and predicted values." }
-    ]),
-    createdAt: new Date(Date.now() - 43200000).toISOString()
-  },
-  {
-    id: "art-ml-cheatsheet",
-    moduleId: 1,
-    title: "Linear Regression Python Script",
-    type: "code",
-    content: `import numpy as np
-from sklearn.linear_model import LinearRegression
-
-# Sample data
-X = np.array([[1, 1], [1, 2], [2, 2], [2, 3]])
-y = np.dot(X, np.array([1, 2])) + 3
-
-# Fit model
-reg = LinearRegression().fit(X, y)
-print(f"Coefficients: {reg.coef_}")
-print(f"Intercept: {reg.intercept_}")`,
-    createdAt: new Date(Date.now() - 3600000).toISOString()
-  },
-  {
-    id: "art-gen-study",
-    title: "General Study Guidelines & Roadmap",
-    type: "markdown",
-    content: `# Ultimate Study Roadmap\n\n1. **Define Core Objectives**: Always outline the goal of your module.\n2. **Break Down Concepts**: Map complex ideas to daily study units.\n3. **Assess & Review**: Practice quizzes regularly to reinforce learning.\n4. **Utilize citations**: Connect answers back to source material.`,
-    createdAt: new Date(Date.now() - 172800000).toISOString()
-  }
 ];
 
 function ConversationItem({ conv, active, onSelect, onDelete, onPin }: {
@@ -152,8 +105,78 @@ export const getCitationContext = (sourceName: string) => {
   };
 };
 
-function MessageBubble({ msg, onCitationClick }: { msg: any; onCitationClick: (sourceName: string) => void }) {
+function parseArtifactsFromContent(content: string) {
+  if (!content) return { cleanContent: "", artifacts: [] as Array<{ type: string; title: string; content: string }> };
+  const regex = /<artifact\s+type="([^"]+)"\s+title="([^"]+)">[\s\S]*?<\/artifact>/gi;
+  const artifacts: Array<{ type: string; title: string; content: string }> = [];
+  let match: RegExpExecArray | null;
+  const re = /<artifact\s+type="([^"]+)"\s+title="([^"]+)">[\s\S]*?<\/artifact>/gi;
+  const reInner = /<artifact\s+type="([^"]+)"\s+title="([^"]+)">(([\s\S]*?))<\/artifact>/i;
+  const allMatches = content.match(re) || [];
+  for (const m of allMatches) {
+    const inner = reInner.exec(m);
+    if (inner) {
+      artifacts.push({ type: inner[1], title: inner[2], content: inner[3].trim() });
+    }
+  }
+  const cleanContent = content.replace(/<artifact[\s\S]*?<\/artifact>/gi, "").trim();
+  return { cleanContent, artifacts };
+}
+
+function InlineFlashcardPlayer({ flashcards }: { flashcards: any[] }) {
+  const [index, setIndex] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+
+  useEffect(() => { setIndex(0); setFlipped(false); }, [flashcards]);
+
+  if (!flashcards || flashcards.length === 0) return null;
+  return (
+    <div className="flex flex-col items-center py-2 w-full">
+      <div
+        onClick={() => setFlipped(!flipped)}
+        className={cn(
+          "w-full max-w-[320px] h-[150px] rounded-2xl border flex items-center justify-center p-5 text-center cursor-pointer transition-all duration-300 shadow-sm relative select-none",
+          flipped
+            ? "border-primary bg-primary/5 text-primary scale-[1.01]"
+            : "border-border bg-card text-foreground hover:border-primary/30"
+        )}
+      >
+        <div className="absolute top-2.5 left-3 text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
+          {flipped ? "Answer" : "Question"}
+        </div>
+        <span className="text-xs font-bold leading-relaxed">
+          {flipped ? flashcards[index].back : flashcards[index].front}
+        </span>
+      </div>
+      <p className="text-[9px] text-muted-foreground/60 mt-1.5 font-medium">Click to flip card</p>
+      <div className="flex items-center justify-between w-full max-w-[320px] mt-3">
+        <Button variant="ghost" size="sm" disabled={index === 0}
+          onClick={(e) => { e.stopPropagation(); setIndex(p => p - 1); setFlipped(false); }}
+          className="text-xs h-7 px-2">Prev</Button>
+        <span className="text-[10px] font-semibold text-muted-foreground">Card {index + 1} / {flashcards.length}</span>
+        <Button variant="ghost" size="sm" disabled={index === flashcards.length - 1}
+          onClick={(e) => { e.stopPropagation(); setIndex(p => p + 1); setFlipped(false); }}
+          className="text-xs h-7 px-2">Next</Button>
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({
+  msg,
+  onCitationClick,
+  onAddToNote,
+  onReference
+}: {
+  msg: any;
+  onCitationClick: (sourceName: string) => void;
+  onAddToNote?: (content: string) => void;
+  onReference?: (content: string) => void;
+}) {
   const isUser = msg.role === "user";
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+
+  const { cleanContent, artifacts } = parseArtifactsFromContent(msg.content || "");
 
   const renderMessageContent = (content: string, sources: string[] = []) => {
     if (!content) return "";
@@ -204,35 +227,155 @@ function MessageBubble({ msg, onCitationClick }: { msg: any; onCitationClick: (s
       )}>
         {isUser ? "U" : "AI"}
       </div>
-      <div className={cn("max-w-[75%] space-y-1", isUser && "items-end flex flex-col")}>
+      <div className={cn("max-w-[85%] space-y-1.5 flex flex-col", isUser ? "items-end" : "items-start")}>
         <div className={cn(
-          "px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap",
+          "px-4 py-3 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap font-medium shadow-sm",
           isUser
             ? "bg-primary text-primary-foreground rounded-tr-sm"
             : "bg-card border border-border rounded-tl-sm text-foreground"
         )}>
-          {isUser ? msg.content : renderMessageContent(msg.content, msg.sources)}
+          {isUser ? cleanContent : renderMessageContent(cleanContent, msg.sources)}
         </div>
+
+        {/* AI action bar */}
+        {!isUser && (
+          <div className="flex items-center gap-1 px-1">
+            <button
+              onClick={() => {
+                const next = feedback === "up" ? null : "up";
+                setFeedback(next);
+                if (next) toast.success("Thanks for your feedback!");
+              }}
+              title="Helpful"
+              className={cn(
+                "p-1 rounded-md hover:bg-muted/60 hover:text-foreground transition-all",
+                feedback === "up" ? "text-primary bg-primary/10" : "text-muted-foreground"
+              )}
+            >
+              <ThumbsUp className="h-3 w-3" />
+            </button>
+            <button
+              onClick={() => {
+                const next = feedback === "down" ? null : "down";
+                setFeedback(next);
+                if (next) toast.success("Feedback received — we'll improve.");
+              }}
+              title="Not helpful"
+              className={cn(
+                "p-1 rounded-md hover:bg-muted/60 hover:text-foreground transition-all",
+                feedback === "down" ? "text-destructive bg-destructive/10" : "text-muted-foreground"
+              )}
+            >
+              <ThumbsDown className="h-3 w-3" />
+            </button>
+            {onAddToNote && (
+              <button
+                onClick={() => onAddToNote(cleanContent)}
+                title="Add to Note"
+                className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-muted/60 hover:text-foreground transition-all text-muted-foreground text-[10px] font-semibold"
+              >
+                <StickyNote className="h-3 w-3" />
+                Add to Note
+              </button>
+            )}
+            {onReference && (
+              <button
+                onClick={() => onReference(cleanContent)}
+                title="Quote in chat"
+                className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-muted/60 hover:text-foreground transition-all text-muted-foreground text-[10px] font-semibold"
+              >
+                <Quote className="h-3 w-3" />
+                Reference
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center gap-2 px-1">
-          <span className="text-[10px] text-muted-foreground">{timeAgo(msg.createdAt)}</span>
+          <span className="text-[9px] font-medium text-muted-foreground/70">{timeAgo(msg.createdAt)}</span>
           {msg.creditsUsed > 0 && (
-            <span className="text-[10px] text-amber-500 flex items-center gap-0.5">
+            <span className="text-[9px] text-amber-500 font-bold flex items-center gap-0.5">
               <Zap className="h-2.5 w-2.5" />{msg.creditsUsed}
             </span>
           )}
         </div>
+
         {msg.sources?.length > 0 && (
           <div className="flex flex-wrap gap-1 px-1">
             {msg.sources.map((src: string, i: number) => (
               <Badge
                 key={i}
                 variant="secondary"
-                className="text-[10px] h-4 cursor-pointer hover:bg-muted/80"
+                className="text-[9px] font-bold h-4 cursor-pointer hover:bg-muted/80"
                 onClick={() => onCitationClick(src)}
               >
                 <BookOpen className="h-2 w-2 mr-1" />
                 <span>[{i + 1}] {src}</span>
               </Badge>
+            ))}
+          </div>
+        )}
+
+        {/* Inline artifact cards */}
+        {!isUser && artifacts.length > 0 && (
+          <div className="mt-2.5 w-full max-w-xl bg-card/80 backdrop-blur-xl border border-primary/20 rounded-2xl p-4 shadow-lg space-y-4">
+            <div className="flex items-center gap-1.5 pb-2 border-b border-border/50">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span className="text-[10px] font-bold tracking-widest uppercase text-primary">AI Study Artifact</span>
+            </div>
+            {artifacts.map((art, idx) => (
+              <div key={idx} className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    {art.type === "diagram" && <BrainCircuit className="h-3.5 w-3.5 text-primary" />}
+                    {art.type === "code" && <FileText className="h-3.5 w-3.5 text-primary" />}
+                    {art.type === "document" && <Layers className="h-3.5 w-3.5 text-primary" />}
+                    {art.type === "test" && <GraduationCap className="h-3.5 w-3.5 text-primary" />}
+                    {art.type === "markdown" && <FileText className="h-3.5 w-3.5 text-primary" />}
+                    {art.title}
+                  </h4>
+                  <Badge className="uppercase text-[8px] font-bold tracking-widest bg-primary/10 text-primary border-0 px-2">{art.type}</Badge>
+                </div>
+
+                {art.type === "diagram" && (
+                  <div className="border border-border/40 rounded-xl overflow-hidden bg-background/60" style={{ height: 280 }}>
+                    <InteractiveMindMap content={art.content} title={art.title} />
+                  </div>
+                )}
+
+                {art.type === "code" && (
+                  <div className="bg-slate-950 text-slate-200 p-4 rounded-xl font-mono text-[10px] overflow-x-auto whitespace-pre leading-relaxed border border-border/40 shadow-inner">
+                    {art.content}
+                  </div>
+                )}
+
+                {art.type === "document" && (() => {
+                  try {
+                    const cards = JSON.parse(art.content);
+                    if (Array.isArray(cards)) return (
+                      <div className="border border-border/40 rounded-xl bg-background/50 p-3">
+                        <InlineFlashcardPlayer flashcards={cards} />
+                      </div>
+                    );
+                  } catch (_) {}
+                  return <div className="text-xs text-muted-foreground whitespace-pre-wrap p-3 border border-border/40 rounded-xl">{art.content}</div>;
+                })()}
+
+                {art.type === "test" && (
+                  <div className="border border-border/40 rounded-xl bg-background/50 p-3">
+                    <ArtifactQuizPlayer
+                      questions={(() => { try { const q = JSON.parse(art.content); if (Array.isArray(q)) return q; } catch (_) {} return []; })()}
+                      artifactId={`inline-${idx}-${msg.id}`}
+                    />
+                  </div>
+                )}
+
+                {art.type === "markdown" && (
+                  <div className="border border-border/40 rounded-xl bg-background/50 p-3">
+                    <MarkdownRenderer content={art.content} className="text-xs text-muted-foreground leading-relaxed" />
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -269,10 +412,9 @@ export default function ChatPage() {
 
   // Artifacts viewport workspace state (rendered in main area instead of modal)
   const [viewingArtifacts, setViewingArtifacts] = useState(false);
-  const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null);
+  const [activeArtifactId, setActiveArtifactId] = useState<string | number | null>(null);
   const [flashcardIndex, setFlashcardIndex] = useState(0);
   const [flashcardFlipped, setFlashcardFlipped] = useState(false);
-  const [artifactsList, setArtifactsList] = useState<any[]>([]);
 
   // API hooks
   const { data: myModules } = useListModules({ visibility: "all" });
@@ -297,17 +439,31 @@ export default function ChatPage() {
   const deleteConv = useDeleteConversation();
   const updateConv = useUpdateConversation();
   const sendMsg = useSendMessage();
+  const createNote = useCreateNote();
+  const { data: artifactsData } = useListArtifacts();
+  const artifactsList = Array.isArray(artifactsData) ? artifactsData : [];
 
-  // Initialize artifacts in localStorage
-  useEffect(() => {
-    const stored = localStorage.getItem("openbalc_artifacts");
-    if (stored) {
-      setArtifactsList(JSON.parse(stored));
-    } else {
-      localStorage.setItem("openbalc_artifacts", JSON.stringify(MOCK_ARTIFACTS));
-      setArtifactsList(MOCK_ARTIFACTS);
-    }
-  }, []);
+  const handleAddToNote = (content: string) => {
+    const snippet = content.slice(0, 60).replace(/\n/g, " ");
+    createNote.mutate({
+      data: {
+        title: `AI Note: ${snippet}${content.length > 60 ? "…" : ""}`,
+        content,
+        color: "#6366f1",
+        pinned: false,
+        sourceTitle: conversation?.title ?? undefined
+      }
+    }, {
+      onSuccess: () => toast.success("Saved to Notes!"),
+      onError: () => toast.error("Failed to save note.")
+    });
+  };
+
+  const handleReference = (content: string) => {
+    const quoted = content.split("\n").map(l => `> ${l}`).join("\n");
+    setInput(prev => (prev ? `${quoted}\n\n${prev}` : `${quoted}\n\n`));
+    textareaRef.current?.focus();
+  };
 
   useEffect(() => {
     if (!viewingArtifacts) {
@@ -330,9 +486,17 @@ export default function ChatPage() {
   const moduleConvs = filteredConvs.filter(c => c.taggedModuleIds?.includes(moduleId ?? 0));
 
   // Artifact filtering
-  const visibleArtifacts = moduleId 
-    ? artifactsList.filter(a => a.moduleId === moduleId)
-    : artifactsList;
+  const visibleArtifacts = artifactsList.filter(a => {
+    if (!moduleId) return true;
+    if (Number(a.moduleId) === Number(moduleId)) return true;
+    if (a.conversationId) {
+      const conv = conversations?.find((c: any) => c.id === a.conversationId);
+      if (conv && conv.taggedModuleIds?.includes(moduleId)) {
+        return true;
+      }
+    }
+    return false;
+  });
 
   function handleNewChat() {
     setViewingArtifacts(false);
@@ -379,6 +543,22 @@ export default function ChatPage() {
       onSuccess: () => qc.invalidateQueries({ queryKey: getListConversationsQueryKey() })
     });
   }
+
+  // Auto-resize textarea: expand up to maxLines, then scroll
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    // Reset so scrollHeight reflects the natural content height
+    ta.style.height = "auto";
+    // Determine line-height in px (fallback to 20px)
+    const lineHeightPx = parseFloat(getComputedStyle(ta).lineHeight) || 20;
+    // Max lines: 9 on desktop (≥768px), 4 on mobile
+    const maxLines = window.innerWidth >= 768 ? 9 : 4;
+    const maxHeight = lineHeightPx * maxLines + /* vertical padding */ 16;
+    const newHeight = Math.min(ta.scrollHeight, maxHeight);
+    ta.style.height = `${newHeight}px`;
+    ta.style.overflowY = ta.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [input]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
@@ -454,6 +634,7 @@ export default function ChatPage() {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getGetMessagesQueryKey(conversationId) });
         qc.invalidateQueries({ queryKey: getListConversationsQueryKey() });
+        qc.invalidateQueries({ queryKey: getListArtifactsQueryKey() });
       },
       onError: () => {
         toast.error("Failed to send message");
@@ -487,7 +668,7 @@ export default function ChatPage() {
     }
   }
 
-  const selectedArtifact = artifactsList.find(a => a.id === activeArtifactId);
+  const selectedArtifact = artifactsList.find(a => String(a.id) === String(activeArtifactId));
 
   return (
     <AppLayout>
@@ -497,17 +678,6 @@ export default function ChatPage() {
           "border-r border-border flex flex-col bg-sidebar shrink-0 p-3 space-y-4 overflow-y-auto transition-all duration-300 relative",
           leftCollapsed ? "w-0 p-0 border-r-0 overflow-hidden" : "w-[260px]"
         )}>
-          {/* Left Collapse Trigger Button */}
-          <button
-            onClick={() => setLeftCollapsed(!leftCollapsed)}
-            className={cn(
-              "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-r-lg border-l-0 shadow-sm",
-              leftCollapsed ? "left-0" : "left-[259px]"
-            )}
-            title={leftCollapsed ? "Expand panel" : "Collapse panel"}
-          >
-            {leftCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
-          </button>
 
           {moduleId ? (
             /* MODULE scoped chat view - Two distinct boxes */
@@ -612,8 +782,8 @@ export default function ChatPage() {
                   size="sm"
                   onClick={() => {
                     setViewingArtifacts(true);
-                    if (artifactsList.length > 0 && !activeArtifactId) {
-                      setActiveArtifactId(artifactsList[0].id);
+                    if (visibleArtifacts.length > 0 && !activeArtifactId) {
+                      setActiveArtifactId(visibleArtifacts[0].id);
                     }
                   }}
                 >
@@ -685,6 +855,18 @@ export default function ChatPage() {
           )}
         </div>
 
+        {/* Left Collapse Trigger Button */}
+        <button
+          onClick={() => setLeftCollapsed(!leftCollapsed)}
+          className={cn(
+            "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-r-lg border-l-0 shadow-sm",
+            leftCollapsed ? "left-0" : "left-[259px]"
+          )}
+          title={leftCollapsed ? "Expand panel" : "Collapse panel"}
+        >
+          {leftCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+        </button>
+
         {/* Chat / Artifacts Workspace Main Area */}
         <div className="flex-1 flex flex-col overflow-hidden bg-background">
           {viewingArtifacts ? (
@@ -726,7 +908,7 @@ export default function ChatPage() {
                         onClick={() => setActiveArtifactId(art.id)}
                         className={cn(
                           "w-full text-left p-2.5 rounded-xl border text-xs font-semibold transition-all flex flex-col gap-1.5 hover:scale-[1.01]",
-                          activeArtifactId === art.id
+                          String(activeArtifactId) === String(art.id)
                             ? "border-primary bg-primary/5 text-primary shadow-sm"
                             : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/30"
                         )}
@@ -735,6 +917,7 @@ export default function ChatPage() {
                           {art.type === "diagram" ? <BrainCircuit className="h-4 w-4 shrink-0 text-primary" /> :
                            art.type === "code" ? <FileText className="h-4 w-4 shrink-0 text-primary" /> :
                            art.type === "document" ? <Layers className="h-4 w-4 shrink-0 text-primary" /> :
+                           art.type === "test" ? <GraduationCap className="h-4 w-4 shrink-0 text-primary" /> :
                            <FileText className="h-4 w-4 shrink-0 text-primary" />}
                           <span className="truncate w-full">{art.title}</span>
                         </div>
@@ -828,10 +1011,21 @@ export default function ChatPage() {
                           </div>
                         )}
 
+                        {selectedArtifact.type === "test" && (
+                          <ArtifactQuizPlayer
+                            questions={(() => {
+                              try {
+                                const q = JSON.parse(selectedArtifact.content);
+                                if (Array.isArray(q)) return q;
+                              } catch (_) {}
+                              return [];
+                            })()}
+                            artifactId={selectedArtifact.id}
+                          />
+                        )}
+
                         {selectedArtifact.type === "markdown" && (
-                          <div className="prose prose-sm dark:prose-invert max-w-none text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                            {selectedArtifact.content}
-                          </div>
+                          <MarkdownRenderer content={selectedArtifact.content} className="text-xs text-muted-foreground leading-relaxed" />
                         )}
                       </div>
                     </div>
@@ -900,7 +1094,15 @@ export default function ChatPage() {
                           <p>No messages yet. Send a message to start.</p>
                         </div>
                       ) : (
-                        messages.map(msg => <MessageBubble key={msg.id} msg={msg} onCitationClick={setActiveCitationSource} />)
+                        messages.map(msg => (
+                          <MessageBubble
+                            key={msg.id}
+                            msg={msg}
+                            onCitationClick={setActiveCitationSource}
+                            onAddToNote={handleAddToNote}
+                            onReference={handleReference}
+                          />
+                        ))
                       )}
                       {sendMsg.isPending && (
                         <div className="flex gap-3">
@@ -944,8 +1146,8 @@ export default function ChatPage() {
                         }}
                         placeholder="Ask a question or tag a module with @..."
                         rows={1}
-                        className="w-full resize-none bg-transparent py-2 text-xs outline-none placeholder:text-muted-foreground/60 disabled:opacity-50 font-medium"
-                        style={{ maxHeight: "150px", overflowY: "auto" }}
+                        className="w-full resize-none bg-transparent py-2 text-xs outline-none placeholder:text-muted-foreground/60 disabled:opacity-50 font-medium leading-5"
+                        style={{ overflowY: "hidden", minHeight: "36px" }}
                       />
 
                       {/* Mention Picker Popup */}
