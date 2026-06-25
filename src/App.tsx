@@ -7,7 +7,6 @@ import { useEffect } from "react";
 
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
-import Pricing from "@/pages/pricing";
 import Login from "@/pages/login";
 import OnboardPage from "@/pages/onboard";
 import Dashboard from "@/pages/dashboard";
@@ -51,7 +50,15 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
-      <Route path="/pricing" component={Pricing} />
+      <Route path="/pricing">
+        {() => {
+          const [, setLocation] = useLocation();
+          useEffect(() => {
+            setLocation("/#pricing");
+          }, [setLocation]);
+          return null;
+        }}
+      </Route>
       <Route path="/login" component={Login} />
       <Route path="/onboard" component={() => <ProtectedRoute component={OnboardPage} />} />
       <Route path="/ads" component={AdsPortal} />

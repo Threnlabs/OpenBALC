@@ -71,7 +71,7 @@ export default function PublicModuleDetailPage() {
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
           <Link href="/#features" className="hover:text-foreground transition-colors">Features</Link>
           <Link href="/#how-it-works" className="hover:text-foreground transition-colors">How it works</Link>
-          <Link href="/pricing" className="hover:text-foreground transition-colors">Pricing</Link>
+          <Link href="/#pricing" className="hover:text-foreground transition-colors">Pricing</Link>
           <Link href="/modules" className="text-foreground transition-colors font-bold">Modules</Link>
           <Link href="/ads" className="hover:text-foreground transition-colors">Advertisers</Link>
         </nav>
