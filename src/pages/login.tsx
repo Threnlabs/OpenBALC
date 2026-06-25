@@ -1,8 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "@/hooks/use-theme";
+import { motion, AnimatePresence } from "framer-motion";
+
+const CAROUSEL_IMAGES = [
+  "/carousel/image1.png",
+  "/carousel/image2.png",
+];
 
 // Custom SVG Icons for Google, GitHub, and Meta
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -37,6 +43,108 @@ const MetaIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <path fillRule="evenodd" d="M8.217 5.243C9.145 3.988 10.171 3 11.483 3 13.96 3 16 6.153 16.001 9.907c0 2.29-.986 3.725-2.757 3.725-1.543 0-2.395-.866-3.924-3.424l-.667-1.123-.118-.197a55 55 0 0 0-.53-.877l-1.178 2.08c-1.673 2.925-2.615 3.541-3.923 3.541C1.086 13.632 0 12.217 0 9.973 0 6.388 1.995 3 4.598 3q.477-.001.924.122c.31.086.611.22.913.407.577.359 1.154.915 1.782 1.714m1.516 2.224q-.378-.615-.727-1.133L9 6.326c.845-1.305 1.543-1.954 2.372-1.954 1.723 0 3.102 2.537 3.102 5.653 0 1.188-.39 1.877-1.195 1.877-.773 0-1.142-.51-2.61-2.87zM4.846 4.756c.725.1 1.385.634 2.34 2.001A212 212 0 0 0 5.551 9.3c-1.357 2.126-1.826 2.603-2.581 2.603-.777 0-1.24-.682-1.24-1.9 0-2.602 1.298-5.264 2.846-5.264q.137 0 .27.018"/>
   </svg>
 );
+
+function Carousel() {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setIndex((prevIndex) => (prevIndex + 1) % CAROUSEL_IMAGES.length);
+    }, 6000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="relative w-full aspect-[16/10] rounded-2xl overflow-hidden border border-border/60 bg-muted/10 shadow-xl flex items-center justify-center group">
+      <AnimatePresence initial={false} mode="wait">
+        <motion.div
+          key={index}
+          initial={{ x: 100, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: -100, opacity: 0 }}
+          transition={{ type: "tween", ease: "easeInOut", duration: 0.5 }}
+          className="absolute inset-0 w-full h-full p-2"
+        >
+          <img
+            src={CAROUSEL_IMAGES[index]}
+            alt={`Slide ${index + 1}`}
+            className="w-full h-full object-cover rounded-xl shadow-inner border border-border/30"
+          />
+        </motion.div>
+      </AnimatePresence>
+      
+      {/* Slide indicators */}
+      <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 z-20">
+        {CAROUSEL_IMAGES.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => setIndex(i)}
+            className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
+              i === index ? "bg-primary w-6" : "bg-muted-foreground/30 hover:bg-muted-foreground/50"
+            }`}
+            aria-label={`Go to slide ${i + 1}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface Organization {
+  id: string;
+  name: string;
+  logo: string;
+}
+
+function OrganizationMarquee() {
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+
+  useEffect(() => {
+    fetch("/organizations.json")
+      .then((res) => res.json())
+      .then((data) => setOrganizations(data))
+      .catch((err) => console.error("Failed to load organizations:", err));
+  }, []);
+
+  if (organizations.length === 0) return null;
+
+  // Quadruple items to ensure seamless infinite scroll
+  const marqueeItems = [...organizations, ...organizations, ...organizations, ...organizations];
+
+  return (
+    <div className="space-y-4 w-full">
+      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/50 px-1">
+        Trusted by learners from
+      </div>
+      <div className="marquee-container py-2">
+        <div className="animate-marquee gap-5 flex items-center">
+          {marqueeItems.map((org, idx) => (
+            <div
+              key={`${org.id}-${idx}`}
+              className="flex items-center gap-3 bg-card border border-border/50 rounded-xl p-3 w-48 shrink-0 shadow-sm hover:border-primary/40 hover:bg-accent/10 transition-all duration-300 select-none group"
+            >
+              <div className="w-10 h-10 rounded-lg overflow-hidden bg-white flex items-center justify-center border border-border/40 shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                <img
+                  src={org.logo}
+                  alt={org.name}
+                  className="w-full h-full object-contain p-1"
+                />
+              </div>
+              <div className="overflow-hidden">
+                <div className="text-sm font-semibold truncate text-foreground/80 group-hover:text-foreground transition-colors">
+                  {org.name}
+                </div>
+                <div className="text-[10px] text-muted-foreground font-medium truncate">
+                  Partner
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Login() {
   const { login, signUp, loginWithOAuth } = useAuth();
@@ -95,6 +203,12 @@ export default function Login() {
             Welcome to OpenBALC<br/>for serious learners.
           </h2>
         </div>
+        
+        <div className="relative z-10 flex-grow flex flex-col justify-center gap-8 my-6 overflow-hidden">
+          <Carousel />
+          <OrganizationMarquee />
+        </div>
+
         <div className="relative z-10 text-muted-foreground">
           © {new Date().getFullYear()} OpenBALC. All rights reserved.
         </div>
