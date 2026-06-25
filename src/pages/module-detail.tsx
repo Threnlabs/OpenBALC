@@ -26,6 +26,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import InteractiveMindMap from "@/components/InteractiveMindMap";
 import { ChevronLeft } from "lucide-react";
+import MarkdownRenderer from "@/components/MarkdownRenderer";
 
 // Modal component to add sources
 function AddSourceModal({
@@ -874,11 +875,11 @@ export default function ModuleDetailPage() {
                     <p className="text-xs text-muted-foreground mt-1">Add study sources to let the AI process and build this module.</p>
                   </div>
                 ) : (
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <div className="space-y-6">
                     {selectedContent?.map((c: any) => (
                       <div key={c.id} className="mb-6 last:mb-0">
                         <h3 className="text-lg font-bold text-foreground mb-3">{c.topic}</h3>
-                        <div className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{c.content}</div>
+                        <MarkdownRenderer content={c.content} className="text-sm text-muted-foreground leading-relaxed" />
                       </div>
                     ))}
                   </div>
