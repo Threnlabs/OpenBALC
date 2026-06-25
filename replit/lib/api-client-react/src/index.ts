@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@supabase/supabase-js";
 
 // --------------------------------------------------------
@@ -16,13 +16,81 @@ export const supabase = createClient(supabaseUrl || "https://placeholder-openbal
   }
 });
 
+// Helper to ensure a user has a primary workspace and is a member of it
+async function ensureUserPrimaryWorkspace(userId: number, displayName: string): Promise<void> {
+  const { data: membership } = await supabase
+    .from("workspace_members")
+    .select("workspace_id")
+    .eq("user_id", userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (membership) {
+    if (typeof window !== "undefined" && !window.localStorage.getItem("openbalc_active_workspace_id")) {
+      window.localStorage.setItem("openbalc_active_workspace_id", String(membership.workspace_id));
+    }
+    return;
+  }
+
+  const { data: ownedWorkspace } = await supabase
+    .from("workspaces")
+    .select("id")
+    .eq("owner_id", userId)
+    .limit(1)
+    .maybeSingle();
+
+  let workspaceId: number;
+
+  if (ownedWorkspace) {
+    workspaceId = ownedWorkspace.id;
+  } else {
+    const { data: newWorkspace, error } = await supabase
+      .from("workspaces")
+      .insert({
+        owner_id: userId,
+        name: `${displayName}'s Workspace`,
+        type: "personal",
+        credits: 100
+      })
+      .select("id")
+      .single();
+
+    if (error || !newWorkspace) {
+      console.error("Error creating primary workspace for user:", error);
+      return;
+    }
+    workspaceId = newWorkspace.id;
+  }
+
+  const { error: memberError } = await supabase
+    .from("workspace_members")
+    .insert({
+      workspace_id: workspaceId,
+      user_id: userId,
+      role: "owner",
+      credits_allocated: 100,
+      credits_used: 0
+    });
+
+  if (memberError) {
+    console.error("Error creating workspace membership for user:", memberError);
+  }
+
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem("openbalc_active_workspace_id", String(workspaceId));
+  }
+}
+
 // Helper to get matching DB User ID
 async function getDbUserId(): Promise<number | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
   
-  const { data: existingUser } = await supabase.from("users").select("id").eq("email", user.email).single();
-  if (existingUser) return existingUser.id;
+  const { data: existingUser } = await supabase.from("users").select("id, display_name").eq("email", user.email).maybeSingle();
+  if (existingUser) {
+    await ensureUserPrimaryWorkspace(existingUser.id, existingUser.display_name || "User");
+    return existingUser.id;
+  }
   
   const displayName = user.user_metadata?.display_name || user.email?.split("@")[0] || "User";
   const username = user.user_metadata?.username || user.email?.split("@")[0] || "user";
@@ -35,6 +103,10 @@ async function getDbUserId(): Promise<number | null> {
     credits: 100,
     onboarding_complete: false,
   }).select("id").single();
+  
+  if (newUser) {
+    await ensureUserPrimaryWorkspace(newUser.id, displayName);
+  }
   
   return newUser ? newUser.id : null;
 }
@@ -365,8 +437,9 @@ export function useGetMe(options?: any): any {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
       
-      const { data: dbUser } = await supabase.from("users").select("*").eq("email", user.email).single();
+      const { data: dbUser } = await supabase.from("users").select("*").eq("email", user.email).maybeSingle();
       if (dbUser) {
+        await ensureUserPrimaryWorkspace(dbUser.id, dbUser.display_name || "User");
         return {
           id: dbUser.id,
           email: dbUser.email,
@@ -396,6 +469,10 @@ export function useGetMe(options?: any): any {
         credits: 100,
         onboarding_complete: false,
       }).select("*").single();
+      
+      if (newUser) {
+        await ensureUserPrimaryWorkspace(newUser.id, displayName);
+      }
       
       return newUser ? {
         id: newUser.id,
@@ -813,6 +890,129 @@ export function useUpdateConversation(options?: any): any {
   });
 }
 
+function generateDynamicReply(userPrompt: string) {
+  const prompt = userPrompt.toLowerCase();
+  let content = "";
+  let artifactData: { type: string; title: string; content: string } | null = null;
+
+  if (prompt.includes("mindmap") || prompt.includes("mind map") || prompt.includes("diagram")) {
+    const mindmapTitle = "Quantum Computing Foundations Mindmap";
+    const mindmapJson = JSON.stringify({
+      nodes: [
+        { id: "1", text: "Quantum Computing", group: "Root" },
+        { id: "2", text: "Superposition", group: "Principles" },
+        { id: "3", text: "Entanglement", group: "Principles" },
+        { id: "4", text: "Qubits", group: "Hardware" },
+        { id: "5", text: "Quantum Gates", group: "Operations" }
+      ],
+      connections: [
+        { from: "1", to: "2" },
+        { from: "1", to: "3" },
+        { from: "1", to: "4" },
+        { from: "1", to: "5" }
+      ]
+    }, null, 2);
+
+    content = `I have generated an interactive mindmap diagram outlining the core components of Quantum Computing. You can explore the nodes and relationships below:
+
+<artifact type="diagram" title="${mindmapTitle}">
+${mindmapJson}
+</artifact>`;
+
+    artifactData = {
+      type: "diagram",
+      title: mindmapTitle,
+      content: mindmapJson
+    };
+  } else if (prompt.includes("quiz") || prompt.includes("test") || prompt.includes("question")) {
+    const quizTitle = "Quantum Mechanics Basics Quiz";
+    const quizJson = JSON.stringify([
+      {
+        id: 1,
+        question: "What is superposition in quantum mechanics?",
+        options: {
+          A: "A qubit exists in both 0 and 1 states simultaneously until measured",
+          B: "The instantaneous correlation between distant qubits",
+          C: "The process of copying quantum states exactly"
+        },
+        answer: "A"
+      },
+      {
+        id: 2,
+        question: "Which of the following gates is used to put a qubit into superposition?",
+        options: {
+          A: "CNOT gate",
+          B: "Hadamard (H) gate",
+          C: "Pauli-X gate"
+        },
+        answer: "B"
+      }
+    ], null, 2);
+
+    content = `Here is a custom practice quiz to test your understanding of Quantum Mechanics basics. Try answering the questions inline:
+
+<artifact type="test" title="${quizTitle}">
+${quizJson}
+</artifact>`;
+
+    artifactData = {
+      type: "test",
+      title: quizTitle,
+      content: quizJson
+    };
+  } else if (prompt.includes("code") || prompt.includes("typescript") || prompt.includes("program")) {
+    const codeTitle = "Advanced TypeScript Utility Types";
+    const codeContent = `// TypeScript Mapped Types Example
+type ReadonlyOptional<T> = {
+  readonly [P in keyof T]?: T[P];
+};
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+// Resulting type has all fields as optional and readonly
+type ReadonlyUser = ReadonlyOptional<User>;`;
+
+    content = `Here is an example code snippet illustrating advanced TypeScript mapped and utility types:
+
+<artifact type="code" title="${codeTitle}">
+${codeContent}
+</artifact>`;
+
+    artifactData = {
+      type: "code",
+      title: codeTitle,
+      content: codeContent
+    };
+  } else if (prompt.includes("flashcard") || prompt.includes("flash card") || prompt.includes("vocab")) {
+    const docTitle = "Quantum Computing Terms Flashcards";
+    const docJson = JSON.stringify([
+      { front: "Qubit", back: "The basic unit of quantum information, capable of superposition of 0 and 1." },
+      { front: "Entanglement", back: "A quantum connection where state changes to one particle instantly affect the other." },
+      { front: "Shor's Algorithm", back: "A famous quantum algorithm capable of factoring large integers in polynomial time." }
+    ], null, 2);
+
+    content = `I have compiled a list of vocabulary flashcards covering key Quantum Computing terms. Click the cards below to flip them:
+
+<artifact type="document" title="${docTitle}">
+${docJson}
+</artifact>`;
+
+    artifactData = {
+      type: "document",
+      title: docTitle,
+      content: docJson
+    };
+  } else {
+    content = `Let's discuss "${userPrompt.replace(/@\w+/g, "").trim()}". Based on your learning profile and linked study materials, here is a detailed overview. Let me know if you would like me to generate a mindmap, a practice quiz, or custom flashcards on this topic!`;
+  }
+
+  return { content, artifactData };
+}
+
 export function useSendMessage(options?: any): any {
   return useMutation({
     mutationFn: async ({ id, data }: { id: number; data: { content: string; webSearch?: boolean } }) => {
@@ -839,9 +1039,7 @@ export function useSendMessage(options?: any): any {
         };
         conversationMsgs.push(userMsg);
 
-        const replyContent = data.webSearch 
-          ? `[Web Search Active] I searched for details related to your query. Based on that and the context: "${data.content.replace(/@\w+/g, "").trim()}", here is what I found. Let me know if you need more details!`
-          : `Interesting question! Let's explore "${data.content.replace(/@\w+/g, "").trim()}". Based on your learning profile and modules, here is a structured breakdown. Let me know if you would like me to generate a quick practice test on this topic.`;
+        const { content: replyContent, artifactData } = generateDynamicReply(data.content);
 
         const logs = getStorageItem("openbalc_ai_logs", DEFAULT_AI_LOGS);
         const newLogId = logs.length > 0 ? Math.max(...logs.map(l => l.id)) + 1 : 1;
@@ -871,6 +1069,24 @@ export function useSendMessage(options?: any): any {
         conversationMsgs.push(aiMsg);
         msgs[String(id)] = conversationMsgs;
         setStorageItem("openbalc_messages", msgs);
+
+        if (artifactData) {
+          const artList = getStorageItem("openbalc_artifacts", MOCK_ARTIFACTS);
+          const newArtId = artList.length > 0 ? Math.max(...artList.map((a: any) => typeof a.id === "number" ? a.id : 0)) + 1 : 1;
+          artList.unshift({
+            id: newArtId,
+            moduleId: null,
+            workspaceId: null,
+            conversationId: id,
+            title: artifactData.title,
+            type: artifactData.type,
+            content: artifactData.content,
+            version: 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+          setStorageItem("openbalc_artifacts", artList);
+        }
 
         const convs = getStorageItem("openbalc_conversations", DEFAULT_CONVERSATIONS);
         const convIdx = convs.findIndex(c => c.id === id);
@@ -918,10 +1134,7 @@ export function useSendMessage(options?: any): any {
         sources: []
       });
 
-      // Perform simulation reply
-      const replyContent = data.webSearch 
-        ? `[Web Search Active] I searched for details related to your query. Based on that and the context: "${data.content.replace(/@\w+/g, "").trim()}", here is what I found. Let me know if you need more details!`
-        : `Interesting question! Let's explore "${data.content.replace(/@\w+/g, "").trim()}". Based on your learning profile and modules, here is a structured breakdown. Let me know if you would like me to generate a quick practice test on this topic.`;
+      const { content: replyContent, artifactData } = generateDynamicReply(data.content);
 
       // Insert Assistant response
       const { data: aiMsg, error } = await supabase.from("messages").insert({
@@ -932,6 +1145,17 @@ export function useSendMessage(options?: any): any {
       }).select("*").single();
 
       if (error) throw error;
+
+      if (artifactData) {
+        await supabase.from("artifacts").insert({
+          user_id: userId,
+          conversation_id: id,
+          title: artifactData.title,
+          type: artifactData.type,
+          content: artifactData.content,
+          version: 1
+        });
+      }
 
       // Update last message in Conversation
       await supabase.from("conversations").update({
@@ -2304,28 +2528,73 @@ export function useGetOrg(options?: any): any {
       const userId = await getDbUserId();
       if (!userId) return null;
       
-      const { data: memberRecord } = await supabase.from("org_members").select("org_id").eq("user_id", userId).limit(1).maybeSingle();
-      let orgId = memberRecord?.org_id;
-
-      if (!orgId) {
-        const { data: ownerRecord } = await supabase.from("organizations").select("id").eq("owner_id", userId).limit(1).maybeSingle();
-        orgId = ownerRecord?.id;
+      let workspaceId: number | null = null;
+      if (typeof window !== "undefined") {
+        const stored = window.localStorage.getItem("openbalc_active_workspace_id");
+        if (stored) {
+          workspaceId = parseInt(stored);
+        }
       }
-
-      if (!orgId) return null;
-
-      const { data: org } = await supabase.from("organizations").select("*").eq("id", orgId).single();
-      if (!org) return null;
-
-      const { count } = await supabase.from("org_members").select("*", { count: "exact", head: true }).eq("org_id", org.id);
-
+      
+      if (workspaceId) {
+        const { data: isMember } = await supabase
+          .from("workspace_members")
+          .select("workspace_id")
+          .eq("workspace_id", workspaceId)
+          .eq("user_id", userId)
+          .limit(1)
+          .maybeSingle();
+        if (!isMember) {
+          workspaceId = null;
+        }
+      }
+      
+      if (!workspaceId) {
+        const { data: memberRecord } = await supabase
+          .from("workspace_members")
+          .select("workspace_id")
+          .eq("user_id", userId)
+          .limit(1)
+          .maybeSingle();
+        workspaceId = memberRecord?.workspace_id || null;
+      }
+      
+      if (!workspaceId) {
+        const { data: ownerRecord } = await supabase
+          .from("workspaces")
+          .select("id")
+          .eq("owner_id", userId)
+          .limit(1)
+          .maybeSingle();
+        workspaceId = ownerRecord?.id || null;
+      }
+      
+      if (!workspaceId) return null;
+      
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("openbalc_active_workspace_id", String(workspaceId));
+      }
+      
+      const { data: workspace } = await supabase
+        .from("workspaces")
+        .select("*")
+        .eq("id", workspaceId)
+        .single();
+        
+      if (!workspace) return null;
+      
+      const { count } = await supabase
+        .from("workspace_members")
+        .select("*", { count: "exact", head: true })
+        .eq("workspace_id", workspace.id);
+        
       return {
-        id: org.id,
-        name: org.name,
-        description: org.description,
-        plan: org.plan,
+        id: workspace.id,
+        name: workspace.name,
+        description: "Personal study & collaboration workspace",
+        plan: workspace.type,
         memberCount: count || 1,
-        credits: org.credits
+        credits: workspace.credits
       };
     },
     ...options
@@ -2345,49 +2614,40 @@ export function useCreateOrg(options?: any): any {
           credits: 1000
         };
         setStorageItem("openbalc_org", newOrg);
-
-        const newMembers = [
-          {
-            userId: 1,
-            displayName: "Jane Doe",
-            role: "admin",
-            creditsUsed: 0,
-            creditCap: 1000,
-            lastActive: new Date().toISOString()
-          }
-        ];
-        setStorageItem("openbalc_org_members", newMembers);
         return newOrg;
       }
       
       const userId = await getDbUserId();
       if (!userId) throw new Error("Not authenticated");
 
-      const { data: org, error } = await supabase.from("organizations").insert({
+      const { data: ws, error } = await supabase.from("workspaces").insert({
         owner_id: userId,
         name: data.name,
-        description: data.description || "",
-        plan: data.plan || "hosted",
+        type: data.plan || "hosted",
         credits: 1000
       }).select("*").single();
 
       if (error) throw error;
 
-      await supabase.from("org_members").insert({
-        org_id: org.id,
+      await supabase.from("workspace_members").insert({
+        workspace_id: ws.id,
         user_id: userId,
-        role: "admin",
-        credit_cap: 1000,
+        role: "owner",
+        credits_allocated: 1000,
         credits_used: 0
       });
+      
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("openbalc_active_workspace_id", String(ws.id));
+      }
 
       return {
-        id: org.id,
-        name: org.name,
-        description: org.description,
-        plan: org.plan,
+        id: ws.id,
+        name: ws.name,
+        description: "",
+        plan: ws.type,
         memberCount: 1,
-        credits: org.credits
+        credits: ws.credits
       };
     },
     ...options
@@ -2405,17 +2665,27 @@ export function useListOrgMembers(options?: any): any {
       const userId = await getDbUserId();
       if (!userId) return [];
       
-      const { data: memberRecord } = await supabase.from("org_members").select("org_id").eq("user_id", userId).limit(1).maybeSingle();
-      if (!memberRecord) return [];
+      let workspaceId: number | null = null;
+      if (typeof window !== "undefined") {
+        const stored = window.localStorage.getItem("openbalc_active_workspace_id");
+        if (stored) workspaceId = parseInt(stored);
+      }
+      
+      if (!workspaceId) {
+        const { data: memberRecord } = await supabase.from("workspace_members").select("workspace_id").eq("user_id", userId).limit(1).maybeSingle();
+        workspaceId = memberRecord?.workspace_id || null;
+      }
+      
+      if (!workspaceId) return [];
 
-      const { data: members } = await supabase.from("org_members").select("*, users(*)").eq("org_id", memberRecord.org_id);
+      const { data: members } = await supabase.from("workspace_members").select("*, users(*)").eq("workspace_id", workspaceId);
       return (members || []).map(m => ({
         userId: m.user_id,
         displayName: m.users?.display_name || "Unknown",
         email: m.users?.email || "",
         role: m.role,
         creditsUsed: m.credits_used,
-        creditCap: m.credit_cap,
+        creditCap: m.credits_allocated,
         lastActive: m.joined_at
       }));
     },
@@ -2450,8 +2720,16 @@ export function useInviteOrgMember(options?: any): any {
       const userId = await getDbUserId();
       if (!userId) throw new Error("Not authenticated");
 
-      const { data: adminRecord } = await supabase.from("org_members").select("org_id").eq("user_id", userId).eq("role", "admin").single();
-      if (!adminRecord) throw new Error("Unauthorized");
+      let workspaceId: number | null = null;
+      if (typeof window !== "undefined") {
+        const stored = window.localStorage.getItem("openbalc_active_workspace_id");
+        if (stored) workspaceId = parseInt(stored);
+      }
+      if (!workspaceId) {
+        const { data: memberRecord } = await supabase.from("workspace_members").select("workspace_id").eq("user_id", userId).limit(1).maybeSingle();
+        workspaceId = memberRecord?.workspace_id || null;
+      }
+      if (!workspaceId) throw new Error("Workspace not found");
 
       let inviteUser = null;
       const { data: existingUser } = await supabase.from("users").select("*").eq("email", data.email).maybeSingle();
@@ -2468,11 +2746,15 @@ export function useInviteOrgMember(options?: any): any {
         inviteUser = created;
       }
 
-      const { data: newMember } = await supabase.from("org_members").insert({
-        org_id: adminRecord.org_id,
+      if (inviteUser) {
+        await ensureUserPrimaryWorkspace(inviteUser.id, inviteUser.display_name || "User");
+      }
+
+      const { data: newMember } = await supabase.from("workspace_members").insert({
+        workspace_id: workspaceId,
         user_id: inviteUser!.id,
         role: data.role || "member",
-        credit_cap: 500,
+        credits_allocated: 500,
         credits_used: 0
       }).select("*").single();
 
@@ -2482,9 +2764,68 @@ export function useInviteOrgMember(options?: any): any {
         email: inviteUser!.email,
         role: newMember.role,
         creditsUsed: newMember.credits_used,
-        creditCap: newMember.credit_cap,
+        creditCap: newMember.credits_allocated,
         lastActive: newMember.joined_at
       };
+    },
+    ...options
+  });
+}
+
+export function useListWorkspaces(options?: any): any {
+  return useQuery({
+    queryKey: ["listWorkspaces"],
+    queryFn: async () => {
+      if (!hasSupabase) {
+        return [
+          { id: 1, name: "Primary Workspace", plan: "personal", memberCount: 1, credits: 100 }
+        ];
+      }
+      
+      const userId = await getDbUserId();
+      if (!userId) return [];
+      
+      const { data: memberships, error } = await supabase
+        .from("workspace_members")
+        .select("workspace_id, role, workspaces(*)")
+        .eq("user_id", userId);
+        
+      if (error || !memberships) return [];
+      
+      const list = [];
+      for (const m of memberships) {
+        if (!m.workspaces) continue;
+        const ws = m.workspaces as any;
+        const { count } = await supabase
+          .from("workspace_members")
+          .select("*", { count: "exact", head: true })
+          .eq("workspace_id", ws.id);
+        list.push({
+          id: ws.id,
+          name: ws.name,
+          plan: ws.type,
+          memberCount: count || 1,
+          credits: ws.credits,
+          role: m.role
+        });
+      }
+      return list;
+    },
+    ...options
+  });
+}
+
+export function useSwitchWorkspace(options?: any): any {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ workspaceId }: { workspaceId: number }) => {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("openbalc_active_workspace_id", String(workspaceId));
+      }
+      return { success: true, activeWorkspaceId: workspaceId };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
     },
     ...options
   });
@@ -2642,21 +2983,33 @@ export function useUpdateOrg(options?: any): any {
       
       const userId = await getDbUserId();
       if (!userId) throw new Error("Not authenticated");
-      
-      const { data: member } = await supabase.from("org_members").select("org_id").eq("user_id", userId).eq("role", "admin").single();
-      const orgId = member?.org_id;
-      if (!orgId) throw new Error("Unauthorized");
+
+      let workspaceId: number | null = null;
+      if (typeof window !== "undefined") {
+        const stored = window.localStorage.getItem("openbalc_active_workspace_id");
+        if (stored) workspaceId = parseInt(stored);
+      }
+      if (!workspaceId) {
+        const { data: memberRecord } = await supabase.from("workspace_members").select("workspace_id").eq("user_id", userId).limit(1).maybeSingle();
+        workspaceId = memberRecord?.workspace_id || null;
+      }
+      if (!workspaceId) throw new Error("Workspace not found or unauthorized");
 
       const mapped: any = {
         name: data.name,
-        description: data.description,
-        plan: data.plan
+        type: data.plan
       };
       Object.keys(mapped).forEach(key => mapped[key] === undefined && delete mapped[key]);
       
-      const { data: updated, error } = await supabase.from("organizations").update(mapped).eq("id", orgId).select("*").single();
+      const { data: updated, error } = await supabase.from("workspaces").update(mapped).eq("id", workspaceId).select("*").single();
       if (error) throw error;
-      return updated;
+      return {
+        id: updated.id,
+        name: updated.name,
+        description: "",
+        plan: updated.type,
+        credits: updated.credits
+      };
     },
     ...options
   });
@@ -2673,9 +3026,27 @@ export function useDeleteOrg(options?: any): any {
       
       const userId = await getDbUserId();
       if (!userId) throw new Error("Not authenticated");
-      const { data: org } = await supabase.from("organizations").select("id").eq("owner_id", userId).single();
-      if (!org) throw new Error("Unauthorized");
-      await supabase.from("organizations").delete().eq("id", org.id);
+
+      let workspaceId: number | null = null;
+      if (typeof window !== "undefined") {
+        const stored = window.localStorage.getItem("openbalc_active_workspace_id");
+        if (stored) workspaceId = parseInt(stored);
+      }
+      if (!workspaceId) {
+        const { data: memberRecord } = await supabase.from("workspace_members").select("workspace_id").eq("user_id", userId).limit(1).maybeSingle();
+        workspaceId = memberRecord?.workspace_id || null;
+      }
+      if (!workspaceId) throw new Error("Workspace not found or unauthorized");
+
+      const { data: ws } = await supabase.from("workspaces").select("id").eq("id", workspaceId).eq("owner_id", userId).maybeSingle();
+      if (!ws) throw new Error("Unauthorized");
+      
+      await supabase.from("workspaces").delete().eq("id", ws.id);
+      
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("openbalc_active_workspace_id");
+      }
+      
       return { success: true };
     },
     ...options
@@ -2699,17 +3070,25 @@ export function useUpdateOrgMember(options?: any): any {
       const userIdAuth = await getDbUserId();
       if (!userIdAuth) throw new Error("Not authenticated");
 
-      const { data: adminRecord } = await supabase.from("org_members").select("org_id").eq("user_id", userIdAuth).eq("role", "admin").single();
-      if (!adminRecord) throw new Error("Unauthorized");
+      let workspaceId: number | null = null;
+      if (typeof window !== "undefined") {
+        const stored = window.localStorage.getItem("openbalc_active_workspace_id");
+        if (stored) workspaceId = parseInt(stored);
+      }
+      if (!workspaceId) {
+        const { data: memberRecord } = await supabase.from("workspace_members").select("workspace_id").eq("user_id", userIdAuth).limit(1).maybeSingle();
+        workspaceId = memberRecord?.workspace_id || null;
+      }
+      if (!workspaceId) throw new Error("Workspace not found or unauthorized");
 
       const mapped: any = {
         role: data.role,
-        credit_cap: data.creditCap,
+        credits_allocated: data.creditCap,
         credits_used: data.creditsUsed
       };
       Object.keys(mapped).forEach(key => mapped[key] === undefined && delete mapped[key]);
 
-      const { data: updated, error } = await supabase.from("org_members").update(mapped).eq("org_id", adminRecord.org_id).eq("user_id", userId).select("*, users(*)").single();
+      const { data: updated, error } = await supabase.from("workspace_members").update(mapped).eq("workspace_id", workspaceId).eq("user_id", userId).select("*, users(*)").single();
       if (error) throw error;
       
       return {
@@ -2718,7 +3097,7 @@ export function useUpdateOrgMember(options?: any): any {
         email: updated.users?.email || "",
         role: updated.role,
         creditsUsed: updated.credits_used,
-        creditCap: updated.credit_cap,
+        creditCap: updated.credits_allocated,
         lastActive: updated.joined_at
       };
     },
@@ -2743,10 +3122,18 @@ export function useRemoveOrgMember(options?: any): any {
       const userIdAuth = await getDbUserId();
       if (!userIdAuth) throw new Error("Not authenticated");
 
-      const { data: adminRecord } = await supabase.from("org_members").select("org_id").eq("user_id", userIdAuth).eq("role", "admin").single();
-      if (!adminRecord) throw new Error("Unauthorized");
+      let workspaceId: number | null = null;
+      if (typeof window !== "undefined") {
+        const stored = window.localStorage.getItem("openbalc_active_workspace_id");
+        if (stored) workspaceId = parseInt(stored);
+      }
+      if (!workspaceId) {
+        const { data: memberRecord } = await supabase.from("workspace_members").select("workspace_id").eq("user_id", userIdAuth).limit(1).maybeSingle();
+        workspaceId = memberRecord?.workspace_id || null;
+      }
+      if (!workspaceId) throw new Error("Workspace not found or unauthorized");
 
-      await supabase.from("org_members").delete().eq("org_id", adminRecord.org_id).eq("user_id", userId);
+      await supabase.from("workspace_members").delete().eq("workspace_id", workspaceId).eq("user_id", userId);
       return { success: true };
     },
     ...options
@@ -2916,6 +3303,301 @@ export function useUpdateUserCredits(options?: any): any {
       
       await supabase.from("users").update({ credits: credits }).eq("id", userId);
       return { success: true, userId, credits };
+    },
+    ...options
+  });
+}
+
+// --------------------------------------------------------
+// Artifacts Hooks
+// --------------------------------------------------------
+export const getListArtifactsQueryKey = () => ["listArtifacts"];
+export const getGetArtifactQueryKey = (id: number) => ["getArtifact", id];
+
+const MOCK_ARTIFACTS = [
+  {
+    id: 1,
+    moduleId: 1,
+    title: "Visual Machine Learning Mindmap",
+    type: "diagram",
+    content: JSON.stringify({
+      name: "Machine Learning Basics",
+      children: [
+        {
+          name: "Supervised Learning",
+          children: [
+            { name: "Linear Regression", children: [] },
+            { name: "Decision Trees", children: [] }
+          ]
+        },
+        {
+          name: "Unsupervised Learning",
+          children: [
+            { name: "K-Means Clustering", children: [] },
+            { name: "PCA Dimensionality Reduction", children: [] }
+          ]
+        }
+      ]
+    }),
+    createdAt: new Date(Date.now() - 86400000).toISOString()
+  },
+  {
+    id: 2,
+    moduleId: 1,
+    title: "Vocabulary Flashcards - ML Basics",
+    type: "document",
+    content: JSON.stringify([
+      { front: "Supervised Learning", back: "Model is trained on labeled training data containing both inputs and correct outputs." },
+      { front: "Unsupervised Learning", back: "Model finds patterns and structures in unlabeled data without explicit outcomes." },
+      { front: "Feature Extraction", back: "Selecting or transforming raw variables into informative predictors for ML models." },
+      { front: "Overfitting", back: "When a model learns noise in training data too well, failing to generalize to new datasets." },
+      { front: "Mean Squared Error (MSE)", back: "A common loss function measuring the average squared difference between true and predicted values." }
+    ]),
+    createdAt: new Date(Date.now() - 43200000).toISOString()
+  },
+  {
+    id: 3,
+    moduleId: 1,
+    title: "Linear Regression Python Script",
+    type: "code",
+    content: `import numpy as np
+from sklearn.linear_model import LinearRegression
+
+# Sample data
+X = np.array([[1, 1], [1, 2], [2, 2], [2, 3]])
+y = np.dot(X, np.array([1, 2])) + 3
+
+# Fit model
+reg = LinearRegression().fit(X, y)
+print(f"Coefficients: {reg.coef_}")
+print(f"Intercept: {reg.intercept_}")`,
+    createdAt: new Date(Date.now() - 3600000).toISOString()
+  },
+  {
+    id: 4,
+    moduleId: 1,
+    title: "Machine Learning Basics Practice Quiz",
+    type: "test",
+    content: JSON.stringify([
+      {
+        id: 1,
+        type: "mcq",
+        question: "What is the primary difference between supervised and unsupervised learning?",
+        options: {
+          "A": "Supervised learning uses labeled training data.",
+          "B": "Unsupervised learning requires humans to label the outcomes."
+        },
+        answer: "A"
+      },
+      {
+        id: 2,
+        type: "mcq",
+        question: "Which algorithm is commonly used for supervised regression tasks?",
+        options: {
+          "A": "K-Means Clustering",
+          "B": "Linear Regression",
+          "C": "Apriori Association",
+          "D": "Principal Component Analysis"
+        },
+        answer: "B"
+      }
+    ]),
+    createdAt: new Date(Date.now() - 36000000).toISOString()
+  },
+  {
+    id: 5,
+    title: "General Study Guidelines & Roadmap",
+    type: "markdown",
+    content: `# Ultimate Study Roadmap\n\n1. **Define Core Objectives**: Always outline the goal of your module.\n2. **Break Down Concepts**: Map complex ideas to daily study units.\n3. **Assess & Review**: Practice quizzes regularly to reinforce learning.\n4. **Utilize citations**: Connect answers back to source material.`,
+    createdAt: new Date(Date.now() - 172800000).toISOString()
+  }
+];
+
+export function useListArtifacts(options?: any): any {
+  return useQuery({
+    queryKey: getListArtifactsQueryKey(),
+    queryFn: async () => {
+      if (!hasSupabase) {
+        return getStorageItem("openbalc_artifacts", MOCK_ARTIFACTS);
+      }
+      
+      const userId = await getDbUserId();
+      if (!userId) return [];
+      
+      const { data } = await supabase
+        .from("artifacts")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+        
+      return (data || []).map(a => ({
+        id: a.id,
+        userId: a.user_id,
+        workspaceId: a.workspace_id,
+        conversationId: a.conversation_id,
+        title: a.title,
+        type: a.type,
+        content: a.content,
+        version: a.version,
+        createdAt: a.created_at,
+        updatedAt: a.updated_at
+      }));
+    },
+    ...options
+  });
+}
+
+export function useGetArtifact(id: number, options?: any): any {
+  return useQuery({
+    queryKey: getGetArtifactQueryKey(id),
+    queryFn: async () => {
+      if (!hasSupabase) {
+        const list = getStorageItem("openbalc_artifacts", MOCK_ARTIFACTS);
+        const found = list.find((a: any) => a.id === id || String(a.id) === String(id));
+        if (!found) throw new Error("Artifact not found");
+        return found;
+      }
+      
+      const { data, error } = await supabase.from("artifacts").select("*").eq("id", id).single();
+      if (error || !data) throw new Error("Artifact not found");
+      return {
+        id: data.id,
+        userId: data.user_id,
+        workspaceId: data.workspace_id,
+        conversationId: data.conversation_id,
+        title: data.title,
+        type: data.type,
+        content: data.content,
+        version: data.version,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at
+      };
+    },
+    ...options
+  });
+}
+
+export function useCreateArtifact(options?: any): any {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ data }: { data: any }) => {
+      if (!hasSupabase) {
+        const list = getStorageItem("openbalc_artifacts", MOCK_ARTIFACTS);
+        const newId = list.length > 0 ? Math.max(...list.map((a: any) => typeof a.id === "number" ? a.id : 0)) + 1 : 1;
+        const newArtifact = {
+          id: newId,
+          moduleId: data.moduleId || null,
+          workspaceId: data.workspaceId || null,
+          conversationId: data.conversationId || null,
+          title: data.title,
+          type: data.type,
+          content: data.content,
+          version: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        list.unshift(newArtifact);
+        setStorageItem("openbalc_artifacts", list);
+        return newArtifact;
+      }
+      
+      const userId = await getDbUserId();
+      if (!userId) throw new Error("Not authenticated");
+      
+      const { data: newArt, error } = await supabase.from("artifacts").insert({
+        user_id: userId,
+        workspace_id: data.workspaceId || null,
+        conversation_id: data.conversationId || null,
+        title: data.title,
+        type: data.type,
+        content: data.content,
+        version: 1
+      }).select("*").single();
+      
+      if (error) throw error;
+      return {
+        id: newArt.id,
+        userId: newArt.user_id,
+        workspaceId: newArt.workspace_id,
+        conversationId: newArt.conversation_id,
+        title: newArt.title,
+        type: newArt.type,
+        content: newArt.content,
+        version: newArt.version,
+        createdAt: newArt.created_at,
+        updatedAt: newArt.updated_at
+      };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: getListArtifactsQueryKey() });
+    },
+    ...options
+  });
+}
+
+export function useUpdateArtifact(options?: any): any {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      if (!hasSupabase) {
+        const list = getStorageItem("openbalc_artifacts", MOCK_ARTIFACTS);
+        const idx = list.findIndex((a: any) => a.id === id || String(a.id) === String(id));
+        if (idx !== -1) {
+          list[idx] = { ...list[idx], ...data, updatedAt: new Date().toISOString() };
+          setStorageItem("openbalc_artifacts", list);
+          return list[idx];
+        }
+        throw new Error("Artifact not found");
+      }
+      
+      const mapped: any = {
+        title: data.title,
+        type: data.type,
+        content: data.content,
+        version: data.version
+      };
+      Object.keys(mapped).forEach(key => mapped[key] === undefined && delete mapped[key]);
+      
+      const { data: updated, error } = await supabase.from("artifacts").update(mapped).eq("id", id).select("*").single();
+      if (error) throw error;
+      return {
+        id: updated.id,
+        userId: updated.user_id,
+        workspaceId: updated.workspace_id,
+        conversationId: updated.conversation_id,
+        title: updated.title,
+        type: updated.type,
+        content: updated.content,
+        version: updated.version,
+        createdAt: updated.created_at,
+        updatedAt: updated.updated_at
+      };
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: getListArtifactsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetArtifactQueryKey(variables.id) });
+    },
+    ...options
+  });
+}
+
+export function useDeleteArtifact(options?: any): any {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: number }) => {
+      if (!hasSupabase) {
+        const list = getStorageItem("openbalc_artifacts", MOCK_ARTIFACTS);
+        const filtered = list.filter((a: any) => a.id !== id && String(a.id) !== String(id));
+        setStorageItem("openbalc_artifacts", filtered);
+        return { success: true };
+      }
+      
+      const { error } = await supabase.from("artifacts").delete().eq("id", id);
+      if (error) throw error;
+      return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: getListArtifactsQueryKey() });
     },
     ...options
   });

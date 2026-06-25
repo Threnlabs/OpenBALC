@@ -123,7 +123,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* Left: Recent modules */}
           <div className="xl:col-span-2 flex flex-col gap-6">
-            <div className="bg-muted/40 border border-border rounded-xl p-8 flex-1 flex flex-col min-h-[350px]">
+            <div className="bg-muted/40 border border-border rounded-xl p-8 flex flex-col min-h-[350px]">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-base font-semibold">Recent Modules</h2>
                 <Button variant="ghost" size="sm" className="h-8 text-sm" asChild>
@@ -151,7 +151,7 @@ export default function Dashboard() {
             </div>
 
             {/* Recent conversations */}
-            <div className="bg-muted/40 border border-border rounded-xl p-8 flex-1 flex flex-col min-h-[350px]">
+            <div className="bg-muted/40 border border-border rounded-xl p-8 flex flex-col min-h-[350px]">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-base font-semibold">Recent Conversations</h2>
                 <Button variant="ghost" size="sm" className="h-7 text-xs" asChild>

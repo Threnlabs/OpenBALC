@@ -6,7 +6,7 @@ import {
   useGetModule, useGetModuleSources, useGetModuleContent, useAddModuleSource,
   getGetModuleSourcesQueryKey, getGetModuleContentQueryKey, getGetMessagesQueryKey,
   useListConversations, useCreateConversation, useGetMessages, useSendMessage,
-  useListTests, useCreateTest, useSubmitTestAttempt
+  useListTests, useCreateTest, useSubmitTestAttempt, useListArtifacts
 } from "@workspace/api-client-react";
 import { getModuleColor, cn, timeAgo } from "@/lib/utils";
 import {
@@ -26,6 +26,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import InteractiveMindMap from "@/components/InteractiveMindMap";
 import { ChevronLeft } from "lucide-react";
+import MarkdownRenderer from "@/components/MarkdownRenderer";
+import ArtifactQuizPlayer from "@/components/ArtifactQuizPlayer";
 
 // Modal component to add sources
 function AddSourceModal({
@@ -486,7 +488,7 @@ export default function ModuleDetailPage() {
   const [currentQuizQuestionIndex, setCurrentQuizQuestionIndex] = useState(0);
 
   // Artifacts state
-  const [selectedArtifact, setSelectedArtifact] = useState<"mindmap" | "flashcards" | "cheat_sheet">("mindmap");
+  const [selectedArtifactId, setSelectedArtifactId] = useState<number | string | null>(null);
   const [flashcardIndex, setFlashcardIndex] = useState(0);
   const [flashcardFlipped, setFlashcardFlipped] = useState(false);
 
@@ -500,6 +502,7 @@ export default function ModuleDetailPage() {
   const createTest = useCreateTest();
   const sendMessage = useSendMessage();
   const submitAttempt = useSubmitTestAttempt();
+  const { data: artifactsData } = useListArtifacts();
 
   const { data: messages, isLoading: messagesLoading } = useGetMessages(activeConvId ?? 0, {
     enabled: !!activeConvId
@@ -510,6 +513,57 @@ export default function ModuleDetailPage() {
   const selectedContent = selectedChapter
     ? content?.filter((c: any) => c.chapter === selectedChapter)
     : content?.slice(0, 1);
+
+  const artifactsList = Array.isArray(artifactsData) ? artifactsData : [];
+
+  const moduleConvIds = conversations
+    ? conversations.filter((c: any) => c.taggedModuleIds?.includes(id)).map((c: any) => c.id)
+    : [];
+
+  const moduleArtifacts = artifactsList.filter((a: any) => 
+    Number(a.moduleId) === Number(id) || moduleConvIds.includes(a.conversationId)
+  );
+
+  const fallbackArtifacts = [
+    {
+      id: "mock-mindmap",
+      title: "Visual Concepts Mindmap",
+      type: "diagram",
+      content: `${module?.title || "Module"}\n` + (chapters.length > 0 ? chapters.map(ch => `├── Chapter: ${ch}\n│   ├── Topic Breakdown\n│   └── Concepts`).join("\n") : "├── Concepts\n└── Overview"),
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: "mock-flashcards",
+      title: "Vocabulary Flashcards",
+      type: "document",
+      content: JSON.stringify([
+        { front: "Supervised Learning", back: "Model is trained on labeled training data containing both inputs and correct outputs." },
+        { front: "Unsupervised Learning", back: "Model finds patterns and structures in unlabeled data without explicit outcomes." },
+        { front: "Feature Extraction", back: "Selecting or transforming raw variables into informative predictors for ML models." },
+        { front: "Overfitting", back: "When a model learns noise in training data too well, failing to generalize to new datasets." },
+        { front: "Mean Squared Error (MSE)", back: "A common loss function measuring the average squared difference between true and predicted values." },
+      ]),
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: "mock-cheatsheet",
+      title: "Quick Cheat Sheet",
+      type: "markdown",
+      content: `# Quick Cheat Sheet\n\nEssential equations, concepts, and summaries at a glance.\n\n### Core Objective\nStructure raw study materials into comprehensive modules, analyze contents with LLMs, and verify sources through citations.\n\n### Key Formula: MSE Loss\n\n$$MSE = \\frac{1}{n} \\sum (y_{true} - y_{pred})^2$$\n\nMeasures the quality of an estimator or model by squaring errors.`,
+      createdAt: new Date().toISOString()
+    }
+  ];
+
+  const displayArtifacts = moduleArtifacts.length > 0 ? moduleArtifacts : fallbackArtifacts;
+
+  const selectedArtifact = displayArtifacts.find(a => String(a.id) === String(selectedArtifactId)) || displayArtifacts[0];
+
+  // Set default active artifact once loaded
+  useEffect(() => {
+    if (displayArtifacts.length > 0 && !selectedArtifactId) {
+      setSelectedArtifactId(displayArtifacts[0].id);
+    }
+  }, [displayArtifacts, selectedArtifactId]);
 
   // Automatically find or create conversation for this module when chat tab is active
   useEffect(() => {
@@ -719,18 +773,6 @@ export default function ModuleDetailPage() {
             "rounded-xl border border-border bg-card p-4 flex flex-col h-full min-h-[300px] transition-all duration-300 relative",
             leftCollapsed ? "w-0 p-0 border-0 overflow-hidden lg:min-h-0" : "w-full lg:w-[230px]"
           )}>
-            {/* Left Collapse Trigger Button */}
-            <button
-              onClick={() => setLeftCollapsed(!leftCollapsed)}
-              className={cn(
-                "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-r-lg border-l-0 shadow-sm",
-                leftCollapsed ? "left-0" : "left-[229px]"
-              )}
-              title={leftCollapsed ? "Expand index" : "Collapse index"}
-            >
-              {leftCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
-            </button>
-            
             {/* STUDY GUIDE Left Side */}
             {activeTab === "study" && (
               <div className="flex flex-col h-full">
@@ -818,42 +860,46 @@ export default function ModuleDetailPage() {
             {activeTab === "artifacts" && (
               <div className="flex flex-col h-full">
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">Study Artifacts</h3>
-                <div className="space-y-1.5 flex-1">
-                  <button
-                    onClick={() => setSelectedArtifact("mindmap")}
-                    className={cn(
-                      "w-full text-left p-2.5 rounded-lg text-xs transition-colors flex items-center gap-2.5 font-medium",
-                      selectedArtifact === "mindmap" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                    )}
-                  >
-                    <BrainCircuit className="h-4 w-4 shrink-0 text-primary" />
-                    <span>Visual Mindmap</span>
-                  </button>
-                  <button
-                    onClick={() => setSelectedArtifact("flashcards")}
-                    className={cn(
-                      "w-full text-left p-2.5 rounded-lg text-xs transition-colors flex items-center gap-2.5 font-medium",
-                      selectedArtifact === "flashcards" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                    )}
-                  >
-                    <Layers className="h-4 w-4 shrink-0 text-primary" />
-                    <span>Vocabulary Flashcards</span>
-                  </button>
-                  <button
-                    onClick={() => setSelectedArtifact("cheat_sheet")}
-                    className={cn(
-                      "w-full text-left p-2.5 rounded-lg text-xs transition-colors flex items-center gap-2.5 font-medium",
-                      selectedArtifact === "cheat_sheet" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                    )}
-                  >
-                    <FileText className="h-4 w-4 shrink-0 text-primary" />
-                    <span>Quick Cheat Sheet</span>
-                  </button>
+                <div className="space-y-1.5 flex-1 overflow-y-auto max-h-[400px]">
+                  {displayArtifacts.map(art => (
+                    <button
+                      key={art.id}
+                      onClick={() => {
+                        setSelectedArtifactId(art.id);
+                        setFlashcardIndex(0);
+                        setFlashcardFlipped(false);
+                      }}
+                      className={cn(
+                        "w-full text-left p-2.5 rounded-lg text-xs transition-colors flex items-center gap-2.5 font-medium border border-transparent",
+                        String(selectedArtifact?.id) === String(art.id)
+                          ? "bg-primary/10 text-primary border-primary/20"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                      )}
+                    >
+                      {art.type === "diagram" ? <BrainCircuit className="h-4 w-4 shrink-0 text-primary" /> :
+                       art.type === "document" ? <Layers className="h-4 w-4 shrink-0 text-primary" /> :
+                       art.type === "test" ? <GraduationCap className="h-4 w-4 shrink-0 text-primary" /> :
+                       <FileText className="h-4 w-4 shrink-0 text-primary" />}
+                      <span className="truncate">{art.title}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
 
           </div>
+
+          {/* Left Collapse Trigger Button */}
+          <button
+            onClick={() => setLeftCollapsed(!leftCollapsed)}
+            className={cn(
+              "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-r-lg border-l-0 shadow-sm",
+              leftCollapsed ? "left-0" : "left-[229px]"
+            )}
+            title={leftCollapsed ? "Expand index" : "Collapse index"}
+          >
+            {leftCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+          </button>
 
           {/* CENTER PANEL (Main Area) */}
           <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col h-full min-h-[400px] flex-1">
@@ -874,11 +920,11 @@ export default function ModuleDetailPage() {
                     <p className="text-xs text-muted-foreground mt-1">Add study sources to let the AI process and build this module.</p>
                   </div>
                 ) : (
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <div className="space-y-6">
                     {selectedContent?.map((c: any) => (
                       <div key={c.id} className="mb-6 last:mb-0">
                         <h3 className="text-lg font-bold text-foreground mb-3">{c.topic}</h3>
-                        <div className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{c.content}</div>
+                        <MarkdownRenderer content={c.content} className="text-sm text-muted-foreground leading-relaxed" />
                       </div>
                     ))}
                   </div>
@@ -1004,91 +1050,106 @@ export default function ModuleDetailPage() {
             {/* STUDY ARTIFACTS Center Panel */}
             {activeTab === "artifacts" && (
               <div className="p-6 overflow-y-auto h-full flex flex-col justify-between">
-                {selectedArtifact === "mindmap" && (
-                  <div className="space-y-6 flex-1 flex flex-col justify-between">
-                    <div>
-                      <h3 className="text-base font-bold mb-2">Visual Concepts Mindmap</h3>
-                      <p className="text-xs text-muted-foreground mb-6">Structured hierarchy of topics generated from module content.</p>
-                      
-                      {/* Interactive Custom Node tree diagram */}
-                      <div className="h-[380px] w-full mt-2">
-                        <InteractiveMindMap
-                          title={`${module.title} Mind Map`}
-                          content={`${module.title}\n` + (chapters.length > 0 ? chapters.map(ch => `├── Chapter: ${ch}\n│   ├── Topic Breakdown\n│   └── Concepts`).join("\n") : "├── Concepts\n└── Overview")}
-                        />
+                {selectedArtifact ? (
+                  <div className="space-y-4 flex-1 flex flex-col justify-between">
+                    <div className="space-y-4 flex-1">
+                      <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                        <h4 className="font-bold text-sm text-foreground">{selectedArtifact.title}</h4>
+                        <Badge className="uppercase text-[9px] font-bold h-5 bg-primary/10 text-primary border-0">{selectedArtifact.type}</Badge>
                       </div>
+
+                      {selectedArtifact.type === "diagram" && (
+                        <div className="h-[380px] w-full mt-2">
+                          <InteractiveMindMap
+                            content={selectedArtifact.content}
+                            title={selectedArtifact.title}
+                          />
+                        </div>
+                      )}
+
+                      {selectedArtifact.type === "code" && (
+                        <div className="bg-slate-950 text-slate-200 p-4 rounded-xl font-mono text-[10px] overflow-x-auto whitespace-pre leading-relaxed border border-border/40 shadow-inner">
+                          {selectedArtifact.content}
+                        </div>
+                      )}
+
+                      {selectedArtifact.type === "document" && (
+                        <div className="space-y-4">
+                          {(() => {
+                            try {
+                              const flashcards = JSON.parse(selectedArtifact.content);
+                              if (Array.isArray(flashcards)) {
+                                return (
+                                  <div className="flex flex-col items-center py-4">
+                                    <div
+                                      onClick={() => setFlashcardFlipped(!flashcardFlipped)}
+                                      className={cn(
+                                        "w-[320px] h-[200px] rounded-2xl border flex items-center justify-center p-6 text-center cursor-pointer transition-all duration-300 shadow-lg relative select-none",
+                                        flashcardFlipped 
+                                          ? "border-primary bg-primary/5 text-primary scale-[1.02]" 
+                                          : "border-border bg-card text-foreground hover:border-primary/30"
+                                      )}
+                                    >
+                                      <div className="absolute top-2.5 left-3 text-[10px] text-muted-foreground font-semibold uppercase">
+                                        {flashcardFlipped ? "Answer" : "Question"}
+                                      </div>
+                                      <span className="text-xs font-bold leading-relaxed text-center px-4">
+                                        {flashcardFlipped ? flashcards[flashcardIndex]?.back : flashcards[flashcardIndex]?.front}
+                                      </span>
+                                    </div>
+                                    <p className="text-center text-[10px] text-muted-foreground mt-2">Click card to flip</p>
+
+                                    <div className="flex items-center justify-between w-full max-w-[320px] mt-6">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={flashcardIndex === 0}
+                                        onClick={(e) => { e.stopPropagation(); setFlashcardIndex(prev => prev - 1); setFlashcardFlipped(false); }}
+                                      >
+                                        Previous
+                                      </Button>
+                                      <span className="text-xs font-semibold">Card {flashcardIndex + 1} of {flashcards.length}</span>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={flashcardIndex === flashcards.length - 1}
+                                        onClick={(e) => { e.stopPropagation(); setFlashcardIndex(prev => prev + 1); setFlashcardFlipped(false); }}
+                                      >
+                                        Next
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                            } catch (_) {}
+                            return <div className="text-xs text-muted-foreground whitespace-pre-wrap">{selectedArtifact.content}</div>;
+                          })()}
+                        </div>
+                      )}
+
+                      {selectedArtifact.type === "test" && (
+                        <div className="p-4 border border-border/40 rounded-xl bg-background/50">
+                          <ArtifactQuizPlayer
+                            questions={(() => {
+                              try {
+                                const q = JSON.parse(selectedArtifact.content);
+                                if (Array.isArray(q)) return q;
+                              } catch (_) {}
+                              return [];
+                            })()}
+                            artifactId={selectedArtifact.id}
+                          />
+                        </div>
+                      )}
+
+                      {selectedArtifact.type === "markdown" && (
+                        <MarkdownRenderer content={selectedArtifact.content} className="text-xs text-muted-foreground leading-relaxed" />
+                      )}
                     </div>
                   </div>
-                )}
-
-                {selectedArtifact === "flashcards" && (
-                  <div className="space-y-6 flex-1 flex flex-col justify-between h-full">
-                    <div>
-                      <h3 className="text-base font-bold mb-1">Vocabulary Flashcards</h3>
-                      <p className="text-xs text-muted-foreground mb-6">Interactive study card deck to test your recall of vocabulary.</p>
-
-                      {/* Flip flashcard deck */}
-                      <div className="flex justify-center py-4">
-                        <div
-                          onClick={() => setFlashcardFlipped(!flashcardFlipped)}
-                          className={cn(
-                            "w-[320px] h-[200px] rounded-2xl border flex items-center justify-center p-6 text-center cursor-pointer transition-all duration-300 shadow-lg relative select-none",
-                            flashcardFlipped 
-                              ? "border-primary bg-primary/5 text-primary scale-[1.02]" 
-                              : "border-border bg-card text-foreground hover:border-primary/30"
-                          )}
-                        >
-                          <div className="absolute top-2.5 left-3 text-[10px] text-muted-foreground font-semibold uppercase">
-                            {flashcardFlipped ? "Answer" : "Question"}
-                          </div>
-                          <span className="text-sm font-bold leading-relaxed">
-                            {flashcardFlipped ? mockFlashcards[flashcardIndex].back : mockFlashcards[flashcardIndex].front}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-center text-[10px] text-muted-foreground mt-2">Click card to flip</p>
-                    </div>
-
-                    <div className="flex items-center justify-between border-t border-border pt-4 mt-6">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={flashcardIndex === 0}
-                        onClick={() => { setFlashcardIndex(prev => prev - 1); setFlashcardFlipped(false); }}
-                      >
-                        Previous
-                      </Button>
-                      <span className="text-xs font-semibold">Card {flashcardIndex + 1} of {mockFlashcards.length}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={flashcardIndex === mockFlashcards.length - 1}
-                        onClick={() => { setFlashcardIndex(prev => prev + 1); setFlashcardFlipped(false); }}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {selectedArtifact === "cheat_sheet" && (
-                  <div className="space-y-4">
-                    <h3 className="text-base font-bold">Quick Cheat Sheet</h3>
-                    <p className="text-xs text-muted-foreground">Essential equations, concepts, and summaries at a glance.</p>
-                    
-                    <div className="space-y-3 mt-4">
-                      <div className="p-3 border border-border bg-muted/15 rounded-lg">
-                        <h4 className="text-xs font-bold text-foreground">Core Objective</h4>
-                        <p className="text-[11px] text-muted-foreground mt-1">Structure raw study materials into comprehensive modules, analyze contents with LLMs, and verify sources through citations.</p>
-                      </div>
-                      <div className="p-3 border border-border bg-muted/15 rounded-lg">
-                        <h4 className="text-xs font-bold text-foreground">Key Formula: MSE Loss</h4>
-                        <div className="bg-card border border-border/80 p-2.5 rounded text-center font-mono text-xs my-1 text-primary">
-                          MSE = (1/n) * Σ (y_true - y_pred)²
-                        </div>
-                        <p className="text-[9px] text-muted-foreground">Measures the quality of an estimator or model by squaring errors.</p>
-                      </div>
-                    </div>
+                ) : (
+                  <div className="text-center py-12 text-xs text-muted-foreground font-semibold">
+                    No study artifacts found.
                   </div>
                 )}
               </div>

@@ -1,15 +1,17 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
-import { useGetMe, useListNotifications, useMarkAllNotificationsRead, useGetCreditsBalance, useGetOrg } from "@workspace/api-client-react";
+import { useGetMe, useListNotifications, useMarkAllNotificationsRead, useGetCreditsBalance, useGetOrg, useListWorkspaces, useSwitchWorkspace, useCreateOrg } from "@workspace/api-client-react";
 import { getInitials, cn } from "@/lib/utils";
 import {
   LayoutDashboard, MessageSquare, BookOpen, StickyNote, FlaskConical,
   Users, Building2, Megaphone, Bell, Settings, ChevronLeft, ChevronRight,
-  LogOut, Menu, X, Zap, ChevronsUpDown, Plus, ArrowLeft, Shield
+  LogOut, Menu, X, Zap, ChevronsUpDown, Plus, ArrowLeft, Shield, Loader2,
+  Sun, Moon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useTheme } from "@/hooks/use-theme";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger
@@ -17,6 +19,9 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { getListNotificationsQueryKey } from "@workspace/api-client-react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 const navItems = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard, exact: true },
@@ -57,16 +62,23 @@ function NavItem({ href, label, icon: Icon, collapsed, exact }: {
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const { isDark, toggleTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [location] = useLocation();
   const { logout } = useAuth();
   const { data: user } = useGetMe();
   const { data: org } = useGetOrg();
+  const { data: workspaces } = useListWorkspaces();
+  const switchWorkspace = useSwitchWorkspace();
   const { data: notifications } = useListNotifications();
   const { data: credits } = useGetCreditsBalance();
   const queryClient = useQueryClient();
   const markAllRead = useMarkAllNotificationsRead();
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState("");
+  const createWorkspace = useCreateOrg();
 
   const unreadCount = Array.isArray(notifications) ? notifications.filter(n => !n.read).length : 0;
 
@@ -75,6 +87,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListNotificationsQueryKey() });
         toast.success("All notifications marked as read");
+      }
+    });
+  }
+
+  function handleCreateWorkspace() {
+    if (!newWorkspaceName.trim()) return;
+    createWorkspace.mutate({ data: { name: newWorkspaceName, plan: "hosted" } }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries();
+        toast.success("Workspace created!");
+        setCreateOpen(false);
+        setNewWorkspaceName("");
       }
     });
   }
@@ -118,7 +142,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         </Badge>
                       </div>
                       <div className="flex justify-between items-center mt-0.5 text-[9px] text-muted-foreground/80 font-medium">
-                        <span>{org?.memberCount || 5} members</span>
+                        <span>{org?.memberCount || 1} members</span>
                         <span className="flex items-center gap-0.5 text-amber-500">
                           <Zap className="h-2.5 w-2.5" /> {credits?.balance ?? user?.credits ?? 0}
                         </span>
@@ -137,23 +161,38 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                   Workspaces
                 </div>
-                <DropdownMenuItem className="cursor-pointer font-medium bg-accent/25">
-                  <div className="flex items-center gap-2 w-full">
-                    <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
-                      {org?.name ? getInitials(org.name) : "W"}
-                    </div>
-                    <span className="flex-1 truncate">{org?.name || "Primary Workspace"}</span>
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer text-muted-foreground hover:text-foreground">
-                  <div className="flex items-center gap-2 w-full">
-                    <div className="w-5 h-5 rounded bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground shrink-0">
-                      S
-                    </div>
-                    <span className="flex-1 truncate">Secondary Workspace</span>
-                  </div>
-                </DropdownMenuItem>
+                {Array.isArray(workspaces) && workspaces.map((ws: any) => {
+                  const isActive = ws.id === org?.id;
+                  return (
+                    <DropdownMenuItem
+                      key={ws.id}
+                      onClick={() => {
+                        if (!isActive) {
+                          switchWorkspace.mutate({ workspaceId: ws.id }, {
+                            onSuccess: () => {
+                              toast.success(`Switched to ${ws.name}`);
+                            }
+                          });
+                        }
+                      }}
+                      className={cn(
+                        "cursor-pointer font-medium",
+                        isActive ? "bg-accent/25" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <div className="flex items-center gap-2 w-full">
+                        <div className={cn(
+                          "w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold shrink-0",
+                          isActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                        )}>
+                          {getInitials(ws.name)}
+                        </div>
+                        <span className="flex-1 truncate">{ws.name}</span>
+                        {isActive && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+                      </div>
+                    </DropdownMenuItem>
+                  );
+                })}
                 
                 <DropdownMenuSeparator />
                 
@@ -163,7 +202,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <span>Workspace Settings</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer text-muted-foreground hover:text-foreground">
+                <DropdownMenuItem className="cursor-pointer text-muted-foreground hover:text-foreground" onClick={() => setCreateOpen(true)}>
                   <Plus className="h-4 w-4 mr-2 shrink-0" />
                   <span>New Workspace</span>
                 </DropdownMenuItem>
@@ -186,6 +225,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {bottomItems.map(item => (
               <NavItem key={item.href} {...item} collapsed={collapsed} />
             ))}
+            
+            {/* Theme Toggle Button */}
+            <button
+              onClick={toggleTheme}
+              className={cn(
+                "flex items-center gap-3 py-3 rounded-r-full mr-4 pl-6 pr-4 text-muted-foreground hover:text-foreground hover:bg-muted/50 w-full transition-all duration-150 cursor-pointer group",
+                collapsed && "justify-center px-0 w-12 mx-auto rounded-xl mr-auto ml-auto"
+              )}
+              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {isDark ? (
+                <>
+                  <Sun className="h-5 w-5 shrink-0 text-amber-500 group-hover:rotate-45 transition-transform" />
+                  {!collapsed && <span className="text-[15px] font-medium truncate">Light Mode</span>}
+                </>
+              ) : (
+                <>
+                  <Moon className="h-5 w-5 shrink-0 text-indigo-500 group-hover:-rotate-12 transition-transform" />
+                  {!collapsed && <span className="text-[15px] font-medium truncate">Dark Mode</span>}
+                </>
+              )}
+            </button>
+
             <button
               onClick={() => setCollapsed(!collapsed)}
               className={cn(
@@ -234,7 +296,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center gap-2">
             {/* Credits badge */}
-            <div className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 text-amber-400 text-base font-medium">
+            <div className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-base font-medium">
               <Zap className="h-4 w-4" />
               <span>{credits?.balance ?? user?.credits ?? 0}</span>
             </div>
@@ -325,6 +387,40 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Workspace</DialogTitle>
+            <DialogDescription>
+              Create a new workspace to collaborate with your team or organize your modules.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label htmlFor="ws-name">Workspace Name</Label>
+              <Input
+                id="ws-name"
+                value={newWorkspaceName}
+                onChange={e => setNewWorkspaceName(e.target.value)}
+                placeholder="Acme Workspace"
+                className="mt-1.5"
+                onKeyDown={e => {
+                  if (e.key === "Enter" && newWorkspaceName.trim() && !createWorkspace.isPending) {
+                    handleCreateWorkspace();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateWorkspace} disabled={!newWorkspaceName.trim() || createWorkspace.isPending}>
+              {createWorkspace.isPending && <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />}
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
