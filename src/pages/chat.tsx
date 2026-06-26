@@ -9,7 +9,7 @@ import {
   useListModules, useGetModule, useGetModuleContent, useGetModuleSources,
   useListArtifacts, getListConversationsQueryKey, getGetMessagesQueryKey,
   useCreateNote, getListArtifactsQueryKey
-} from "@workspace/api-client-react";
+} from "@/lib/api-client-react";
 import { cn, timeAgo } from "@/lib/utils";
 import {
   MessageSquare, Plus, Search, Trash2, Pin, PinOff, Send, Loader2,

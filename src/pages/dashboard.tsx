@@ -7,7 +7,7 @@ import {
   useGetDashboardSummary, useGetRecentActivity, useGetTrendingModules,
   useGetCreditsBalance, useGetBufferMode, useUpdateBufferMode, useGetMe,
   useCreateConversation, getListConversationsQueryKey
-} from "@workspace/api-client-react";
+} from "@/lib/api-client-react";
 import { getModuleColor, timeAgo, cn } from "@/lib/utils";
 import { BookOpen, MessageSquare, Zap, TrendingUp, Plus, ArrowRight, Star, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";

@@ -320,6 +320,15 @@ CREATE TABLE module_sources (
     url TEXT,
     content TEXT, -- normalized parsed raw text content
     processed BOOLEAN NOT NULL DEFAULT FALSE,
+    -- ─── Ingestion Pipeline Tracking ──────────────────────────────────────────
+    -- Lifecycle: 'pending' → 'processing' → 'done' | 'failed'
+    ingestion_status VARCHAR(20) NOT NULL DEFAULT 'pending'
+        CHECK (ingestion_status IN ('pending', 'processing', 'done', 'failed')),
+    -- Extracted clean text from the source (set after Stage A)
+    raw_content TEXT,
+    -- AI-generated descriptions for images and tables found in the source.
+    -- Schema: [{ "kind": "image"|"table", "context": str, "caption": str }]
+    asset_descriptions JSONB NOT NULL DEFAULT '[]',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
@@ -476,7 +485,8 @@ CREATE TABLE module_chunks (
     content TEXT NOT NULL,
     token_count INTEGER NOT NULL,
     metadata JSONB NOT NULL DEFAULT '{}',
-    embedding vector(1536) NOT NULL -- pgvector type for text-embedding-3-small (1536 dims)
+    -- 768-dim vector from Gemini text-embedding-004
+    embedding vector(768) NOT NULL
 );
 
 -- 4.22 MODULE STARS (STARRED/FAVORITED MODULES BY USERS)
@@ -600,6 +610,7 @@ CREATE INDEX idx_modules_visibility ON modules(visibility);
 
 -- Module source and content indexes
 CREATE INDEX idx_module_sources_module ON module_sources(module_id);
+CREATE INDEX idx_module_sources_status ON module_sources(ingestion_status);
 CREATE INDEX idx_module_content_module ON module_content(module_id);
 
 -- Files indexes
@@ -635,6 +646,7 @@ CREATE INDEX idx_module_stars_module ON module_stars(module_id);
 CREATE INDEX idx_module_stars_user ON module_stars(user_id);
 
 -- pgvector Indexing (HNSW for Cosine Similarity search)
+-- Uses 768-dim vectors from Gemini text-embedding-004
 CREATE INDEX idx_chunks_module_id ON module_chunks(module_id);
 CREATE INDEX idx_chunks_embedding_hnsw 
 ON module_chunks 

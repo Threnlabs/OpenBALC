@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
-import { useGetMe, useListNotifications, useMarkAllNotificationsRead, useGetCreditsBalance, useGetOrg, useListWorkspaces, useSwitchWorkspace, useCreateOrg } from "@workspace/api-client-react";
+import { useGetMe, useListNotifications, useMarkAllNotificationsRead, useGetCreditsBalance, useGetOrg, useListWorkspaces, useSwitchWorkspace, useCreateOrg } from "@/lib/api-client-react";
 import { getInitials, cn } from "@/lib/utils";
 import {
   LayoutDashboard, MessageSquare, BookOpen, StickyNote, FlaskConical,
@@ -17,7 +17,7 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { useQueryClient } from "@tanstack/react-query";
-import { getListNotificationsQueryKey } from "@workspace/api-client-react";
+import { getListNotificationsQueryKey } from "@/lib/api-client-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";

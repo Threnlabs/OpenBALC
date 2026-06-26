@@ -6,7 +6,7 @@ import {
   useGetMe, useUpdateMe, useGetCreditsBalance, useListCreditTransactions, useGetBufferMode, useUpdateBufferMode,
   useListNotifications, useMarkAllNotificationsRead, getGetMeQueryKey, getGetCreditsBalanceQueryKey,
   getGetBufferModeQueryKey, getListNotificationsQueryKey, getListCreditTransactionsQueryKey
-} from "@workspace/api-client-react";
+} from "@/lib/api-client-react";
 import { getInitials, cn, timeAgo, NOTE_COLORS } from "@/lib/utils";
 import {
   User, Zap, Bell, Palette, Shield, Bot, Megaphone, CreditCard, Trash2, Loader2, ChevronRight, Check

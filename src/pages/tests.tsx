@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/Skeleton";
 import {
   useListTests, useCreateTest, useGetTest, useDeleteTest, useSubmitTestAttempt,
   getListTestsQueryKey
-} from "@workspace/api-client-react";
+} from "@/lib/api-client-react";
 import { cn, timeAgo } from "@/lib/utils";
 import {
   FlaskConical, Plus, Play, Trash2, Trophy, ChevronRight, CheckCircle, XCircle, Loader2

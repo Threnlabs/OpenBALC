@@ -6,8 +6,9 @@ import {
   useGetModule, useGetModuleSources, useGetModuleContent, useAddModuleSource,
   getGetModuleSourcesQueryKey, getGetModuleContentQueryKey, getGetMessagesQueryKey,
   useListConversations, useCreateConversation, useGetMessages, useSendMessage,
-  useListTests, useCreateTest, useSubmitTestAttempt, useListArtifacts
-} from "@workspace/api-client-react";
+  useListTests, useCreateTest, useSubmitTestAttempt, useListArtifacts,
+  useIngestionStatus
+} from "@/lib/api-client-react";
 import { getModuleColor, cn, timeAgo } from "@/lib/utils";
 import {
   BookOpen, Globe, Lock, Star, MessageSquare, Plus, FileText, Link2,
@@ -76,7 +77,8 @@ function AddSourceModal({
           name: file.name.replace(/\.pdf$/i, ""),
           url: `local://${file.name}`,
           details: `PDF · ${sizeStr}`,
-          content: ""
+          content: "",
+          file, // Keep File reference for ingestion pipeline
         });
       } else if (
         file.type.startsWith("text/") ||
@@ -225,12 +227,14 @@ function AddSourceModal({
             type: src.type,
             name: src.name,
             url: src.url || undefined,
-            content: src.content || undefined
+            content: src.content || undefined,
+            // Pass File object so ingestion pipeline can extract PDF text
+            file: src.file || undefined,
           }
         });
       }
       qc.invalidateQueries({ queryKey: getGetModuleSourcesQueryKey(moduleId) });
-      toast.success(`${stagedSources.length} sources added successfully!`);
+      toast.success(`${stagedSources.length} source${stagedSources.length !== 1 ? 's' : ''} added! Ingestion pipeline started automatically.`);
       onClose();
     } catch (err) {
       toast.error("Failed to add some study sources.");
@@ -439,6 +443,59 @@ function AddSourceModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ─── Per-source ingestion status card ──────────────────────────────────────────
+
+function SourceCard({ source }: { source: any }) {
+  // Poll ingestion_status for this source while it is pending/processing
+  const needsPoll = source.ingestionStatus === "processing" || source.ingestionStatus === "pending"
+    || (!source.processed && !source.ingestionStatus);
+  const { data: liveStatus } = useIngestionStatus(needsPoll ? source.id : null);
+
+  const status: string = liveStatus ?? source.ingestionStatus ?? (source.processed ? "done" : "pending");
+
+  const statusConfig: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
+    done: {
+      label: "Embedded ✓",
+      className: "text-emerald-500",
+      icon: <Check className="h-3 w-3 text-emerald-500 shrink-0" />,
+    },
+    processing: {
+      label: "Ingesting…",
+      className: "text-amber-500",
+      icon: <Loader2 className="h-3 w-3 text-amber-500 animate-spin shrink-0" />,
+    },
+    pending: {
+      label: "Queued",
+      className: "text-blue-400",
+      icon: <Loader2 className="h-3 w-3 text-blue-400 animate-spin shrink-0" />,
+    },
+    failed: {
+      label: "Failed",
+      className: "text-red-500",
+      icon: <X className="h-3 w-3 text-red-500 shrink-0" />,
+    },
+  };
+
+  const cfg = statusConfig[status] ?? statusConfig.pending;
+
+  return (
+    <div className="flex items-center gap-2.5 p-2 rounded-lg bg-muted/20 border border-border/50 hover:border-primary/20 transition-colors group">
+      <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center shrink-0">
+        {source.type === "url" ? <Link2 className="h-3 w-3 text-primary" />
+          : source.type === "pdf" ? <FileText className="h-3 w-3 text-primary" />
+          : <Type className="h-3 w-3 text-primary" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium truncate text-foreground">{source.name}</p>
+        <p className={cn("text-[9px] font-semibold flex items-center gap-1", cfg.className)}>
+          {cfg.icon}
+          {cfg.label}
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -1216,19 +1273,7 @@ export default function ModuleDetailPage() {
               ) : (
                 <div className="space-y-2 overflow-y-auto flex-1 pr-0.5">
                   {sources.map((s: any) => (
-                    <div key={s.id} className="flex items-center gap-2.5 p-2 rounded-lg bg-muted/20 border border-border/50">
-                      <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center shrink-0">
-                        {s.type === "url" ? <Link2 className="h-3 w-3 text-primary" />
-                          : s.type === "pdf" ? <FileText className="h-3 w-3 text-primary" />
-                          : <Type className="h-3 w-3 text-primary" />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium truncate text-foreground">{s.name}</p>
-                        <p className={cn("text-[9px] font-semibold", s.processed ? "text-emerald-500" : "text-amber-500")}>
-                          {s.processed ? "Processed" : "Processing..."}
-                        </p>
-                      </div>
-                    </div>
+                    <SourceCard key={s.id} source={s} />
                   ))}
                 </div>
               )}

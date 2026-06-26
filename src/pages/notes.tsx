@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/Skeleton";
 import {
   useListNotes, useCreateNote, useUpdateNote, useDeleteNote,
   getListNotesQueryKey, getGetNoteQueryKey
-} from "@workspace/api-client-react";
+} from "@/lib/api-client-react";
 import { NOTE_COLORS, cn, timeAgo } from "@/lib/utils";
 import { StickyNote, Plus, Pin, PinOff, Star, Trash2, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";

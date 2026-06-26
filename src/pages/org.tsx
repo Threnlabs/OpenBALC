@@ -7,7 +7,7 @@ import {
   useGetOrgAnalytics, useListExpertQueue, useReplyExpertTicket,
   useUpdateOrg, useDeleteOrg, useUpdateOrgMember, useRemoveOrgMember,
   getGetOrgQueryKey, getListOrgMembersQueryKey, getListExpertQueueQueryKey
-} from "@workspace/api-client-react";
+} from "@/lib/api-client-react";
 import { getInitials, cn, timeAgo } from "@/lib/utils";
 import {
   Building2, Users, BarChart2, MessageSquare, BookOpen, Settings,

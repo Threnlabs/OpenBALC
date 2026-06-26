@@ -4,7 +4,7 @@ import {
   useListAdCampaigns, useRegisterAdBusiness, useCreateAdCampaign,
   useAdminListAdCampaigns, useApproveAdCampaign, useRejectAdCampaign,
   getListAdCampaignsQueryKey, getAdminListAdCampaignsQueryKey
-} from "@workspace/api-client-react";
+} from "@/lib/api-client-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { Megaphone, Plus, CheckCircle, XCircle, Loader2, ChevronRight, TrendingUp, Users, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";

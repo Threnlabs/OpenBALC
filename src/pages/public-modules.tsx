@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useListPublicModules, useStarModule, getListPublicModulesQueryKey } from "@workspace/api-client-react";
+import { useListPublicModules, useStarModule, getListPublicModulesQueryKey } from "@/lib/api-client-react";
 import { getModuleColor, cn } from "@/lib/utils";
 import { BookOpen, Search, Globe, Star, MessageSquare, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";

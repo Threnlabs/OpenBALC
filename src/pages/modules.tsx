@@ -7,7 +7,7 @@ import {
   useListModules, useListPublicModules, useCreateModule, useDeleteModule,
   usePublishModule, useStarModule,
   getListModulesQueryKey, getListPublicModulesQueryKey
-} from "@workspace/api-client-react";
+} from "@/lib/api-client-react";
 import { getModuleColor, cn, timeAgo } from "@/lib/utils";
 import {
   BookOpen, Plus, Search, Globe, Lock, Star, MessageSquare, MoreVertical,

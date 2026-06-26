@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useCompleteOnboarding } from "@workspace/api-client-react";
+import { useCompleteOnboarding } from "@/lib/api-client-react";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
 import { Loader2, Check, ChevronRight } from "lucide-react";

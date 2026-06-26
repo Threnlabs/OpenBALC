@@ -10,7 +10,7 @@ import {
   useGetAdminStats,
   useGetAdminUsers,
   useUpdateUserCredits
-} from "@workspace/api-client-react";
+} from "@/lib/api-client-react";
 import {
   Shield, Cpu, Activity, Terminal, Users, Settings2, AlertCircle,
   CheckCircle2, Clock, Coins, Search, Trash2, RefreshCw, Play, Copy,

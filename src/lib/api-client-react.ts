@@ -415,6 +415,7 @@ export const getGetNoteQueryKey = (id: number) => ["getNote", id];
 export const getListTestsQueryKey = () => ["listTests"];
 export const getGetModuleSourcesQueryKey = (id: number) => ["getModuleSources", id];
 export const getGetModuleContentQueryKey = (id: number) => ["getModuleContent", id];
+export const getGetIngestionStatusQueryKey = (sourceId: number) => ["getIngestionStatus", sourceId];
 export const getGetOrgQueryKey = () => ["getOrg"];
 export const getListOrgMembersQueryKey = () => ["listOrgMembers"];
 export const getListExpertQueueQueryKey = () => ["listExpertQueue"];
@@ -1634,6 +1635,7 @@ export function useGetModuleContent(id: number, options?: any): any {
 }
 
 export function useAddModuleSource(options?: any): any {
+  const qc = hasSupabase ? useQueryClient() : null;
   return useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
       if (!hasSupabase) {
@@ -1647,7 +1649,8 @@ export function useAddModuleSource(options?: any): any {
           type: data.type,
           name: data.name,
           url: data.url || null,
-          processed: true,
+          processed: false,
+          ingestionStatus: "processing",
           createdAt: new Date().toISOString()
         };
         moduleSrcs.push(newSrc);
@@ -1689,43 +1692,90 @@ export function useAddModuleSource(options?: any): any {
             id: txs.length + 1,
             type: "spend",
             amount: cost,
-            reason: `Document embedding (Gemini 1.5 Flash)`,
+            reason: `Document embedding (Gemini text-embedding-004)`,
             createdAt: new Date().toISOString()
           });
           setStorageItem("openbalc_credit_transactions", txs);
         }
    
+        // Mark as done immediately in local-storage mode
+        const updatedSrcs = getStorageItem<Record<string, any[]>>("openbalc_module_sources", DEFAULT_SOURCES);
+        const srcIdx = (updatedSrcs[String(id)] || []).findIndex((s: any) => s.id === sourceId);
+        if (srcIdx !== -1) {
+          updatedSrcs[String(id)][srcIdx].processed = true;
+          updatedSrcs[String(id)][srcIdx].ingestionStatus = "done";
+          setStorageItem("openbalc_module_sources", updatedSrcs);
+        }
+
         return newSrc;
       }
       
       const userId = await getDbUserId();
       if (!userId) throw new Error("Not authenticated");
 
+      // ── Insert source record with ingestion_status = 'pending' ─────────────
       const { data: newSrc, error } = await supabase.from("module_sources").insert({
         module_id: id,
         type: data.type,
         name: data.name,
         url: data.url || null,
-        processed: true
+        processed: false,
+        ingestion_status: "pending",
       }).select("*").single();
 
       if (error) throw error;
 
-      await supabase.from("module_content").insert({
-        module_id: id,
-        chapter: `Chapter Outline`,
-        topic: `Summary of ${data.name}`,
-        content: `This chapter covers content ingested from the source "${data.name}". It is organized as an outline summarizing key facts, definitions, and references found in the document.`,
-      });
+      // ── Fire ingestion pipeline (non-blocking) ─────────────────────────────
+      // Dynamic import so the ingestion module is only loaded when needed.
+      const geminiApiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY as string | undefined;
 
-      const { data: mod } = await supabase.from("modules").select("source_count, chapter_count").eq("id", id).single();
-      await supabase.from("modules").update({
-        source_count: (mod?.source_count || 0) + 1,
-        chapter_count: (mod?.chapter_count || 0) + 1,
-        status: "active",
-        processing_pct: 100
-      }).eq("id", id);
+      if (geminiApiKey) {
+        import("./ingestion")
+          .then(({ ingestSource }) =>
+            ingestSource(
+              {
+                id: newSrc.id,
+                moduleId: id,
+                type: data.type,
+                name: data.name,
+                content: data.content,
+                url: data.url,
+                file: data.file, // File object from AddSourceModal
+              },
+              geminiApiKey
+            )
+          )
+          .then(() => {
+            // Refresh sources list once ingestion completes
+            qc?.invalidateQueries({ queryKey: getGetModuleSourcesQueryKey(id) });
+            qc?.invalidateQueries({ queryKey: ["getModule", id] });
+          })
+          .catch((err: unknown) => {
+            console.error("[useAddModuleSource] Ingestion pipeline error:", err);
+          });
+      } else {
+        // No Gemini key — mark as done with placeholder content
+        await supabase.from("module_sources")
+          .update({ processed: true, ingestion_status: "done" })
+          .eq("id", newSrc.id);
 
+        await supabase.from("module_content").insert({
+          module_id: id,
+          chapter: `Chapter Outline`,
+          topic: `Summary of ${data.name}`,
+          content: `This chapter covers content ingested from the source "${data.name}". Set VITE_GEMINI_API_KEY to enable automatic AI content extraction and embedding.`,
+        });
+
+        const { data: mod } = await supabase.from("modules").select("source_count, chapter_count").eq("id", id).single();
+        await supabase.from("modules").update({
+          source_count: (mod?.source_count || 0) + 1,
+          chapter_count: (mod?.chapter_count || 0) + 1,
+          status: "active",
+          processing_pct: 100
+        }).eq("id", id);
+      }
+
+      // ── Deduct credits ─────────────────────────────────────────────────────
       const { data: user } = await supabase.from("users").select("credits").eq("id", userId).single();
       if (user && user.credits >= 5) {
         await supabase.from("users").update({ credits: user.credits - 5 }).eq("id", userId);
@@ -1733,7 +1783,7 @@ export function useAddModuleSource(options?: any): any {
           user_id: userId,
           type: "spend",
           amount: 5,
-          reason: `Document embedding (Gemini 1.5 Flash)`,
+          reason: `Document embedding (Gemini text-embedding-004)`,
           ref_id: String(newSrc.id)
         });
       }
@@ -1745,10 +1795,42 @@ export function useAddModuleSource(options?: any): any {
         name: newSrc.name,
         url: newSrc.url,
         processed: newSrc.processed,
+        ingestionStatus: newSrc.ingestion_status,
         createdAt: newSrc.created_at
       };
     },
     ...options
+  });
+}
+
+// --------------------------------------------------------
+// Ingestion Status Hook
+// --------------------------------------------------------
+
+/**
+ * Polls the ingestion_status column on a module_source row.
+ * Refetches every 3 seconds while status is 'pending' or 'processing'.
+ * Returns: 'pending' | 'processing' | 'done' | 'failed' | null
+ */
+export function useIngestionStatus(sourceId: number | null, options?: any): any {
+  return useQuery({
+    queryKey: getGetIngestionStatusQueryKey(sourceId ?? 0),
+    enabled: !!sourceId && hasSupabase,
+    refetchInterval: (query: any) => {
+      const status = query.state.data;
+      if (status === "processing" || status === "pending") return 3000;
+      return false; // stop polling once done/failed
+    },
+    queryFn: async () => {
+      if (!hasSupabase || !sourceId) return null;
+      const { data } = await supabase
+        .from("module_sources")
+        .select("ingestion_status")
+        .eq("id", sourceId)
+        .single();
+      return (data?.ingestion_status ?? null) as string | null;
+    },
+    ...options,
   });
 }
 

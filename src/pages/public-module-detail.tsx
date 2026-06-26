@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useLocation, Link } from "wouter";
 import { Skeleton } from "@/components/Skeleton";
-import { useGetModule, useGetModuleSources, useGetModuleContent } from "@workspace/api-client-react";
+import { useGetModule, useGetModuleSources, useGetModuleContent } from "@/lib/api-client-react";
 import { getModuleColor, cn, timeAgo } from "@/lib/utils";
 import { BookOpen, Globe, Star, MessageSquare, FileText, Link2, Type, ChevronRight, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
