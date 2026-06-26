@@ -100,9 +100,33 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  // Helper to calculate node width dynamically based on text length
-  const getNodeWidth = (label: string) => {
-    return Math.max(120, label.length * 6.5 + 24);
+  // Wrap text to fit nicely inside node boxes
+  const wrapText = (text: string, maxCharsPerLine = 20): string[] => {
+    const words = text.split(" ");
+    const lines: string[] = [];
+    let currentLine = "";
+    
+    words.forEach(word => {
+      if ((currentLine + " " + word).trim().length <= maxCharsPerLine) {
+        currentLine = (currentLine + " " + word).trim();
+      } else {
+        if (currentLine) lines.push(currentLine);
+        currentLine = word;
+      }
+    });
+    if (currentLine) lines.push(currentLine);
+    return lines.length > 0 ? lines : [text];
+  };
+
+  const getNodeDimensions = (label: string, level: number) => {
+    // Level 0: root (shorter lines), Level 1: main topic, Level 2: details
+    const maxChars = level === 0 ? 18 : 22;
+    const lines = wrapText(label, maxChars);
+    const maxLineLen = Math.max(...lines.map(l => l.length), 1);
+    const width = Math.max(120, maxLineLen * 6.5 + 24);
+    const lineHeight = 12;
+    const height = Math.max(36, lines.length * lineHeight + 16);
+    return { lines, width, height };
   };
 
   // Gather all leaves and compute their widths
@@ -112,15 +136,17 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
     node: MindMapNode;
     name: string;
     width: number;
+    height: number;
+    lines: string[];
   }
   const allLeaves: LeafPos[] = [];
   let totalLeafRowWidth = 0;
   
   rootNode.children.forEach((group, gIdx) => {
     group.children.forEach((leaf, lIdx) => {
-      const nodeW = getNodeWidth(leaf.name);
-      allLeaves.push({ gIdx, lIdx, node: leaf, name: leaf.name, width: nodeW });
-      totalLeafRowWidth += nodeW;
+      const dim = getNodeDimensions(leaf.name, 2);
+      allLeaves.push({ gIdx, lIdx, node: leaf, name: leaf.name, width: dim.width, height: dim.height, lines: dim.lines });
+      totalLeafRowWidth += dim.width;
     });
   });
   
@@ -138,16 +164,19 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
   const rootX = cx;
   const rootY = 60;
 
-  const nodes: { id: string; label: string; x: number; y: number; level: number; width: number }[] = [];
+  const nodes: { id: string; label: string; lines: string[]; x: number; y: number; level: number; width: number; height: number }[] = [];
   const links: { source: { x: number; y: number }; target: { x: number; y: number } }[] = [];
 
+  const rootDim = getNodeDimensions(rootNode.name, 0);
   nodes.push({ 
     id: "root", 
     label: rootNode.name, 
+    lines: rootDim.lines,
     x: rootX, 
     y: rootY, 
     level: 0,
-    width: getNodeWidth(rootNode.name)
+    width: rootDim.width,
+    height: rootDim.height
   });
 
   // 1. Position Leaf Nodes (Level 2) sequentially
@@ -159,7 +188,7 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
     const lX = currentX + leaf.width / 2;
     const lY = 280;
     const lId = `l-${leaf.gIdx}-${leaf.lIdx}`;
-    nodes.push({ id: lId, label: leaf.name, x: lX, y: lY, level: 2, width: leaf.width });
+    nodes.push({ id: lId, label: leaf.name, lines: leaf.lines, x: lX, y: lY, level: 2, width: leaf.width, height: leaf.height });
     leafPositions[lId] = lX;
     
     currentX += leaf.width + leafGap;
@@ -174,7 +203,7 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
     rootNode.children.forEach((group, gIdx) => {
       const gId = `g-${gIdx}`;
       const gY = 160;
-      const gWidth = getNodeWidth(group.name);
+      const gDim = getNodeDimensions(group.name, 1);
       
       let gX = 0;
       const leafCount = group.children.length;
@@ -189,7 +218,7 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
         gX = defaultStartX + gIdx * groupSpacing;
       }
 
-      nodes.push({ id: gId, label: group.name, x: gX, y: gY, level: 1, width: gWidth });
+      nodes.push({ id: gId, label: group.name, lines: gDim.lines, x: gX, y: gY, level: 1, width: gDim.width, height: gDim.height });
       links.push({ source: { x: rootX, y: rootY }, target: { x: gX, y: gY } });
 
       group.children.forEach((_, lIdx) => {
@@ -243,11 +272,11 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
     const clone = svgEl.cloneNode(true) as SVGSVGElement;
     clone.removeAttribute("class");
     
-    // Set a solid background color on the exported SVG matching the current theme background
-    const themeBg = window.getComputedStyle(document.body).backgroundColor || "#ffffff";
-    clone.style.backgroundColor = themeBg;
+    // Explicitly set width & height attributes on the clone
+    clone.setAttribute("width", String(width));
+    clone.setAttribute("height", String(height));
     
-    // Get all nested child elements
+    // Resolve computed styles from original element for exact download look
     const originalElements = Array.from(svgEl.querySelectorAll("*"));
     const clonedElements = Array.from(clone.querySelectorAll("*"));
     
@@ -256,12 +285,15 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
       if (!cloned) return;
       
       const style = window.getComputedStyle(orig);
+      const tagName = orig.tagName.toLowerCase();
+      
       cloned.removeAttribute("class"); // Clear responsive classes to avoid stylesheet overrides
       
       // Resolve fills & strokes into solid color styles for rect, circle, path
-      if (orig.tagName === "rect" || orig.tagName === "circle" || orig.tagName === "path") {
+      if (tagName === "rect" || tagName === "circle" || tagName === "path") {
         const fill = style.fill;
         const stroke = style.stroke;
+        const strokeWidth = style.strokeWidth;
         
         if (fill && fill !== "none") {
           cloned.setAttribute("fill", fill);
@@ -269,10 +301,13 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
         if (stroke && stroke !== "none") {
           cloned.setAttribute("stroke", stroke);
         }
+        if (strokeWidth) {
+          cloned.setAttribute("stroke-width", strokeWidth);
+        }
       }
       
       // Resolve text fill, font family, sizes and weights for typography
-      if (orig.tagName === "text") {
+      if (tagName === "text") {
         const fill = style.fill;
         cloned.setAttribute("fill", fill || "black");
         cloned.style.fontFamily = style.fontFamily || "sans-serif";
@@ -280,6 +315,17 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
         cloned.style.fontWeight = style.fontWeight || "bold";
       }
     });
+
+    // Set a solid background color on the exported SVG matching the current theme background
+    const themeBg = window.getComputedStyle(document.body).backgroundColor || "#ffffff";
+    clone.style.backgroundColor = themeBg;
+    
+    // Prepend a solid background rect to guarantee background color is rendered in all SVG viewers
+    const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    bgRect.setAttribute("width", "100%");
+    bgRect.setAttribute("height", "100%");
+    bgRect.setAttribute("fill", themeBg);
+    clone.insertBefore(bgRect, clone.firstChild);
     
     const serializer = new XMLSerializer();
     const source = serializer.serializeToString(clone);
@@ -346,9 +392,9 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
             <g key={node.id} transform={`translate(${node.x}, ${node.y})`}>
               <rect
                 x={-node.width / 2}
-                y={-18}
+                y={-node.height / 2}
                 width={node.width}
-                height={36}
+                height={node.height}
                 rx={8}
                 strokeWidth={1.5}
                 className={cn(
@@ -358,18 +404,26 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
                     : "fill-card stroke-border"
                 )}
               />
-              <text
-                dy={4}
-                textAnchor="middle"
-                className={cn(
-                  "select-none pointer-events-none font-bold",
-                  node.level === 0 
-                    ? "fill-primary-foreground text-[10px]" 
-                    : "fill-foreground text-[9px]"
-                )}
-              >
-                {node.label}
-              </text>
+              {node.lines.map((line, lineIdx) => {
+                const totalLinesHeight = (node.lines.length - 1) * 12;
+                const startY = -totalLinesHeight / 2 + 3;
+                const dy = startY + lineIdx * 12;
+                return (
+                  <text
+                    key={lineIdx}
+                    y={dy}
+                    textAnchor="middle"
+                    className={cn(
+                      "select-none pointer-events-none font-bold",
+                      node.level === 0 
+                        ? "fill-primary-foreground text-[10px]" 
+                        : "fill-foreground text-[9px]"
+                    )}
+                  >
+                    {line}
+                  </text>
+                );
+              })}
             </g>
           ))}
         </g>

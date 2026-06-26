@@ -83,13 +83,16 @@ function getSupabase() {
  * Also identifies raw embedded asset references (images, tables).
  */
 async function extractText(
-  source: IngestionSource
+  source: IngestionSource,
+  llamaCloudApiKey?: string
 ): Promise<{ text: string; assets: ExtractedAsset[] }> {
   let rawText = "";
+  let assets: ExtractedAsset[] = [];
 
   switch (source.type) {
     case "text":
       rawText = source.content ?? "";
+      assets = detectAssets(rawText);
       break;
 
     case "url": {
@@ -103,6 +106,7 @@ async function extractText(
         throw new Error(`Jina Reader failed for ${targetUrl}: ${res.status}`);
       }
       rawText = await res.text();
+      assets = detectAssets(rawText);
       break;
     }
 
@@ -110,18 +114,178 @@ async function extractText(
       if (!source.file) {
         // Fallback: use the source name as minimal content
         rawText = `[PDF source: ${source.name}. Binary file was not available for text extraction.]`;
+        assets = detectAssets(rawText);
         break;
       }
-      rawText = await extractPdfText(source.file);
+      if (llamaCloudApiKey) {
+        const result = await extractPdfWithLlamaParse(source.file, source.moduleId, llamaCloudApiKey);
+        rawText = result.text;
+        assets = result.assets;
+      } else {
+        rawText = await extractPdfText(source.file);
+        assets = detectAssets(rawText);
+      }
       break;
     }
   }
 
-  // Detect embedded assets
-  const assets = detectAssets(rawText);
-
   return { text: rawText, assets };
 }
+
+/** Parse PDF using LlamaParse v2 API, uploading figures directly to Supabase storage */
+async function extractPdfWithLlamaParse(
+  file: File,
+  moduleId: number,
+  apiKey: string
+): Promise<{ text: string; assets: ExtractedAsset[] }> {
+  const supabase = getSupabase();
+
+  console.info("[ingestion] Uploading PDF to LlamaCloud...");
+  const uploadFormData = new FormData();
+  uploadFormData.append("file", file);
+  uploadFormData.append("purpose", "parse");
+
+  const uploadRes = await fetch("https://api.cloud.llamaindex.ai/api/v1/beta/files", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: uploadFormData,
+  });
+
+  if (!uploadRes.ok) {
+    const errorText = await uploadRes.text();
+    throw new Error(`LlamaCloud file upload failed (${uploadRes.status}): ${errorText}`);
+  }
+
+  const uploadData = await uploadRes.json();
+  const fileId = uploadData.id;
+  console.info(`[ingestion] Uploaded successfully. File ID: ${fileId}`);
+
+  console.info("[ingestion] Creating LlamaParse job...");
+  const createJobRes = await fetch("https://api.cloud.llamaindex.ai/api/v2/parse", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      file_id: fileId,
+      tier: "agentic",
+      version: "latest",
+      output_options: {
+        images_to_save: ["embedded", "layout"],
+      },
+    }),
+  });
+
+  if (!createJobRes.ok) {
+    const errorText = await createJobRes.text();
+    throw new Error(`LlamaParse job creation failed (${createJobRes.status}): ${errorText}`);
+  }
+
+  const jobData = await createJobRes.json();
+  const jobId = jobData.id;
+  console.info(`[ingestion] Parse job created. Job ID: ${jobId}`);
+
+  let status = "PENDING";
+  let pollAttempts = 0;
+  const maxAttempts = 120; // 4 minutes max
+  let parseDetails: any = null;
+
+  while (status !== "COMPLETED" && status !== "SUCCESS" && pollAttempts < maxAttempts) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    pollAttempts++;
+    console.info(`[ingestion] Polling job status (attempt ${pollAttempts})...`);
+
+    const statusRes = await fetch(
+      `https://api.cloud.llamaindex.ai/api/v2/parse/${jobId}?expand=markdown,images_content_metadata`,
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      }
+    );
+
+    if (!statusRes.ok) {
+      console.warn(`[ingestion] Polling failed (${statusRes.status}). Retrying...`);
+      continue;
+    }
+
+    parseDetails = await statusRes.json();
+    status = parseDetails.status;
+    console.info(`[ingestion] Job status: ${status}`);
+
+    if (status === "FAILED" || status === "ERROR") {
+      throw new Error(`LlamaParse job failed: ${parseDetails.error || "Unknown error"}`);
+    }
+  }
+
+  if (status !== "COMPLETED" && status !== "SUCCESS") {
+    throw new Error("LlamaParse job timed out.");
+  }
+
+  const markdownText = parseDetails.markdown || "";
+  const images = parseDetails.images_content_metadata?.images || [];
+  const imageUrlMap: Record<string, string> = {};
+
+  console.info(`[ingestion] Parsing successful. Extracted ${images.length} images.`);
+
+  for (const img of images) {
+    const filename = img.filename;
+    const presignedUrl = img.presigned_url;
+
+    if (!presignedUrl) continue;
+
+    try {
+      console.info(`[ingestion] Downloading image ${filename}...`);
+      const imgFetchRes = await fetch(presignedUrl);
+      if (!imgFetchRes.ok) {
+        throw new Error(`Failed to fetch image from presigned URL: ${imgFetchRes.status}`);
+      }
+
+      const imgBlob = await imgFetchRes.blob();
+      const supabasePath = `modules/${moduleId}/${filename}`;
+
+      console.info(`[ingestion] Uploading image ${filename} to Supabase...`);
+      const { error: uploadError } = await supabase.storage
+        .from("module-assets")
+        .upload(supabasePath, imgBlob, {
+          contentType: imgBlob.type || "image/png",
+          upsert: true,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from("module-assets")
+        .getPublicUrl(supabasePath);
+
+      imageUrlMap[filename] = publicUrlData.publicUrl;
+      console.info(`[ingestion] Successfully uploaded ${filename} -> ${publicUrlData.publicUrl}`);
+    } catch (err) {
+      console.error(`[ingestion] Failed to process image ${filename}:`, err);
+    }
+  }
+
+  const finalMarkdown = markdownText.replace(
+    /!\[([^\]]*)\]\(([^)]+)\)/g,
+    (match: string, altText: string, imgUrlPath: string) => {
+      const filename = imgUrlPath.split("/").pop() || "";
+      if (imageUrlMap[filename]) {
+        return `![${altText}](${imageUrlMap[filename]})`;
+      }
+      return match;
+    }
+  );
+
+  const assets = detectAssets(finalMarkdown);
+
+  return { text: finalMarkdown, assets };
+}
+
 
 /** Extract readable text from a PDF File using pdf.js via CDN */
 async function extractPdfText(file: File): Promise<string> {
@@ -493,7 +657,8 @@ async function writeToDatabase(
  */
 export async function ingestSource(
   source: IngestionSource,
-  geminiApiKey: string
+  geminiApiKey: string,
+  llamaCloudApiKey?: string
 ): Promise<void> {
   const supabase = getSupabase();
 
@@ -517,7 +682,7 @@ export async function ingestSource(
       .eq("id", source.moduleId);
 
     // ── Stage A: Extract text ────────────────────────────────────────────────
-    const { text: rawText, assets } = await extractText(source);
+    const { text: rawText, assets } = await extractText(source, llamaCloudApiKey);
 
     await supabase
       .from("modules")

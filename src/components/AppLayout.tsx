@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { useGetMe, useListNotifications, useMarkAllNotificationsRead, useGetCreditsBalance, useGetOrg, useListWorkspaces, useSwitchWorkspace, useCreateOrg } from "@/lib/api-client-react";
 import { getInitials, cn } from "@/lib/utils";
 import {
-  LayoutDashboard, MessageSquare, BookOpen, StickyNote, FlaskConical,
+  LayoutDashboard, MessageSquare, BookOpen, StickyNote, FlaskConical, Layers,
   Users, Building2, Megaphone, Bell, Settings, ChevronLeft, ChevronRight,
   LogOut, Menu, X, Zap, ChevronsUpDown, Plus, ArrowLeft, Shield, Loader2,
   Sun, Moon
@@ -27,6 +27,7 @@ const navItems = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/app/chat", label: "Chat", icon: MessageSquare },
   { href: "/app/modules", label: "Modules", icon: BookOpen },
+  { href: "/app/artifacts", label: "Artifacts", icon: Layers },
   { href: "/app/notes", label: "Notes", icon: StickyNote },
   { href: "/app/tests", label: "Tests", icon: FlaskConical },
 ];

@@ -14,7 +14,7 @@ import {
   BookOpen, Globe, Lock, Star, MessageSquare, Plus, FileText, Link2,
   Type, ChevronRight, Loader2, ArrowLeft, Send, Sparkles, Award, Check, X,
   HelpCircle, Eye, Info, BrainCircuit, RefreshCw, Layers, GraduationCap, ClipboardList,
-  UploadCloud, Trash2
+  UploadCloud, Trash2, FileCode
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,51 @@ import InteractiveMindMap from "@/components/InteractiveMindMap";
 import { ChevronLeft } from "lucide-react";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import ArtifactQuizPlayer from "@/components/ArtifactQuizPlayer";
+
+// Modal component to add sources
+// Helper to parse DOCX using Mammoth from CDN
+async function parseDocxFile(file: File): Promise<string> {
+  if (!(window as any).mammoth) {
+    await new Promise<void>((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.11.0/mammoth.browser.min.js";
+      script.onload = () => resolve();
+      script.onerror = (e) => reject(e);
+      document.head.appendChild(script);
+    });
+  }
+
+  const mammoth = (window as any).mammoth;
+  const arrayBuffer = await file.arrayBuffer();
+  
+  // Convert word document to HTML first, then clean to simple Markdown-like text
+  const htmlResult = await mammoth.convertToHtml({ arrayBuffer });
+  let html = htmlResult.value;
+  
+  let text = html
+    .replace(/<h1>/gi, "\n\n# ")
+    .replace(/<\/h1>/gi, "\n\n")
+    .replace(/<h2>/gi, "\n\n## ")
+    .replace(/<\/h2>/gi, "\n\n")
+    .replace(/<h3>/gi, "\n\n### ")
+    .replace(/<\/h3>/gi, "\n\n")
+    .replace(/<h4>/gi, "\n\n#### ")
+    .replace(/<\/h4>/gi, "\n\n")
+    .replace(/<p>/gi, "\n\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<li>/gi, "\n- ")
+    .replace(/<\/li>/gi, "")
+    .replace(/<ul>/gi, "\n")
+    .replace(/<\/ul>/gi, "\n")
+    .replace(/<ol>/gi, "\n")
+    .replace(/<\/ol>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+    
+  return text;
+}
 
 // Modal component to add sources
 function AddSourceModal({
@@ -74,15 +119,73 @@ function AddSourceModal({
         newStaged.push({
           id: Math.random().toString(36).substring(2, 9),
           type: "pdf",
+          format: "pdf",
           name: file.name.replace(/\.pdf$/i, ""),
           url: `local://${file.name}`,
           details: `PDF · ${sizeStr}`,
           content: "",
           file, // Keep File reference for ingestion pipeline
         });
+      } else if (fileExt === "docx" || file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+        const tempId = Math.random().toString(36).substring(2, 9);
+        
+        newStaged.push({
+          id: tempId,
+          type: "text",
+          format: "docx",
+          name: file.name.replace(/\.docx$/i, ""),
+          details: `Reading Word file...`,
+          content: ""
+        });
+        
+        parseDocxFile(file).then((text) => {
+          const words = text.split(/\s+/).filter(Boolean).length;
+          setStagedSources((prev) =>
+            prev.map((item) =>
+              item.id === tempId
+                ? { ...item, content: text, details: `Word Doc · ${words} words` }
+                : item
+            )
+          );
+        }).catch((err) => {
+          console.error("Failed to parse docx:", err);
+          setStagedSources((prev) =>
+            prev.map((item) =>
+              item.id === tempId
+                ? { ...item, details: `Failed to parse Word file` }
+                : item
+            )
+          );
+          toast.error(`Error parsing Word file: ${file.name}`);
+        });
+      } else if (fileExt === "md" || fileExt === "markdown") {
+        const tempId = Math.random().toString(36).substring(2, 9);
+        const reader = new FileReader();
+        
+        reader.onload = (e) => {
+          const text = e.target?.result as string;
+          const words = text.split(/\s+/).filter(Boolean).length;
+          setStagedSources((prev) =>
+            prev.map((item) =>
+              item.id === tempId
+                ? { ...item, content: text, details: `Markdown · ${words} words` }
+                : item
+            )
+          );
+        };
+        reader.readAsText(file);
+        
+        newStaged.push({
+          id: tempId,
+          type: "text",
+          format: "md",
+          name: file.name.replace(/\.(md|markdown)$/i, ""),
+          details: `Reading markdown...`,
+          content: ""
+        });
       } else if (
         file.type.startsWith("text/") ||
-        ["txt", "md", "csv", "json", "rtf"].includes(fileExt || "")
+        ["txt", "csv", "json", "rtf"].includes(fileExt || "")
       ) {
         const tempId = Math.random().toString(36).substring(2, 9);
         const reader = new FileReader();
@@ -103,7 +206,8 @@ function AddSourceModal({
         newStaged.push({
           id: tempId,
           type: "text",
-          name: file.name.replace(/\.(txt|md|csv|json|rtf)$/i, ""),
+          format: "txt",
+          name: file.name.replace(/\.(txt|csv|json|rtf)$/i, ""),
           details: `Reading file...`,
           content: ""
         });
@@ -111,8 +215,9 @@ function AddSourceModal({
         newStaged.push({
           id: Math.random().toString(36).substring(2, 9),
           type: "text",
+          format: "txt",
           name: file.name,
-          details: `File · ${sizeStr}`,
+          details: `Unsupported file · ${sizeStr}`,
           content: ""
         });
       }
@@ -131,15 +236,25 @@ function AddSourceModal({
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragging(true);
   };
 
-  const handleDragLeave = () => {
-    setIsDragging(false);
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set dragging to false if we drag out of the DialogContent
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) {
+      setIsDragging(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFiles(e.dataTransfer.files);
@@ -189,6 +304,7 @@ function AddSourceModal({
         {
           id: Math.random().toString(36).substring(2, 9),
           type: isPdfUrl ? "pdf" : "url",
+          format: isPdfUrl ? "pdf" : "url",
           name: autoName,
           url: input.startsWith("http") ? input : `https://${input}`,
           details: isPdfUrl ? `PDF Link · ${domain}` : `Web Page · ${domain}`,
@@ -206,6 +322,7 @@ function AddSourceModal({
         {
           id: Math.random().toString(36).substring(2, 9),
           type: "text",
+          format: "txt",
           name: autoName,
           content: input,
           details: `Pasted Text · ${words} words`
@@ -245,7 +362,22 @@ function AddSourceModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-xl p-6 bg-card border border-border rounded-2xl shadow-xl">
+      <DialogContent 
+        className="sm:max-w-xl p-6 bg-card border border-border rounded-2xl shadow-xl overflow-hidden relative"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {isDragging && (
+          <div className="absolute inset-0 bg-background/85 backdrop-blur-[2px] border-2 border-primary border-dashed rounded-2xl flex flex-col items-center justify-center z-50 pointer-events-none transition-all animate-in fade-in duration-200">
+            <div className="w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center mb-3 scale-110 animate-bounce">
+              <UploadCloud className="h-8 w-8 text-primary" />
+            </div>
+            <p className="text-sm font-bold text-foreground">Drop files here to upload</p>
+            <p className="text-xs text-muted-foreground mt-1">PDF, TXT, MD, DOCX up to 20MB</p>
+          </div>
+        )}
+
         <DialogHeader className="space-y-1.5">
           <DialogTitle className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
@@ -259,30 +391,19 @@ function AddSourceModal({
         <div className="space-y-5 my-2">
           {/* Smart Drag and Drop Zone */}
           <div
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            onDragLeave={handleDragLeave}
             onClick={triggerFileInput}
-            className={cn(
-              "relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[160px] overflow-hidden group",
-              isDragging
-                ? "border-primary bg-primary/5 shadow-[0_0_20px_rgba(99,102,241,0.15)]"
-                : "border-border hover:border-primary/50 hover:bg-muted/10"
-            )}
+            className="relative border-2 border-dashed border-border hover:border-primary/50 hover:bg-muted/10 rounded-xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[160px] overflow-hidden group"
           >
             <input
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
               multiple
-              accept=".pdf,.txt,.md,.rtf"
+              accept=".pdf,.txt,.md,.rtf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               className="hidden"
             />
             
-            <div className={cn(
-              "absolute -top-10 -left-10 w-24 h-24 bg-primary/10 rounded-full blur-2xl transition-opacity",
-              isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-            )} />
+            <div className="absolute -top-10 -left-10 w-24 h-24 bg-primary/10 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
             
             <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300">
               <UploadCloud className="h-6 w-6 text-primary animate-pulse" />
@@ -295,7 +416,7 @@ function AddSourceModal({
               or <span className="text-primary font-medium hover:underline">browse files</span> from your computer
             </p>
             <p className="text-[10px] text-muted-foreground/60 mt-3">
-              Supports PDF, TXT, MD, Markdown (up to 20MB)
+              Supports PDF, TXT, MD, DOCX (up to 20MB)
             </p>
           </div>
 
@@ -350,12 +471,16 @@ function AddSourceModal({
                     {/* Icon based on detected type */}
                     <div className={cn(
                       "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm",
-                      src.type === "pdf" ? "bg-red-500/10 text-red-500" :
-                      src.type === "url" ? "bg-emerald-500/10 text-emerald-500" :
-                      "bg-violet-500/10 text-violet-500"
+                      src.format === "pdf" ? "bg-red-500/10 text-red-500" :
+                      src.format === "docx" ? "bg-blue-500/10 text-blue-500" :
+                      src.format === "md" ? "bg-violet-500/10 text-violet-500" :
+                      src.format === "url" ? "bg-emerald-500/10 text-emerald-500" :
+                      "bg-slate-500/10 text-slate-500"
                     )}>
-                      {src.type === "pdf" ? <FileText className="h-4 w-4" /> :
-                       src.type === "url" ? <Link2 className="h-4 w-4" /> :
+                      {src.format === "pdf" ? <FileText className="h-4 w-4" /> :
+                       src.format === "docx" ? <FileText className="h-4 w-4" /> :
+                       src.format === "md" ? <FileCode className="h-4 w-4" /> :
+                       src.format === "url" ? <Link2 className="h-4 w-4" /> :
                        <Type className="h-4 w-4" />}
                     </div>
                     
@@ -823,11 +948,11 @@ export default function ModuleDetailPage() {
         </div>
 
         {/* 3-panel layout */}
-        <div className="flex flex-col lg:flex-row gap-6 flex-1 items-stretch min-h-0 relative overflow-hidden">
+        <div className="flex flex-col lg:flex-row gap-6 flex-1 items-stretch min-h-0 relative lg:overflow-hidden">
           
           {/* LEFT PANEL (Dynamic based on active tab) */}
           <div className={cn(
-            "rounded-xl border border-border bg-card p-4 flex flex-col h-full min-h-[300px] transition-all duration-300 relative",
+            "rounded-xl border border-border bg-card p-4 flex flex-col h-auto lg:h-full min-h-[300px] transition-all duration-300 relative",
             leftCollapsed ? "w-0 p-0 border-0 overflow-hidden lg:min-h-0" : "w-full lg:w-[230px]"
           )}>
             {/* STUDY GUIDE Left Side */}
@@ -958,8 +1083,21 @@ export default function ModuleDetailPage() {
             {leftCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
           </button>
 
+          {/* Hover Expand Trigger on top of Center Panel (Left Edge) */}
+          {leftCollapsed && (
+            <div 
+              className="absolute left-0 top-0 bottom-0 w-4 group z-40 cursor-pointer hidden lg:flex items-center justify-start"
+              onClick={() => setLeftCollapsed(false)}
+            >
+              <div className="h-20 w-8 bg-primary/95 text-primary-foreground hover:w-10 hover:bg-primary rounded-r-xl border border-l-0 border-primary/20 shadow-md flex flex-col items-center justify-center -translate-x-4 group-hover:translate-x-0 transition-all duration-300 opacity-0 group-hover:opacity-100">
+                <ChevronRight className="h-4 w-4" />
+                <span className="text-[9px] font-bold uppercase tracking-wider [writing-mode:vertical-lr] mt-1 select-none">Expand</span>
+              </div>
+            </div>
+          )}
+
           {/* CENTER PANEL (Main Area) */}
-          <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col h-full min-h-[400px] flex-1">
+          <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col h-auto lg:h-full min-h-[400px] flex-1">
             
             {/* STUDY GUIDE Center Panel */}
             {activeTab === "study" && (
@@ -1226,9 +1364,22 @@ export default function ModuleDetailPage() {
             {rightCollapsed ? <ChevronLeft className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
           </button>
 
+          {/* Hover Expand Trigger on top of Center Panel (Right Edge) */}
+          {rightCollapsed && (
+            <div 
+              className="absolute right-0 top-0 bottom-0 w-4 group z-40 cursor-pointer hidden lg:flex items-center justify-end"
+              onClick={() => setRightCollapsed(false)}
+            >
+              <div className="h-20 w-8 bg-primary/95 text-primary-foreground hover:w-10 hover:bg-primary rounded-l-xl border border-r-0 border-primary/20 shadow-md flex flex-col items-center justify-center translate-x-4 group-hover:translate-x-0 transition-all duration-300 opacity-0 group-hover:opacity-100">
+                <ChevronLeft className="h-4 w-4" />
+                <span className="text-[9px] font-bold uppercase tracking-wider [writing-mode:vertical-lr] mt-1 select-none">Expand</span>
+              </div>
+            </div>
+          )}
+
           {/* RIGHT PANEL (Sources & details, persistent) */}
           <div className={cn(
-            "space-y-4 shrink-0 flex flex-col h-full transition-all duration-300 relative",
+            "space-y-4 shrink-0 flex flex-col h-auto lg:h-full transition-all duration-300 relative",
             rightCollapsed ? "w-0 p-0 overflow-hidden lg:min-h-0" : "w-full lg:w-[250px] min-h-[300px]"
           )}>
             

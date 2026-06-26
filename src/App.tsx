@@ -21,6 +21,7 @@ import AdsPortal from "@/pages/ads-portal";
 import PublicModulesPage from "@/pages/public-modules";
 import PublicModuleDetailPage from "@/pages/public-module-detail";
 import AdminPage from "@/pages/admin";
+import ArtifactsPage from "@/pages/artifacts";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -72,6 +73,7 @@ function Router() {
       <Route path="/app/modules/:id" component={() => <ProtectedRoute component={ModuleDetailPage} />} />
       <Route path="/app/notes" component={() => <ProtectedRoute component={NotesPage} />} />
       <Route path="/app/tests" component={() => <ProtectedRoute component={TestsPage} />} />
+      <Route path="/app/artifacts" component={() => <ProtectedRoute component={ArtifactsPage} />} />
       <Route path="/app/profile" component={() => <ProtectedRoute component={ProfilePage} />} />
       <Route path="/app/org" component={() => <ProtectedRoute component={OrgPage} />} />
       <Route path="/app/admin" component={() => <ProtectedRoute component={AdminPage} />} />

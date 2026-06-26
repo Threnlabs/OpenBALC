@@ -1728,6 +1728,7 @@ export function useAddModuleSource(options?: any): any {
       // ── Fire ingestion pipeline (non-blocking) ─────────────────────────────
       // Dynamic import so the ingestion module is only loaded when needed.
       const geminiApiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY as string | undefined;
+      const llamaCloudApiKey = (import.meta as any).env?.VITE_LLAMA_CLOUD_API_KEY as string | undefined;
 
       if (geminiApiKey) {
         import("./ingestion")
@@ -1742,7 +1743,8 @@ export function useAddModuleSource(options?: any): any {
                 url: data.url,
                 file: data.file, // File object from AddSourceModal
               },
-              geminiApiKey
+              geminiApiKey,
+              llamaCloudApiKey
             )
           )
           .then(() => {
