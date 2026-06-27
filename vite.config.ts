@@ -94,6 +94,10 @@ function apiMiddlewarePlugin(): Plugin {
               const handlerPath = path.resolve(import.meta.dirname, "api/ingest.ts");
               const handler = (await server.ssrLoadModule(handlerPath)).default;
               await handler(mockReq, mockRes);
+            } else if (apiPath === "/api/de-ingest") {
+              const handlerPath = path.resolve(import.meta.dirname, "api/de-ingest.ts");
+              const handler = (await server.ssrLoadModule(handlerPath)).default;
+              await handler(mockReq, mockRes);
             } else {
               res.statusCode = 404;
               res.end("Not Found");

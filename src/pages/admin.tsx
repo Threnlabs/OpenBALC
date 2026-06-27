@@ -12,12 +12,13 @@ import {
   useUpdateUserCredits,
   useGetAdminModules
 } from "@/lib/api-client-react";
+import { supabase } from "@/lib/api-client-react";
 import {
   Shield, Cpu, Activity, Terminal, Users, Settings2, AlertCircle,
   CheckCircle2, Clock, Coins, Search, Trash2, RefreshCw, Play, Copy,
   Plus, Minus, Info, ArrowUpRight, Sliders, Database, Sparkles,
   TrendingUp, BarChart2, BookOpen, Globe, FileText, ArrowLeft, Loader2,
-  Check, AlertTriangle
+  Check, AlertTriangle, XCircle, Layers, SlidersHorizontal
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -40,11 +41,19 @@ export default function AdminPage() {
   const [selectedLogId, setSelectedLogId] = useState<number | null>(null);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [triggeringSourceId, setTriggeringSourceId] = useState<number | null>(null);
+  const [deIngestingSourceId, setDeIngestingSourceId] = useState<number | null>(null);
+  const [deIngestingModuleId, setDeIngestingModuleId] = useState<number | null>(null);
+  const [ingestingAllModuleId, setIngestingAllModuleId] = useState<number | null>(null);
   const [searchModuleQuery, setSearchModuleQuery] = useState("");
   const [cacheData, setCacheData] = useState<CacheTelemetry | null>(null);
   const [cacheLoading, setCacheLoading] = useState(false);
   const [flushingCache, setFlushingCache] = useState(false);
   const [searchKeyQuery, setSearchKeyQuery] = useState("");
+  // Chunk config state
+  const [chunkTargetTokens, setChunkTargetTokens] = useState(500);
+  const [chunkOverlapTokens, setChunkOverlapTokens] = useState(100);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [configSaving, setConfigSaving] = useState(false);
 
   const fetchCacheTelemetry = async () => {
     setCacheLoading(true);
@@ -54,10 +63,36 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    if (activeTab === "cache") {
-      fetchCacheTelemetry();
-    }
+    if (activeTab === "cache") fetchCacheTelemetry();
+    if (activeTab === "modules") loadChunkConfig();
   }, [activeTab]);
+
+  const loadChunkConfig = async () => {
+    setConfigLoading(true);
+    try {
+      const { data } = await supabase.from("ingestion_config").select("key, value");
+      if (data) {
+        const map = Object.fromEntries(data.map((r: any) => [r.key, r.value]));
+        if (map["chunk_target_tokens"]) setChunkTargetTokens(parseInt(map["chunk_target_tokens"], 10));
+        if (map["chunk_overlap_tokens"]) setChunkOverlapTokens(parseInt(map["chunk_overlap_tokens"], 10));
+      }
+    } catch { /* non-fatal */ }
+    setConfigLoading(false);
+  };
+
+  const saveChunkConfig = async () => {
+    setConfigSaving(true);
+    try {
+      await supabase.from("ingestion_config").upsert([
+        { key: "chunk_target_tokens", value: String(chunkTargetTokens) },
+        { key: "chunk_overlap_tokens", value: String(chunkOverlapTokens) },
+      ]);
+      toast.success("Chunk config saved.");
+    } catch {
+      toast.error("Failed to save config.");
+    }
+    setConfigSaving(false);
+  };
 
   const handleFlushCache = async () => {
     if (!confirm("Are you sure you want to completely flush the cache? This will clear all cached session profiles, module list caches, and chapter metadata.")) return;
@@ -237,6 +272,81 @@ export default function AdminPage() {
       toast.error(`Failed to trigger ingestion: ${err.message || err}`);
     } finally {
       setTriggeringSourceId(null);
+    }
+  };
+
+  const handleDeIngestSource = async (sourceId: number, sourceName: string) => {
+    if (!confirm(`Remove embeddings for "${sourceName}"? The source record is kept but all chunks are deleted and status resets to pending.`)) return;
+    setDeIngestingSourceId(sourceId);
+    try {
+      const res = await fetch("/api/de-ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceId }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        toast.success(`Chunks removed for: ${sourceName}`);
+      } else {
+        toast.error(`De-ingest failed: ${json.error}`);
+      }
+      refetchModules();
+    } catch (err: any) {
+      toast.error(`De-ingest error: ${err.message}`);
+    } finally {
+      setDeIngestingSourceId(null);
+    }
+  };
+
+  const handleDeIngestModule = async (moduleId: number, moduleTitle: string) => {
+    if (!confirm(`Remove ALL embeddings for module "${moduleTitle}"? All chunk data will be deleted and all sources reset to pending.`)) return;
+    setDeIngestingModuleId(moduleId);
+    try {
+      const res = await fetch("/api/de-ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ moduleId }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        toast.success(`All embeddings cleared for: ${moduleTitle}`);
+      } else {
+        toast.error(`Module de-ingest failed: ${json.error}`);
+      }
+      refetchModules();
+    } catch (err: any) {
+      toast.error(`Module de-ingest error: ${err.message}`);
+    } finally {
+      setDeIngestingModuleId(null);
+    }
+  };
+
+  const handleIngestAll = async (mod: any) => {
+    const pending = (mod.sources || []).filter((s: any) => s.ingestionStatus !== "processing");
+    if (pending.length === 0) { toast.info("All sources already processing or none available."); return; }
+    setIngestingAllModuleId(mod.id);
+    try {
+      for (const src of pending) {
+        await fetch("/api/ingest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sourceId: src.id,
+            moduleId: mod.id,
+            type: src.type,
+            name: src.name,
+            content: src.content || undefined,
+            url: src.url || undefined,
+            storagePath: src.storageKey || undefined,
+          }),
+        });
+      }
+      toast.success(`Ingestion triggered for ${pending.length} source(s) in "${mod.title}"`);
+      refetchModules();
+    } catch (err: any) {
+      toast.error(`Batch ingestion error: ${err.message}`);
+    } finally {
+      setIngestingAllModuleId(null);
     }
   };
 
@@ -1007,13 +1117,13 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* 6. Modules Ingestion Tab (NEW) */}
+            {/* 6. Modules Ingestion Tab */}
             {activeTab === "modules" && (
               <div className="space-y-6 animate-in fade-in duration-200">
                 <div className="border-b border-slate-800 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <h2 className="text-2xl font-bold tracking-tight">Modules & Ingestion Control</h2>
-                    <p className="text-xs text-slate-400 mt-1">Review learning modules, check parsing/embedding progress, and trigger pipelines manually.</p>
+                    <p className="text-xs text-slate-400 mt-1">Manage embeddings — ingest or remove chunks from the vector database per module or per source.</p>
                   </div>
                   <div className="relative w-full md:w-72">
                     <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
@@ -1027,137 +1137,201 @@ export default function AdminPage() {
                   </div>
                 </div>
 
+                {/* ── Chunk Configuration Panel ────────────────────────────────── */}
+                <div className="bg-slate-900 border border-indigo-500/20 rounded-xl p-5 shadow-sm">
+                  <div className="flex items-center gap-2 mb-4">
+                    <SlidersHorizontal className="h-4 w-4 text-indigo-400" />
+                    <h3 className="font-bold text-xs uppercase tracking-wider text-indigo-300">Hybrid Chunking Configuration</h3>
+                    {configLoading && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Target Chunk Size (tokens)</label>
+                      <input
+                        type="number"
+                        min={100} max={2000} step={50}
+                        value={chunkTargetTokens}
+                        onChange={(e) => setChunkTargetTokens(parseInt(e.target.value, 10))}
+                        className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                      <p className="text-[9px] text-slate-500">Applied to content chunks. Tables & image captions are always full-size.</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Overlap (tokens)</label>
+                      <input
+                        type="number"
+                        min={0} max={500} step={10}
+                        value={chunkOverlapTokens}
+                        onChange={(e) => setChunkOverlapTokens(parseInt(e.target.value, 10))}
+                        className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                      <p className="text-[9px] text-slate-500">Overlap between adjacent content chunks for context continuity.</p>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2 text-[10px] text-slate-400 bg-slate-950/60 border border-slate-800 rounded-lg p-3">
+                        <Layers className="h-3.5 w-3.5 text-indigo-400 shrink-0 mt-0.5" />
+                        <span><span className="text-slate-300 font-semibold">3 chunk types:</span> <span className="text-emerald-400">content</span> (windowed), <span className="text-amber-400">table</span> (whole), <span className="text-violet-400">image_caption</span> (caption+url). <br/><span className="text-slate-500">times_retrieved tracked per chunk for color-map heat.</span></span>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={saveChunkConfig}
+                        disabled={configSaving}
+                        className="h-8 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-1.5"
+                      >
+                        {configSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                        Save Config
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Module Cards ─────────────────────────────────────────────── */}
                 <div className="space-y-4">
                   {modulesLoading ? (
                     <div className="text-center py-20 text-slate-500 text-xs">Loading available modules...</div>
                   ) : filteredModules.length === 0 ? (
                     <div className="text-center py-20 text-slate-500 text-xs">No modules matching query.</div>
                   ) : (
-                    filteredModules.map((mod: any) => (
-                      <div key={mod.id} className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4 shadow-sm hover:border-slate-700 transition-colors">
-                        
-                        {/* Module header info */}
-                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 border-b border-slate-850 pb-3">
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <h3 className="font-extrabold text-base text-slate-250">{mod.title}</h3>
-                              <span className="text-[10px] bg-slate-800 text-slate-350 border border-slate-750 px-2 py-0.5 rounded font-mono">ID: {mod.id}</span>
-                              <span className="text-[10px] bg-indigo-500/10 text-indigo-350 border border-indigo-500/20 px-2 py-0.5 rounded font-medium">{mod.subject || "No Subject"}</span>
-                            </div>
-                            <p className="text-xs text-slate-400">{mod.description || "No description provided."}</p>
-                          </div>
+                    filteredModules.map((mod: any) => {
+                      const doneCount = (mod.sources || []).filter((s: any) => s.ingestionStatus === "done").length;
+                      const totalSrcs = (mod.sources || []).length;
+                      return (
+                        <div key={mod.id} className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4 shadow-sm hover:border-slate-700 transition-colors">
 
-                          <div className="flex flex-col items-start md:items-end text-xs text-slate-400 shrink-0">
-                            <div>Creator: <span className="font-semibold text-slate-300">{mod.creatorName}</span></div>
-                            <div className="text-[10px] text-slate-500">{mod.creatorEmail}</div>
-                            <div className="mt-1 text-[10px] text-slate-500">Created: {new Date(mod.createdAt).toLocaleDateString()}</div>
-                          </div>
-                        </div>
-
-                        {/* Module overall status and Ingestion sources */}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                          
-                          {/* Module Level Ingestion telemetry */}
-                          <div className="bg-slate-950 border border-slate-850 rounded-lg p-4 space-y-3.5 flex flex-col justify-between">
-                            <div>
-                              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Overall Module Status</h4>
-                              <div className="flex items-center gap-3">
+                          {/* Module header */}
+                          <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <h3 className="font-extrabold text-base text-slate-200">{mod.title}</h3>
+                                <span className="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded font-mono">ID: {mod.id}</span>
+                                <span className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded font-medium">{mod.subject || "No Subject"}</span>
                                 <span className={cn(
-                                  "text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase border",
-                                  mod.status === "active"
-                                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                                    : mod.status === "processing"
-                                    ? "bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse"
-                                    : "bg-slate-800 text-slate-400 border-slate-700"
-                                )}>
-                                  {mod.status}
-                                </span>
-                                <div className="text-xs font-bold text-slate-350">{mod.processingPct || 0}% Processed</div>
+                                  "text-[9px] px-2.5 py-0.5 rounded-full font-bold uppercase border",
+                                  mod.status === "active" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                  : mod.status === "processing" ? "bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse"
+                                  : "bg-slate-800 text-slate-400 border-slate-700"
+                                )}>{mod.status}</span>
                               </div>
+                              <p className="text-xs text-slate-500">{mod.description || "No description provided."}</p>
+                              <p className="text-[10px] text-slate-600 mt-1">By {mod.creatorName} · {mod.creatorEmail}</p>
                             </div>
 
-                            {/* Simple Progress Bar */}
-                            <div className="w-full bg-slate-850 h-2 rounded-full overflow-hidden">
-                              <div
-                                className="bg-indigo-650 h-full rounded-full transition-all duration-500"
-                                style={{ width: `${mod.processingPct || 0}%` }}
-                              />
+                            {/* Module-level action buttons */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              <div className="text-right mr-2">
+                                <div className="text-xs font-bold text-slate-300">{doneCount}/{totalSrcs} indexed</div>
+                                <div className="text-[10px] text-slate-500">{mod.processingPct || 0}% processed</div>
+                              </div>
+                              <Button
+                                size="sm"
+                                onClick={() => handleIngestAll(mod)}
+                                disabled={ingestingAllModuleId === mod.id}
+                                className="h-8 text-[10px] font-bold bg-indigo-600 hover:bg-indigo-500 text-white gap-1.5"
+                                title="Trigger ingestion for all sources in this module"
+                              >
+                                {ingestingAllModuleId === mod.id
+                                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                                  : <Layers className="h-3 w-3" />}
+                                Ingest All
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDeIngestModule(mod.id, mod.title)}
+                                disabled={deIngestingModuleId === mod.id}
+                                className="h-8 text-[10px] font-bold border-rose-800/60 hover:bg-rose-950/40 text-rose-400 gap-1.5"
+                                title="Delete all vector embeddings for this module"
+                              >
+                                {deIngestingModuleId === mod.id
+                                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                                  : <XCircle className="h-3 w-3" />}
+                                De-ingest All
+                              </Button>
                             </div>
                           </div>
 
-                          {/* Sources List for Module */}
-                          <div className="lg:col-span-2 space-y-2">
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Knowledge Ingestion Sources ({mod.sources?.length || 0})</h4>
-                            
-                            {(!mod.sources || mod.sources.length === 0) ? (
-                              <div className="text-slate-500 text-xs italic bg-slate-950/40 p-4 border border-slate-850 rounded-lg">
-                                No raw ingestion documents or source links found for this module.
-                              </div>
-                            ) : (
-                              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                                {mod.sources.map((src: any) => (
-                                  <div key={src.id} className="flex items-center justify-between gap-3 p-3 bg-slate-950 border border-slate-850 rounded-lg hover:border-slate-800 transition-colors">
-                                    <div className="flex items-center gap-2.5 min-w-0">
-                                      {src.type === "pdf" && <FileText className="h-4 w-4 text-rose-400 shrink-0" />}
-                                      {src.type === "url" && <Globe className="h-4 w-4 text-emerald-400 shrink-0" />}
-                                      {src.type === "text" && <Info className="h-4 w-4 text-indigo-400 shrink-0" />}
-                                      
-                                      <div className="min-w-0">
-                                        <p className="text-xs font-bold text-slate-300 truncate" title={src.name}>{src.name}</p>
-                                        <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
-                                          <span className="capitalize">{src.type}</span>
-                                          {src.url && (
-                                            <span className="truncate max-w-[150px] text-[9px] hover:text-indigo-400">
-                                              <a href={src.url} target="_blank" rel="noopener noreferrer">{src.url}</a>
-                                            </span>
-                                          )}
-                                          {src.storageKey && <span className="text-[9px] text-slate-600">Key: {src.storageKey.split("/").pop()}</span>}
-                                        </div>
+                          {/* Progress bar */}
+                          <div className="w-full bg-slate-850 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className="bg-indigo-500 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${mod.processingPct || 0}%` }}
+                            />
+                          </div>
+
+                          {/* Sources list */}
+                          {(!mod.sources || mod.sources.length === 0) ? (
+                            <div className="text-slate-500 text-xs italic bg-slate-950/40 p-4 border border-slate-850 rounded-lg">
+                              No ingestion sources found for this module.
+                            </div>
+                          ) : (
+                            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                Sources ({totalSrcs}) — {doneCount} embedded
+                              </h4>
+                              {mod.sources.map((src: any) => (
+                                <div key={src.id} className="flex items-center justify-between gap-3 p-3 bg-slate-950 border border-slate-850 rounded-lg hover:border-slate-800 transition-colors">
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    {src.type === "pdf" && <FileText className="h-4 w-4 text-rose-400 shrink-0" />}
+                                    {src.type === "url" && <Globe className="h-4 w-4 text-emerald-400 shrink-0" />}
+                                    {src.type === "text" && <Info className="h-4 w-4 text-indigo-400 shrink-0" />}
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-bold text-slate-300 truncate" title={src.name}>{src.name}</p>
+                                      <div className="flex items-center gap-2 text-[9px] text-slate-500 mt-0.5">
+                                        <span className="capitalize">{src.type}</span>
+                                        {src.url && <a href={src.url} target="_blank" rel="noopener noreferrer" className="truncate max-w-[130px] hover:text-indigo-400">{src.url}</a>}
+                                        {src.storageKey && <span className="text-slate-600">Key: {src.storageKey.split("/").pop()}</span>}
                                       </div>
                                     </div>
-
-                                    {/* Action button & Status badge */}
-                                    <div className="flex items-center gap-3 shrink-0">
-                                      <span className={cn(
-                                        "text-[9px] px-2 py-0.5 rounded font-bold uppercase border",
-                                        src.ingestionStatus === "done"
-                                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                                          : src.ingestionStatus === "processing"
-                                          ? "bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse"
-                                          : src.ingestionStatus === "failed"
-                                          ? "bg-red-500/10 text-red-400 border-red-500/20"
-                                          : "bg-slate-800 text-slate-400 border-slate-700"
-                                      )}>
-                                        {src.ingestionStatus || "pending"}
-                                      </span>
-
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleTriggerIngestion(src, mod.id)}
-                                        disabled={triggeringSourceId === src.id}
-                                        className="h-8 text-[10px] font-bold border-slate-800 hover:bg-slate-800 hover:border-slate-700 text-slate-300 gap-1.5"
-                                      >
-                                        {triggeringSourceId === src.id ? (
-                                          <Loader2 className="h-3 w-3 animate-spin text-indigo-400" />
-                                        ) : (
-                                          <Play className="h-3 w-3 text-indigo-400" />
-                                        )}
-                                        {src.ingestionStatus === "done" ? "Re-Ingest" : "Ingest"}
-                                      </Button>
-                                    </div>
                                   </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
+
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <span className={cn(
+                                      "text-[9px] px-2 py-0.5 rounded font-bold uppercase border",
+                                      src.ingestionStatus === "done" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                      : src.ingestionStatus === "processing" ? "bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse"
+                                      : src.ingestionStatus === "failed" ? "bg-red-500/10 text-red-400 border-red-500/20"
+                                      : "bg-slate-800 text-slate-400 border-slate-700"
+                                    )}>
+                                      {src.ingestionStatus || "pending"}
+                                    </span>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleTriggerIngestion(src, mod.id)}
+                                      disabled={triggeringSourceId === src.id}
+                                      className="h-7 text-[9px] font-bold border-slate-800 hover:bg-indigo-950/40 hover:border-indigo-800 text-slate-300 gap-1"
+                                    >
+                                      {triggeringSourceId === src.id
+                                        ? <Loader2 className="h-3 w-3 animate-spin text-indigo-400" />
+                                        : <Play className="h-3 w-3 text-indigo-400" />}
+                                      {src.ingestionStatus === "done" ? "Re-Ingest" : "Ingest"}
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDeIngestSource(src.id, src.name)}
+                                      disabled={deIngestingSourceId === src.id || src.ingestionStatus !== "done"}
+                                      className="h-7 text-[9px] font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 gap-1 disabled:opacity-30"
+                                      title="Remove embeddings for this source"
+                                    >
+                                      {deIngestingSourceId === src.id
+                                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                                        : <XCircle className="h-3 w-3" />}
+                                      Remove
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
             )}
+
 
             {/* 7. Cache Telemetry Tab */}
             {activeTab === "cache" && (

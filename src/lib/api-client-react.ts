@@ -3693,7 +3693,68 @@ export function useGetAdminModules(options?: any): any {
 }
 
 // --------------------------------------------------------
-// Artifacts Hooks
+// Chunk Retrieval Tracking — called after RAG pulls
+// Increments times_retrieved for all chunk IDs returned
+// by the hybrid search, enabling per-topic heatmap data.
+// --------------------------------------------------------
+export function useIncrementChunkRetrieved(options?: any): any {
+  return useMutation({
+    mutationFn: async (chunkIds: number[]) => {
+      if (!hasSupabase || chunkIds.length === 0) return;
+      // Use the SQL helper function if available, fallback to manual update
+      const { error } = await supabase.rpc("increment_chunk_retrieved", { chunk_ids: chunkIds });
+      if (error) {
+        // Fallback: direct update (less efficient but always works)
+        await supabase
+          .from("module_chunks")
+          .update({ times_retrieved: supabase.rpc("increment_chunk_retrieved") } as any)
+          .in("id", chunkIds);
+      }
+    },
+    ...options
+  });
+}
+
+// --------------------------------------------------------
+// Chunk Heatmap — returns aggregated times_retrieved
+// per topic_id for a given module. Used to color-map
+// the module outline sidebar by retrieval frequency.
+// Returns: [{ topicId, totalRetrieved, chunkCount }]
+// --------------------------------------------------------
+export function useGetChunkHeatmap(moduleId: number | null, options?: any): any {
+  return useQuery({
+    queryKey: ["chunkHeatmap", moduleId],
+    enabled: !!moduleId && hasSupabase,
+    queryFn: async () => {
+      if (!moduleId) return [];
+      const { data, error } = await supabase
+        .from("module_chunks")
+        .select("topic_id, times_retrieved, chunk_type")
+        .eq("module_id", moduleId);
+      if (error) throw error;
+
+      // Aggregate per topic
+      const topicMap: Record<number, { totalRetrieved: number; chunkCount: number; byType: Record<string, number> }> = {};
+      for (const row of (data || [])) {
+        const tid = row.topic_id ?? -1; // -1 = unassigned chunks
+        if (!topicMap[tid]) topicMap[tid] = { totalRetrieved: 0, chunkCount: 0, byType: {} };
+        topicMap[tid].totalRetrieved += row.times_retrieved ?? 0;
+        topicMap[tid].chunkCount += 1;
+        topicMap[tid].byType[row.chunk_type] = (topicMap[tid].byType[row.chunk_type] ?? 0) + 1;
+      }
+
+      return Object.entries(topicMap).map(([topicId, stats]) => ({
+        topicId: parseInt(topicId, 10),
+        totalRetrieved: stats.totalRetrieved,
+        chunkCount: stats.chunkCount,
+        byType: stats.byType,
+      }));
+    },
+    ...options
+  });
+}
+
+
 // --------------------------------------------------------
 export const getListArtifactsQueryKey = () => ["listArtifacts"];
 export const getGetArtifactQueryKey = (id: number) => ["getArtifact", id];
