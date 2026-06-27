@@ -6,7 +6,7 @@
 redis[hiredis]>=5.0.0          # Redis Cloud TCP client (faster with hiredis)
 
 # ── context-surfaces (agent memory + context retriever) ───────────────────────
-context-surfaces>=0.1.0        # pip install context-surfaces
+context-surfaces>=0.0.5        # pip install context-surfaces
 httpx>=0.27.0                  # Async HTTP client for agent API calls
 
 # ── LangCache (semantic LLM response cache) ───────────────────────────────────

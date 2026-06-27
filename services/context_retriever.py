@@ -23,26 +23,35 @@ import os
 import httpx
 from typing import Optional
 
-# ── context-surfaces agent credentials (Redis Cloud backed) ──────────────────
-AGENT_URL = os.environ.get("CONTEXT_SURFACES_AGENT_URL", "https://api.context.surfaces.dev")
-AGENT_KEY = os.environ.get("CONTEXT_SURFACES_RETRIEVER_AGENT_KEY", "")
+from context_surfaces import UnifiedClient
+from services.models.modules import PublicModule
+from services import redis_client
 
-HEADERS = {
-    "Content-Type": "application/json",
-    "X-Agent-Key": AGENT_KEY,
-}
+# ── context-surfaces credentials (Redis Cloud backed) ──────────────────
+AGENT_URL = os.environ.get("CONTEXT_SURFACES_AGENT_URL")
+AGENT_KEY = os.environ.get("CONTEXT_SURFACES_RETRIEVER_AGENT_KEY", "")
+ADMIN_KEY = os.environ.get("CONTEXT_SURFACES_ADMIN_KEY", "")
+RETRIEVER_SURFACE_ID = os.environ.get("CONTEXT_SURFACES_RETRIEVER_SURFACE_ID", "")
 
 # ── Low-level ─────────────────────────────────────────────────────────────────
 
 async def _call_tool(tool: str, args: dict) -> dict:
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.post(
-            f"{AGENT_URL}/tools/call",
-            headers=HEADERS,
-            json={"tool": tool, "args": args},
+    async with UnifiedClient(api_url=AGENT_URL) as client:
+        res = await client.query_tool(
+            agent_key=AGENT_KEY,
+            tool_name=tool,
+            arguments=args,
         )
-        resp.raise_for_status()
-        return resp.json()
+        content = res.get("content", [])
+        if content and content[0].get("type") == "text":
+            import json
+            text_val = content[0].get("text", "{}")
+            try:
+                return json.loads(text_val)
+            except json.JSONDecodeError as e:
+                print(f"DEBUG: JSONDecodeError parsing text: {repr(text_val)}")
+                raise e
+        return {}
 
 
 # ── Search ────────────────────────────────────────────────────────────────────
@@ -67,29 +76,35 @@ async def search_modules(
     Returns:
         List of PublicModule dicts from Redis
     """
-    args: dict = {"query": query, "limit": limit}
+    parts = []
     if subject:
-        args["subject"] = subject
+        parts.append(f"@subject:{{{subject}}}")
     if fields:
-        args["fields"] = fields
+        for f in fields:
+            parts.append(f"@fields:{{{f}}}")
     if domains:
-        args["domains"] = domains
+        for d in domains:
+            parts.append(f"@domains:{{{d}}}")
+    if query and query != "*":
+        parts.append(query)
 
-    result = await _call_tool("search_publicmodule_by_text", args)
+    redis_query = " ".join(parts) if parts else "*"
+    result = await _call_tool("search_publicmodule_by_text", {
+        "query": redis_query,
+        "limit": limit,
+    })
     return result.get("results", [])
 
 
 async def search_modules_by_tag(
     tag: str,
-    sort_by: str = "star_count",
     limit: int = 5,
 ) -> list[dict]:
     """
     Tag-based module search — useful for browsing by domain or field.
     """
-    result = await _call_tool("search_publicmodule_by_tag", {
-        "tag": tag,
-        "sort_by": sort_by,
+    result = await _call_tool("filter_publicmodule_by_tags", {
+        "value": tag,
         "limit": limit,
     })
     return result.get("results", [])
@@ -125,23 +140,36 @@ async def sync_module(module: dict) -> dict:
     Push / upsert a single module into the Redis surface.
     Call this when a module is published or updated.
     """
-    return await _call_tool("create_publicmodule", {
-        "id":            module["id"],
-        "title":         module.get("title", ""),
-        "description":   module.get("description", ""),
-        "subject":       module.get("subject", ""),
-        "fields":        module.get("fields", []),
-        "domains":       module.get("domains", []),
-        "tags":          module.get("tags", []),
-        "star_count":    module.get("star_count", 0),
-        "chapter_count": module.get("chapter_count", 0),
-        "use_count":     module.get("use_count", 0),
-        "created_at":    module.get("created_at", ""),
-    })
+    record = PublicModule(
+        id=int(module["id"]),
+        title=module.get("title", ""),
+        description=module.get("description", ""),
+        subject=module.get("subject", ""),
+        fields=module.get("fields", []),
+        domains=module.get("domains", []),
+        tags=module.get("tags", []),
+        star_count=module.get("star_count", 0),
+        chapter_count=module.get("chapter_count", 0),
+        use_count=module.get("use_count", 0),
+        created_at=module.get("created_at", ""),
+    )
+    async with UnifiedClient(api_url=AGENT_URL) as client:
+        res = await client.import_data(
+            admin_key=ADMIN_KEY,
+            context_surface_id=RETRIEVER_SURFACE_ID,
+            records=[record],
+        )
+    if res.failed > 0:
+        err_msg = res.errors[0].message if res.errors else "Unknown import error"
+        raise RuntimeError(f"Failed to sync module to Redis surface: {err_msg}")
+    return {"status": "success", "imported": res.imported}
 
 
 async def delete_module(module_id: int) -> dict:
     """
     Remove a module from the Redis surface (e.g. when unpublished).
     """
-    return await _call_tool("delete_publicmodule", {"id": module_id})
+    r = redis_client.get_redis()
+    key = f"openbalc:module:{module_id}"
+    deleted_count = r.delete(key)
+    return {"status": "success", "deleted": deleted_count}

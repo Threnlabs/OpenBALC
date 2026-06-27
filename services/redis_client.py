@@ -37,12 +37,10 @@ _pool: redis.ConnectionPool | None = None
 def get_pool() -> redis.ConnectionPool:
     global _pool
     if _pool is None:
-        _pool = redis.ConnectionPool(
-            host=REDIS_CLOUD_HOST,
-            port=REDIS_CLOUD_PORT,
-            password=REDIS_CLOUD_PASSWORD,
-            username=REDIS_CLOUD_USERNAME,
-            ssl=REDIS_CLOUD_SSL,
+        scheme = "rediss" if REDIS_CLOUD_SSL else "redis"
+        url = f"{scheme}://{REDIS_CLOUD_USERNAME}:{REDIS_CLOUD_PASSWORD}@{REDIS_CLOUD_HOST}:{REDIS_CLOUD_PORT}"
+        _pool = redis.ConnectionPool.from_url(
+            url,
             decode_responses=True,
             max_connections=20,
         )

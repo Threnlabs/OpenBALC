@@ -148,3 +148,11 @@ vite.config.ts.timestamp-*
 /scratch
 
 .env.local
+
+
+venv
+.venv
+
+__pycache__/
+*.py[cod]
+*$py.class
