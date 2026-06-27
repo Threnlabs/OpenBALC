@@ -1,0 +1,19 @@
+# services/requirements.txt
+# Python backend dependencies for Redis Cloud services
+# Install with: pip install -r services/requirements.txt
+
+# ── Redis ────────────────────────────────────────────────────────────────────
+redis[hiredis]>=5.0.0          # Redis Cloud TCP client (faster with hiredis)
+
+# ── context-surfaces (agent memory + context retriever) ───────────────────────
+context-surfaces>=0.1.0        # pip install context-surfaces
+httpx>=0.27.0                  # Async HTTP client for agent API calls
+
+# ── LangCache (semantic LLM response cache) ───────────────────────────────────
+google-generativeai>=0.8.0     # Gemini SDK — text-embedding-004 for vectors
+
+# ── Supabase (sync script) ───────────────────────────────────────────────────
+supabase>=2.0.0                # Supabase Python client
+
+# ── Utilities ────────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0           # Load .env.local in development

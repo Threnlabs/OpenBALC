@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@supabase/supabase-js";
+import { cacheGet, cacheSet, cacheDel, CACHE_KEYS, CACHE_TTL } from "./redis-cache";
 
 // --------------------------------------------------------
 // Supabase Detection & Client Setup
@@ -692,9 +693,15 @@ export function useListConversations(options?: any): any {
       
       const userId = await getDbUserId();
       if (!userId) return [];
+
+      // ── Redis cache read ──────────────────────────────────────────────────
+      const cacheKey = CACHE_KEYS.conversations(userId);
+      const cached = await cacheGet<any[]>(cacheKey);
+      if (cached) return cached;
+      // ─────────────────────────────────────────────────────────────────────
       
       const { data } = await supabase.from("conversations").select("*").eq("user_id", userId).order("updated_at", { ascending: false });
-      return (data || []).map(c => ({
+      const result = (data || []).map(c => ({
         id: c.id,
         title: c.title,
         pinned: c.pinned,
@@ -703,6 +710,12 @@ export function useListConversations(options?: any): any {
         updatedAt: c.updated_at,
         createdAt: c.created_at
       }));
+
+      // ── Redis cache write ─────────────────────────────────────────────────
+      await cacheSet(cacheKey, result, CACHE_TTL.conversations);
+      // ─────────────────────────────────────────────────────────────────────
+
+      return result;
     },
     ...options
   });
@@ -762,6 +775,10 @@ export function useGetMessages(conversationId: number, options?: any): any {
 export function useCreateConversation(options?: any): any {
   return useMutation({
     mutationFn: async ({ data }: { data: { title: string; taggedModuleIds?: number[] } }) => {
+      // Bust conversation cache on create
+      const userId = hasSupabase ? await getDbUserId() : null;
+      if (userId) await cacheDel(CACHE_KEYS.conversations(userId));
+
       if (!hasSupabase) {
         const convs = getStorageItem("openbalc_conversations", DEFAULT_CONVERSATIONS);
         const newId = convs.length > 0 ? Math.max(...convs.map(c => c.id)) + 1 : 1;
@@ -794,11 +811,11 @@ export function useCreateConversation(options?: any): any {
         return newConv;
       }
       
-      const userId = await getDbUserId();
-      if (!userId) throw new Error("Not authenticated");
+      const activeUserId = userId || await getDbUserId();
+      if (!activeUserId) throw new Error("Not authenticated");
       
       const { data: conv, error } = await supabase.from("conversations").insert({
-        user_id: userId,
+        user_id: activeUserId,
         title: data.title || "New conversation",
         pinned: false,
         last_message: "",
@@ -843,7 +860,9 @@ export function useDeleteConversation(options?: any): any {
         setStorageItem("openbalc_messages", msgs);
         return { success: true };
       }
-      
+
+      const userId = await getDbUserId();
+      await cacheDel(CACHE_KEYS.conversations(userId ?? 0));
       await supabase.from("conversations").delete().eq("id", id);
       return { success: true };
     },
@@ -1244,9 +1263,15 @@ export function useListModules(params?: any, options?: any): any {
       
       const userId = await getDbUserId();
       if (!userId) return [];
+
+      // ── Redis cache read ──────────────────────────────────────────────────
+      const cacheKey = CACHE_KEYS.myModules(userId);
+      const cached = await cacheGet<any[]>(cacheKey);
+      if (cached) return cached;
+      // ─────────────────────────────────────────────────────────────────────
       
       const { data } = await supabase.from("modules").select("*").eq("user_id", userId).order("updated_at", { ascending: false });
-      return (data || []).map(m => ({
+      const result = (data || []).map(m => ({
         id: m.id,
         title: m.title,
         description: m.description,
@@ -1265,6 +1290,12 @@ export function useListModules(params?: any, options?: any): any {
         createdAt: m.created_at,
         updatedAt: m.updated_at
       }));
+
+      // ── Redis cache write ─────────────────────────────────────────────────
+      await cacheSet(cacheKey, result, CACHE_TTL.myModules);
+      // ─────────────────────────────────────────────────────────────────────
+
+      return result;
     },
     ...options
   });
@@ -1290,6 +1321,15 @@ export function useListPublicModules(params?: any, options?: any): any {
         }
         return filtered;
       }
+
+      // ── Redis cache read (skip if search query present — results are dynamic) ─
+      const sort = params?.sort || "newest";
+      const cacheKey = CACHE_KEYS.publicModules(sort);
+      if (!params?.search) {
+        const cached = await cacheGet<any[]>(cacheKey);
+        if (cached) return cached;
+      }
+      // ─────────────────────────────────────────────────────────────────────
       
       let queryBuilder = supabase.from("modules").select("*").eq("visibility", "public");
       if (params?.search) {
@@ -1304,7 +1344,7 @@ export function useListPublicModules(params?: any, options?: any): any {
       }
       
       const { data } = await queryBuilder;
-      return (data || []).map(m => ({
+      const result = (data || []).map(m => ({
         id: m.id,
         title: m.title,
         description: m.description,
@@ -1323,6 +1363,14 @@ export function useListPublicModules(params?: any, options?: any): any {
         createdAt: m.created_at,
         updatedAt: m.updated_at
       }));
+
+      // ── Redis cache write (only for non-search results) ───────────────────
+      if (!params?.search) {
+        await cacheSet(cacheKey, result, CACHE_TTL.publicModules);
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
+      return result;
     },
     ...options
   });
@@ -1368,6 +1416,11 @@ export function useGetModule(id: number, options?: any): any {
 export function useCreateModule(options?: any): any {
   return useMutation({
     mutationFn: async ({ data }: { data: any }) => {
+      // Bust module caches on create
+      if (hasSupabase) {
+        const userId = await getDbUserId();
+        if (userId) await cacheDel(CACHE_KEYS.myModules(userId), CACHE_KEYS.publicModules());
+      }
       if (!hasSupabase) {
         const mods = getStorageItem("openbalc_modules", DEFAULT_MODULES);
         const newId = mods.length > 0 ? Math.max(...mods.map(m => m.id)) + 1 : 1;
@@ -1492,7 +1545,15 @@ export function useDeleteModule(options?: any): any {
         setStorageItem("openbalc_modules", filtered);
         return { success: true };
       }
-      
+
+      // Bust module + content + sources caches
+      const userId = await getDbUserId();
+      await cacheDel(
+        CACHE_KEYS.myModules(userId ?? 0),
+        CACHE_KEYS.publicModules(),
+        CACHE_KEYS.moduleContent(id),
+        CACHE_KEYS.moduleSources(id)
+      );
       await supabase.from("modules").delete().eq("id", id);
       return { success: true };
     },
@@ -1503,6 +1564,11 @@ export function useDeleteModule(options?: any): any {
 export function usePublishModule(options?: any): any {
   return useMutation({
     mutationFn: async ({ id, data }: { id: number, data?: { fields?: string[], domains?: string[], tags?: string[] } }) => {
+      // Bust public module cache when visibility changes
+      if (hasSupabase) {
+        const userId = await getDbUserId();
+        await cacheDel(CACHE_KEYS.myModules(userId ?? 0), CACHE_KEYS.publicModules());
+      }
       if (!hasSupabase) {
         const mods = getStorageItem("openbalc_modules", DEFAULT_MODULES);
         const idx = mods.findIndex(m => m.id === id);
@@ -1595,9 +1661,15 @@ export function useGetModuleSources(id: number, options?: any): any {
         const srcs = getStorageItem<Record<string, any[]>>("openbalc_module_sources", DEFAULT_SOURCES);
         return srcs[String(id)] || [];
       }
+
+      // ── Redis cache read ──────────────────────────────────────────────────
+      const cacheKey = CACHE_KEYS.moduleSources(id);
+      const cached = await cacheGet<any[]>(cacheKey);
+      if (cached) return cached;
+      // ─────────────────────────────────────────────────────────────────────
       
       const { data } = await supabase.from("module_sources").select("*").eq("module_id", id);
-      return (data || []).map(s => ({
+      const result = (data || []).map(s => ({
         id: s.id,
         moduleId: s.module_id,
         type: s.type,
@@ -1606,6 +1678,12 @@ export function useGetModuleSources(id: number, options?: any): any {
         processed: s.processed,
         createdAt: s.created_at
       }));
+
+      // ── Redis cache write ─────────────────────────────────────────────────
+      await cacheSet(cacheKey, result, CACHE_TTL.moduleSources);
+      // ─────────────────────────────────────────────────────────────────────
+
+      return result;
     },
     ...options
   });
@@ -1619,9 +1697,15 @@ export function useGetModuleContent(id: number, options?: any): any {
         const content = getStorageItem<Record<string, any[]>>("openbalc_module_content", DEFAULT_CONTENT);
         return content[String(id)] || [];
       }
+
+      // ── Redis cache read ──────────────────────────────────────────────────
+      const cacheKey = CACHE_KEYS.moduleContent(id);
+      const cached = await cacheGet<any[]>(cacheKey);
+      if (cached) return cached;
+      // ─────────────────────────────────────────────────────────────────────
       
       const { data } = await supabase.from("module_content").select("*").eq("module_id", id);
-      return (data || []).map(c => ({
+      const result = (data || []).map(c => ({
         id: c.id,
         moduleId: c.module_id,
         chapter: c.chapter,
@@ -1629,6 +1713,12 @@ export function useGetModuleContent(id: number, options?: any): any {
         content: c.content,
         createdAt: c.created_at
       }));
+
+      // ── Redis cache write ─────────────────────────────────────────────────
+      await cacheSet(cacheKey, result, CACHE_TTL.moduleContent);
+      // ─────────────────────────────────────────────────────────────────────
+
+      return result;
     },
     ...options
   });
@@ -1725,57 +1815,65 @@ export function useAddModuleSource(options?: any): any {
 
       if (error) throw error;
 
-      // ── Fire ingestion pipeline (non-blocking) ─────────────────────────────
-      // Dynamic import so the ingestion module is only loaded when needed.
-      const geminiApiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY as string | undefined;
-      const llamaCloudApiKey = (import.meta as any).env?.VITE_LLAMA_CLOUD_API_KEY as string | undefined;
+      // ── Fire ingestion pipeline on backend ─────────────────────────────────
+      let storagePath: string | null = null;
+      let extractedContent = data.content || "";
 
-      if (geminiApiKey) {
-        import("./ingestion")
-          .then(({ ingestSource }) =>
-            ingestSource(
-              {
-                id: newSrc.id,
-                moduleId: id,
-                type: data.type,
-                name: data.name,
-                content: data.content,
-                url: data.url,
-                file: data.file, // File object from AddSourceModal
-              },
-              geminiApiKey,
-              llamaCloudApiKey
-            )
-          )
-          .then(() => {
-            // Refresh sources list once ingestion completes
-            qc?.invalidateQueries({ queryKey: getGetModuleSourcesQueryKey(id) });
-            qc?.invalidateQueries({ queryKey: ["getModule", id] });
-          })
-          .catch((err: unknown) => {
-            console.error("[useAddModuleSource] Ingestion pipeline error:", err);
+      if (data.type === "pdf" && data.file) {
+        const fileExt = data.file.name.split(".").pop()?.toLowerCase() || "pdf";
+        storagePath = `modules/${id}/sources/${newSrc.id}.${fileExt}`;
+        
+        // Upload PDF to Supabase Storage bucket so the backend can access it
+        const { error: uploadError } = await supabase.storage
+          .from("module-assets")
+          .upload(storagePath, data.file, {
+            contentType: data.file.type || "application/pdf",
+            upsert: true,
           });
-      } else {
-        // No Gemini key — mark as done with placeholder content
-        await supabase.from("module_sources")
-          .update({ processed: true, ingestion_status: "done" })
-          .eq("id", newSrc.id);
+        if (uploadError) {
+          console.error("[useAddModuleSource] PDF upload error:", uploadError);
+        } else {
+          // Update source record with the storage key
+          await supabase.from("module_sources")
+            .update({ storage_key: storagePath })
+            .eq("id", newSrc.id);
+        }
 
-        await supabase.from("module_content").insert({
-          module_id: id,
-          chapter: `Chapter Outline`,
-          topic: `Summary of ${data.name}`,
-          content: `This chapter covers content ingested from the source "${data.name}". Set VITE_GEMINI_API_KEY to enable automatic AI content extraction and embedding.`,
-        });
-
-        const { data: mod } = await supabase.from("modules").select("source_count, chapter_count").eq("id", id).single();
-        await supabase.from("modules").update({
-          source_count: (mod?.source_count || 0) + 1,
-          chapter_count: (mod?.chapter_count || 0) + 1,
-          status: "active",
-          processing_pct: 100
-        }).eq("id", id);
+        // Extract text client-side using browser pdfjs
+        try {
+          const { extractPdfText } = await import("./ingestion");
+          extractedContent = await extractPdfText(data.file);
+        } catch (err) {
+          console.error("[useAddModuleSource] Client PDF text extraction failed:", err);
+        }
       }
+
+      // Call the backend API endpoint to run the pipeline securely
+      fetch("/api/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceId: newSrc.id,
+          moduleId: id,
+          type: data.type,
+          name: data.name,
+          content: extractedContent || undefined,
+          url: data.url || undefined,
+          storagePath: storagePath || undefined,
+        })
+      })
+      .then(res => res.json())
+      .then((resJson) => {
+        if (resJson.error) {
+          console.warn("[useAddModuleSource] Backend ingestion notice:", resJson.error);
+        }
+        // Refresh sources list
+        qc?.invalidateQueries({ queryKey: getGetModuleSourcesQueryKey(id) });
+        qc?.invalidateQueries({ queryKey: ["getModule", id] });
+      })
+      .catch((err) => {
+        console.error("[useAddModuleSource] Ingestion trigger failed:", err);
+      });
 
       // ── Deduct credits ─────────────────────────────────────────────────────
       const { data: user } = await supabase.from("users").select("credits").eq("id", userId).single();

@@ -70,8 +70,8 @@ const GEMINI_BASE_URL =
 // ─── Supabase client (mirrors src/lib/supabase.ts) ────────────────────────────
 
 function getSupabase() {
-  const url = import.meta.env.VITE_SUPABASE_URL as string;
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+  const url = (typeof process !== "undefined" ? process.env.VITE_SUPABASE_URL : null) || (import.meta as any).env?.VITE_SUPABASE_URL as string;
+  const key = (typeof process !== "undefined" ? process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY : null) || (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string;
   if (!url || !key) throw new Error("Supabase env vars missing");
   return createClient(url, key);
 }
@@ -288,7 +288,7 @@ async function extractPdfWithLlamaParse(
 
 
 /** Extract readable text from a PDF File using pdf.js via CDN */
-async function extractPdfText(file: File): Promise<string> {
+export async function extractPdfText(file: File): Promise<string> {
   // Dynamically import pdf.js from CDN to keep bundle lean
   // @ts-ignore — dynamic CDN import
   const pdfjs = await import(
