@@ -80,7 +80,7 @@ class UserLearningProfile(ContextModel):
     )
     recent_topics: list[str] = ContextField(
         description="Most recently studied topics (rolling window)",
-        index="text",
+        index="tag",
         default=[]
     )
     preferred_style: str = ContextField(
