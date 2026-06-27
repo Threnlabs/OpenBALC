@@ -76,7 +76,7 @@ function Router() {
       <Route path="/app/artifacts" component={() => <ProtectedRoute component={ArtifactsPage} />} />
       <Route path="/app/profile" component={() => <ProtectedRoute component={ProfilePage} />} />
       <Route path="/app/org" component={() => <ProtectedRoute component={OrgPage} />} />
-      <Route path="/app/admin" component={() => <ProtectedRoute component={AdminPage} />} />
+      <Route path="/admin" component={AdminPage} />
 
       <Route component={NotFound} />
     </Switch>

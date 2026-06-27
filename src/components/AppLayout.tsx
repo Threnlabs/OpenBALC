@@ -217,7 +217,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <NavItem key={item.href} {...item} collapsed={collapsed} />
             ))}
             {user?.role === "admin" && (
-              <NavItem href="/app/admin" label="Admin Portal" icon={Shield} collapsed={collapsed} />
+              <NavItem href="/admin" label="Admin Portal" icon={Shield} collapsed={collapsed} />
             )}
           </nav>
 
@@ -366,7 +366,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <Link href="/app/admin" className="cursor-pointer flex items-center text-indigo-400 focus:text-indigo-300">
+                      <Link href="/admin" className="cursor-pointer flex items-center text-indigo-400 focus:text-indigo-300">
                         <Shield className="h-4 w-4 mr-2" />
                         <span>Admin Portal</span>
                       </Link>
