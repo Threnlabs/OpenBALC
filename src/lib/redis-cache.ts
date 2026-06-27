@@ -136,3 +136,83 @@ export const CACHE_TTL = {
   /** Tests */
   tests:          5 * 60,    // 5 minutes
 } as const;
+
+export interface CacheTelemetry {
+  configured: boolean;
+  info: string | null;
+  dbSize: number | null;
+  keys: string[] | null;
+  error?: string;
+}
+
+export async function getCacheTelemetry(): Promise<CacheTelemetry> {
+  try {
+    const res = await fetch("/api/cache", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ command: ["INFO"] }),
+    });
+    if (!res.ok) {
+      return { configured: false, info: null, dbSize: null, keys: null, error: `Proxy returned HTTP ${res.status}` };
+    }
+    const json = await res.json();
+    if (json.error) {
+      return { configured: false, info: null, dbSize: null, keys: null, error: json.error };
+    }
+    
+    const info = json.result as string | null;
+    
+    // Also fetch DBSIZE
+    const dbSizeRes = await fetch("/api/cache", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command: ["DBSIZE"] }),
+    });
+    let dbSize: number | null = null;
+    if (dbSizeRes.ok) {
+      const dbSizeJson = await dbSizeRes.json();
+      dbSize = typeof dbSizeJson.result === "number" ? dbSizeJson.result : null;
+    }
+
+    // Also fetch keys matching our prefix
+    const keysRes = await fetch("/api/cache", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command: ["KEYS", "openbalc:*"] }),
+    });
+    let keys: string[] | null = null;
+    if (keysRes.ok) {
+      const keysJson = await keysRes.json();
+      keys = Array.isArray(keysJson.result) ? keysJson.result : null;
+    }
+
+    return {
+      configured: true,
+      info,
+      dbSize,
+      keys
+    };
+  } catch (err: any) {
+    return { configured: false, info: null, dbSize: null, keys: null, error: err.message };
+  }
+}
+
+export async function flushCache(): Promise<boolean> {
+  try {
+    const res = await fetch("/api/cache", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ command: ["FLUSHDB"] }),
+    });
+    if (!res.ok) return false;
+    const json = await res.json();
+    return json.result === "OK" || json.result === true;
+  } catch {
+    return false;
+  }
+}
+

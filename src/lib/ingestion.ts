@@ -291,9 +291,7 @@ async function extractPdfWithLlamaParse(
 export async function extractPdfText(file: File): Promise<string> {
   // Dynamically import pdf.js from CDN to keep bundle lean
   // @ts-ignore — dynamic CDN import
-  const pdfjs = await import(
-    /* @vite-ignore */ "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs"
-  );
+  const pdfjs = await import(/* @vite-ignore */ "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs");
 
   // Use CDN worker
   pdfjs.GlobalWorkerOptions.workerSrc =

@@ -1095,8 +1095,7 @@ export function useSendMessage(options?: any): any {
           const newArtId = artList.length > 0 ? Math.max(...artList.map((a: any) => typeof a.id === "number" ? a.id : 0)) + 1 : 1;
           artList.unshift({
             id: newArtId,
-            moduleId: null,
-            workspaceId: null,
+            moduleId: undefined,
             conversationId: id,
             title: artifactData.title,
             type: artifactData.type,
@@ -1104,7 +1103,7 @@ export function useSendMessage(options?: any): any {
             version: 1,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
-          });
+          } as any);
           setStorageItem("openbalc_artifacts", artList);
         }
 

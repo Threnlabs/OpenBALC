@@ -27,8 +27,10 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell
 } from "recharts";
 import { cn } from "@/lib/utils";
+import { getCacheTelemetry, flushCache, cacheDel } from "@/lib/redis-cache";
+import type { CacheTelemetry } from "@/lib/redis-cache";
 
-type TabType = "overview" | "gateway" | "logs" | "services" | "users" | "modules";
+type TabType = "overview" | "gateway" | "logs" | "services" | "users" | "modules" | "cache";
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
@@ -39,11 +41,80 @@ export default function AdminPage() {
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [triggeringSourceId, setTriggeringSourceId] = useState<number | null>(null);
   const [searchModuleQuery, setSearchModuleQuery] = useState("");
-  
-  // Simulated gateway error state
-  const [simulateError, setSimulateError] = useState(() => {
-    return localStorage.getItem("openbalc_simulate_error") === "true";
-  });
+  const [cacheData, setCacheData] = useState<CacheTelemetry | null>(null);
+  const [cacheLoading, setCacheLoading] = useState(false);
+  const [flushingCache, setFlushingCache] = useState(false);
+  const [searchKeyQuery, setSearchKeyQuery] = useState("");
+
+  const fetchCacheTelemetry = async () => {
+    setCacheLoading(true);
+    const data = await getCacheTelemetry();
+    setCacheData(data);
+    setCacheLoading(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === "cache") {
+      fetchCacheTelemetry();
+    }
+  }, [activeTab]);
+
+  const handleFlushCache = async () => {
+    if (!confirm("Are you sure you want to completely flush the cache? This will clear all cached session profiles, module list caches, and chapter metadata.")) return;
+    setFlushingCache(true);
+    const success = await flushCache();
+    setFlushingCache(false);
+    if (success) {
+      toast.success("Cache cleared successfully!");
+      fetchCacheTelemetry();
+    } else {
+      toast.error("Failed to clear cache.");
+    }
+  };
+
+  const handleDeleteKey = async (key: string) => {
+    await cacheDel(key);
+    toast.success(`Deleted key: ${key}`);
+    fetchCacheTelemetry();
+  };
+
+  const getRedisInfoValue = (infoStr: string | null, keyName: string): string => {
+    if (!infoStr) return "";
+    const lines = infoStr.split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith(`${keyName}:`)) {
+        return trimmed.split(":")[1].trim();
+      }
+    }
+    return "";
+  };
+
+  const parseRedisInfo = (infoStr: string | null) => {
+    if (!infoStr) return [];
+    const sections: { title: string; items: { key: string; value: string }[] }[] = [];
+    let currentSection: { title: string; items: { key: string; value: string }[] } | null = null;
+    
+    infoStr.split("\n").forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      
+      if (trimmed.startsWith("#")) {
+        const title = trimmed.replace("#", "").trim();
+        currentSection = { title, items: [] };
+        sections.push(currentSection);
+      } else if (currentSection && !trimmed.startsWith("#")) {
+        const parts = trimmed.split(":");
+        if (parts.length >= 2) {
+          const key = parts[0].trim();
+          const value = parts.slice(1).join(":").trim();
+          currentSection.items.push({ key, value });
+        }
+      }
+    });
+    
+    return sections;
+  };
 
   const queryClient = useQueryClient();
   
@@ -59,106 +130,7 @@ export default function AdminPage() {
   const clearLogs = useClearAILogs();
   const updateUserCredits = useUpdateUserCredits();
 
-  // Handle gateway error simulation toggle
-  const toggleSimulateError = () => {
-    const nextState = !simulateError;
-    setSimulateError(nextState);
-    localStorage.setItem("openbalc_simulate_error", String(nextState));
-    if (nextState) {
-      toast.warning("AI Model Gateway error simulation enabled! All primary model calls will fail.");
-    } else {
-      toast.success("AI Model Gateway error simulation disabled. Gateway returned to normal operation.");
-    }
-  };
 
-  // Add a sample simulated AI gateway call for testing
-  const handleSimulateCall = () => {
-    const currentLogs = [...logs];
-    const nextId = currentLogs.length > 0 ? Math.max(...currentLogs.map((l: any) => l.id)) : 1;
-    const servicesList = ["Chat Assistant", "Module Creator & Embedding Ingestion", "Quiz / Test Generator"];
-    const mockPrompts = [
-      "Can you explain vector embeddings in the context of RAG?",
-      "Ingest and generate chapters for document: Advanced Algorithms.pdf",
-      "Generate a practice test about basic JavaScript asynchronous loops.",
-      "Summarize the main learnings of the user profile: CS major interested in ML."
-    ];
-    const status = Math.random() > 0.85 ? "error" : "success";
-    const selectedService = servicesList[Math.floor(Math.random() * servicesList.length)];
-    const activeModel = models.find((m: any) => m.status === "active") || models[0];
-    
-    let modelUsed = activeModel;
-    let fallbackTriggered = false;
-    let failedLogEntry: any = null;
-
-    if (simulateError) {
-      const fallback = models.find((m: any) => m.status === "fallback");
-      if (fallback) {
-        fallbackTriggered = true;
-        failedLogEntry = {
-          id: nextId + 1,
-          timestamp: new Date().toISOString(),
-          service: selectedService,
-          modelId: activeModel.id,
-          prompt: mockPrompts[Math.floor(Math.random() * mockPrompts.length)],
-          response: "Gateway Failure",
-          status: "error",
-          errorDetails: `GatewayTimeout: Primary model ${activeModel.name} failed to respond. Initiating automatic fallback.`,
-          latency: 1200,
-          tokensUsed: 0,
-          cost: 0
-        };
-        modelUsed = fallback;
-      } else {
-        // No fallback, fail completely
-        const finalLog = {
-          id: nextId + 1,
-          timestamp: new Date().toISOString(),
-          service: selectedService,
-          modelId: activeModel.id,
-          prompt: mockPrompts[Math.floor(Math.random() * mockPrompts.length)],
-          response: "Gateway Failure",
-          status: "error",
-          errorDetails: `GatewayTimeout: Primary model ${activeModel.name} failed and no fallback model is configured.`,
-          latency: 1200,
-          tokensUsed: 0,
-          cost: 0
-        };
-        currentLogs.unshift(finalLog);
-        localStorage.setItem("openbalc_ai_logs", JSON.stringify(currentLogs));
-        queryClient.invalidateQueries({ queryKey: ["getAILogs"] });
-        queryClient.invalidateQueries({ queryKey: ["getAdminStats"] });
-        toast.error(`Simulated Call Failed: ${activeModel.name} failed and no fallback is active.`);
-        return;
-      }
-    }
-
-    const finalLog = {
-      id: nextId + (fallbackTriggered ? 2 : 1),
-      timestamp: new Date().toISOString(),
-      service: selectedService,
-      modelId: modelUsed.id,
-      prompt: mockPrompts[Math.floor(Math.random() * mockPrompts.length)],
-      response: `[Simulated Response] Here is a structured summary explaining the concepts based on the active model configurations.`,
-      status: "success",
-      latency: Math.round(modelUsed.latencyAvg + Math.floor(Math.random() * 100) - 50),
-      tokensUsed: Math.floor(Math.random() * 1000) + 300,
-      cost: modelUsed.costPerRequest
-    };
-
-    if (failedLogEntry) {
-      currentLogs.unshift(failedLogEntry);
-    }
-    currentLogs.unshift(finalLog);
-    localStorage.setItem("openbalc_ai_logs", JSON.stringify(currentLogs));
-    queryClient.invalidateQueries({ queryKey: ["getAILogs"] });
-    queryClient.invalidateQueries({ queryKey: ["getAdminStats"] });
-    
-    if (fallbackTriggered) {
-      toast.warning(`Simulated call triggered primary error, successfully fell back to ${modelUsed.name}!`);
-    } else {
-      toast.success(`Simulated call completed successfully using ${modelUsed.name}!`);
-    }
-  };
 
   const handleClearLogs = () => {
     if (confirm("Are you sure you want to clear all gateway logs? This will reset your analytics dashboard.")) {
@@ -360,7 +332,8 @@ export default function AdminPage() {
                 { id: "logs", label: "Gateway Audit Logs", icon: Terminal },
                 { id: "services", label: "Service Routing", icon: Sliders },
                 { id: "users", label: "User Accounts", icon: Users },
-                { id: "modules", label: "Modules Ingestion", icon: BookOpen }
+                { id: "modules", label: "Modules Ingestion", icon: BookOpen },
+                { id: "cache", label: "Cache Telemetry", icon: Database }
               ].map(tab => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -383,30 +356,7 @@ export default function AdminPage() {
             </nav>
           </div>
 
-          {/* Quick simulation controls */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3.5 space-y-3">
-            <div className="flex items-center justify-between text-[10px] font-bold text-slate-400">
-              <span>Simulated Outage</span>
-              <span className={simulateError ? "text-red-400" : "text-emerald-400"}>
-                {simulateError ? "Active" : "Off"}
-              </span>
-            </div>
-            <Button
-              variant={simulateError ? "destructive" : "outline"}
-              onClick={toggleSimulateError}
-              className="w-full text-[10px] font-bold py-1.5 h-8 gap-1.5 border-slate-700 text-slate-200 hover:bg-slate-800"
-            >
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              {simulateError ? "Disable Outage" : "Simulate Outage"}
-            </Button>
-            <Button
-              onClick={handleSimulateCall}
-              className="w-full text-[10px] font-bold py-1.5 h-8 gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border-0"
-            >
-              <Play className="h-3 w-3 shrink-0" />
-              Simulate AI Call
-            </Button>
-          </div>
+
         </aside>
 
         {/* Content Area */}
@@ -556,7 +506,7 @@ export default function AdminPage() {
                     <div>
                       <h4 className="font-bold text-slate-200 mb-1">Actual Server Operations & Logs</h4>
                       <p>
-                        Unlike mock/simulation dashboards, this Developer Console directly hooks into Supabase PostgreSQL backend datasets. 
+                        This Developer Console directly hooks into Supabase PostgreSQL backend datasets. 
                         Gateway statistics are aggregated from the actual <strong>messages</strong> and <strong>credit_transactions</strong> tables generated by users. 
                         Telemetry logs represent actual student chats, document parses, and system vectorizations.
                       </p>
@@ -1206,6 +1156,182 @@ export default function AdminPage() {
                     ))
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* 7. Cache Telemetry Tab */}
+            {activeTab === "cache" && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="border-b border-slate-800 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold tracking-tight">Cache Telemetry (Upstash / Redis)</h2>
+                    <p className="text-xs text-slate-400 mt-1">Monitor cache keys, used memory, client statistics, and connection info from Upstash/Redis console.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={fetchCacheTelemetry}
+                      disabled={cacheLoading}
+                      className="h-8 text-xs border-slate-800 hover:bg-slate-800 text-slate-300 gap-1.5"
+                    >
+                      <RefreshCw className={cn("h-3.5 w-3.5", cacheLoading && "animate-spin")} />
+                      Refresh
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleFlushCache}
+                      disabled={flushingCache || !cacheData?.configured}
+                      className="h-8 text-xs gap-1.5 font-bold"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Flush Cache
+                    </Button>
+                  </div>
+                </div>
+
+                {!cacheData ? (
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center text-slate-400">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-indigo-500 mb-3" />
+                    <p className="text-xs font-semibold">Connecting to cache database proxy...</p>
+                  </div>
+                ) : !cacheData.configured ? (
+                  <div className="bg-red-950/20 border border-red-900/30 rounded-xl p-6 space-y-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="font-bold text-red-400 text-sm">Redis Connection Offline</h4>
+                        <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                          The Upstash Redis cache layer is not configured or offline. Set <code className="bg-slate-950 text-rose-400 px-1 py-0.5 rounded font-mono">UPSTASH_REDIS_REST_URL</code> and <code className="bg-slate-950 text-rose-400 px-1 py-0.5 rounded font-mono">UPSTASH_REDIS_REST_TOKEN</code> in your environment variables to enable browser-safe REST caching.
+                        </p>
+                        {cacheData.error && (
+                          <div className="mt-3 bg-slate-950/80 p-3 rounded-lg border border-red-900/20 font-mono text-[10px] text-red-300">
+                            Error details: {cacheData.error}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* KPI Cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Status</span>
+                          <div className="p-2 bg-emerald-500/10 rounded-lg"><Check className="h-4 w-4 text-emerald-400" /></div>
+                        </div>
+                        <div className="text-2xl font-bold text-emerald-400">Connected</div>
+                        <div className="text-[10px] text-slate-500 mt-1">Upstash REST proxy active</div>
+                      </div>
+
+                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Keys Tracked</span>
+                          <div className="p-2 bg-indigo-500/10 rounded-lg"><Database className="h-4 w-4 text-indigo-400" /></div>
+                        </div>
+                        <div className="text-2xl font-bold">{cacheData.dbSize ?? 0}</div>
+                        <div className="text-[10px] text-slate-500 mt-1">Total database keys</div>
+                      </div>
+
+                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Memory Used</span>
+                          <div className="p-2 bg-violet-500/10 rounded-lg"><Sliders className="h-4 w-4 text-violet-400" /></div>
+                        </div>
+                        <div className="text-2xl font-bold">{getRedisInfoValue(cacheData.info, "used_memory_human") || "N/A"}</div>
+                        <div className="text-[10px] text-slate-500 mt-1">Used memory allocation</div>
+                      </div>
+
+                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Connected Clients</span>
+                          <div className="p-2 bg-amber-500/10 rounded-lg"><Users className="h-4 w-4 text-amber-400" /></div>
+                        </div>
+                        <div className="text-2xl font-bold">{getRedisInfoValue(cacheData.info, "connected_clients") || "0"}</div>
+                        <div className="text-[10px] text-slate-500 mt-1">Active database client links</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      {/* Left: Key Inspector */}
+                      <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm flex flex-col min-h-[400px]">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-4 mb-4">
+                          <div>
+                            <h3 className="font-bold text-xs uppercase tracking-wider">Cache Key Registry</h3>
+                            <p className="text-[11px] text-slate-550 mt-0.5">Explore active keys namespaces under <code className="text-indigo-400">openbalc:*</code></p>
+                          </div>
+                          
+                          <div className="relative w-full md:w-56">
+                            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-500" />
+                            <input
+                              type="text"
+                              value={searchKeyQuery}
+                              onChange={(e) => setSearchKeyQuery(e.target.value)}
+                              placeholder="Search keys..."
+                              className="w-full pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto max-h-[450px] pr-1 space-y-2">
+                          {(!cacheData.keys || cacheData.keys.length === 0) ? (
+                            <div className="text-center py-20 text-slate-500 text-xs italic">
+                              No active cache keys found in Redis.
+                            </div>
+                          ) : (
+                            cacheData.keys
+                              .filter(k => k.toLowerCase().includes(searchKeyQuery.toLowerCase()))
+                              .map(key => (
+                                <div key={key} className="flex items-center justify-between p-3 bg-slate-950 border border-slate-850 rounded-lg hover:border-slate-800 transition-colors">
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-mono text-indigo-300 truncate" title={key}>{key}</p>
+                                    <div className="flex items-center gap-2 text-[9px] text-slate-500 mt-0.5">
+                                      <span className="bg-slate-800/80 px-1 py-0.2 rounded uppercase">Namespace: {key.split(":")[1] || "Default"}</span>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteKey(key)}
+                                    className="h-8 w-8 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border-0"
+                                    title="Delete key"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right: Info Inspector */}
+                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm flex flex-col">
+                        <div className="border-b border-slate-800 pb-4 mb-4">
+                          <h3 className="font-bold text-xs uppercase tracking-wider">Redis Database Info</h3>
+                          <p className="text-[11px] text-slate-550 mt-0.5">Version & performance stats returned from the database server.</p>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto max-h-[450px] pr-1 space-y-4 text-xs font-mono">
+                          {parseRedisInfo(cacheData.info).map((section) => (
+                            <div key={section.title} className="space-y-2">
+                              <h4 className="font-extrabold text-[10px] text-indigo-400 border-b border-slate-850 pb-1 uppercase tracking-wider">{section.title}</h4>
+                              <div className="space-y-1.5 pl-1">
+                                {section.items.map((item) => (
+                                  <div key={item.key} className="flex justify-between items-center text-[10px]">
+                                    <span className="text-slate-500 truncate mr-2" title={item.key}>{item.key}</span>
+                                    <span className="text-slate-300 font-semibold truncate max-w-[150px]" title={item.value}>{item.value}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
