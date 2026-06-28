@@ -1,22 +1,169 @@
 import { Link } from "wouter";
 import { useState, useEffect } from "react";
-import { Check, Zap, Send, Bot, User, Loader2, MessageSquare, ArrowRight, BookOpen, Sparkles, Clock, Globe, Sun, Moon, Star } from "lucide-react";
+import { Check, Zap, Send, Bot, User, Loader2, MessageSquare, ArrowRight, BookOpen, Sparkles, Clock, Globe, Sun, Moon, Star, Building2, GraduationCap, Users, ShieldCheck } from "lucide-react";
 import { cn, getModuleColor } from "@/lib/utils";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { useTheme } from "@/hooks/use-theme";
 import { useListPublicModules } from "@/lib/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FloatingDock } from "@/components/ui/floating-dock";
+import {
+  IconBrandGithub,
+  IconBrandX,
+  IconBrandLinkedin,
+  IconBrandFacebook,
+  IconBrandInstagram,
+} from "@tabler/icons-react";
+
+const featuresData = {
+  individual: [
+    {
+      title: "Auto-Chaptering",
+      desc: "Say goodbye to document fatigue. Ingest PDFs, textbook chapters, or web pages, and let our AI parse layouts, figures, and tables to organize them into neat, readable chapters.",
+      icon: BookOpen,
+    },
+    {
+      title: "Active Recall Quizzes",
+      desc: "Test your memory, not your patience. Auto-generate custom multiple-choice and short-answer practice tests tailored specifically to your uploaded materials to lock in details.",
+      icon: Sparkles,
+    },
+    {
+      title: "Cited AI Conversations",
+      desc: "Conversation grounded in truth. Chat with your course library and get answers with clear annotations and highlighted links back to the original source, eliminating hallucinations.",
+      icon: MessageSquare,
+    },
+    {
+      title: "Interactive Mind Mapping",
+      desc: "See the big picture. Auto-generate Reingold-Tilford mindmaps to visualize chapter structures, formulas, and conceptual connections between complex topics visually.",
+      icon: Globe,
+    },
+    {
+      title: "Community Library",
+      desc: "Discover, share, and star open-source study modules created by students, professionals, and researchers worldwide.",
+      icon: Users,
+    },
+    {
+      title: "Personal Study Assistant",
+      desc: "A conversational tutor ready to clarify tough terms, re-explain complex mathematical formulas, and summarize long chapters.",
+      icon: Bot,
+    },
+    {
+      title: "Fair Credit Economy",
+      desc: "Process data for free. Earn credits by contributing helpful modules to the library, or watch subtle sponsored blocks in the learning buffer.",
+      icon: Zap,
+    },
+    {
+      title: "Sleek Dark Interface",
+      desc: "Minimalist glassmorphism design optimized for long study sessions. Comfortable on the eyes, keeping you focused on what matters.",
+      icon: Sun,
+    },
+  ],
+  educator: [
+    {
+      title: "Curriculum Workspaces",
+      desc: "Create dedicated, secure workspaces for separate departments, classes, or semesters to distribute resources in an organized hierarchy.",
+      icon: Users,
+    },
+    {
+      title: "Approved Source Lock",
+      desc: "Ensure academic integrity. Restrict your course AI assistant to answer questions using strictly your uploaded textbooks, papers, and lecture slides.",
+      icon: ShieldCheck,
+    },
+    {
+      title: "Structured Reading Lists",
+      desc: "Push pre-chaptered study modules directly to your student workspace, ensuring they access the exact reading material instantly.",
+      icon: BookOpen,
+    },
+    {
+      title: "Automated Quiz Creators",
+      desc: "Generate chapter-by-chapter quizzes, midterms, or practice exams matching your syllabus topics in seconds, ready for export.",
+      icon: Sparkles,
+    },
+    {
+      title: "Comprehension Analytics",
+      desc: "Understand student struggles. Monitor which chapters receive the most AI search queries or highlight requests to adapt your lectures.",
+      icon: MessageSquare,
+    },
+    {
+      title: "Collaborative Study Rooms",
+      desc: "Encourage active class participation. Let students study shared documents together, annotate content, and take team practice quizzes.",
+      icon: Globe,
+    },
+    {
+      title: "Custom Rubric Grading",
+      desc: "Speed up evaluations. Generate initial feedback drafts for essay questions aligned directly with your custom grading criteria.",
+      icon: Bot,
+    },
+    {
+      title: "Student Privacy Shield",
+      desc: "Strictly compliant database isolation. Student accounts, emails, and activity tracking records are fully secure and decoupled.",
+      icon: User,
+    },
+  ],
+  enterprise: [
+    {
+      title: "Corporate Knowledge Hubs",
+      desc: "Ingest company wikis, Notion files, policy PDFs, and developer API references into a single, unified searchable repository.",
+      icon: Building2,
+    },
+    {
+      title: "Granular Access Controls",
+      desc: "Define role-based security settings. Control which teams, departments, or hires can view or query confidential documents.",
+      icon: ShieldCheck,
+    },
+    {
+      title: "Hallucination-Free RAG",
+      desc: "Rely on truth. Combining dense keyword index and lexical search with neural embeddings ensures search queries yield exact citations.",
+      icon: BookOpen,
+    },
+    {
+      title: "Structured Onboarding",
+      desc: "Build comprehensive training modules for new engineering, sales, or support hires, turning raw wikis into interactive learning portals.",
+      icon: Users,
+    },
+    {
+      title: "Developer APIs & Hooks",
+      desc: "Integrate OpenBALC's ingestion engine and chat assistant directly into your existing internal tools, wikis, or Slack channels.",
+      icon: Bot,
+    },
+    {
+      title: "Self-Hosted Deployments",
+      desc: "Deploy OpenBALC in your own cloud infrastructure (AWS, GCP, Azure) to maintain full physical control of all corporate intellectual property.",
+      icon: Globe,
+    },
+    {
+      title: "Resource Credit Budgets",
+      desc: "Manage computational resources. Set monthly credit usage limits and caps for separate teams, groups, or employee roles.",
+      icon: Zap,
+    },
+    {
+      title: "Full Audit Logs",
+      desc: "Track access and usage. Generate comprehensive reports detailing which documents were accessed, queried, or uploaded across your team.",
+      icon: Clock,
+    },
+  ],
+};
 
 export default function Landing() {
   const { isDark, toggleTheme } = useTheme();
   const [chatInput, setChatInput] = useState("");
+  const [selectedUserType, setSelectedUserType] = useState<"individual" | "educator" | "enterprise">("individual");
   
   const { data: publicModules, isLoading: isLoadingPub } = useListPublicModules({ sort: "most_used" });
   const publicModulesHighlight = Array.isArray(publicModules) ? publicModules.slice(0, 4) : [];
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [hasStartedChat, setHasStartedChat] = useState(false);
+
+  const handleNavClick = (sectionId: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      e.preventDefault();
+      element.scrollIntoView({ behavior: "smooth" });
+      window.history.pushState(null, "", `#${sectionId}`);
+    }
+  };
 
   const [currency, setCurrency] = useState<"USD" | "INR">(() => {
     try {
@@ -150,11 +297,12 @@ export default function Landing() {
             />
           </div>
         </Link>
-        <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
-          <Link href="/#features" className="hover:text-foreground transition-colors">Features</Link>
-          <Link href="/#how-it-works" className="hover:text-foreground transition-colors">How it works</Link>
-          <Link href="/#pricing" className="hover:text-foreground transition-colors">Pricing</Link>
+        <nav className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
           <Link href="/modules" className="hover:text-foreground transition-colors">Modules</Link>
+          <Link href="/#use-cases" onClick={handleNavClick("use-cases")} className="hover:text-foreground transition-colors">Use Cases</Link>
+          <Link href="/#features" onClick={handleNavClick("features")} className="hover:text-foreground transition-colors">Features</Link>
+          <Link href="/#how-it-works" onClick={handleNavClick("how-it-works")} className="hover:text-foreground transition-colors">How it works</Link>
+          <Link href="/#pricing" onClick={handleNavClick("pricing")} className="hover:text-foreground transition-colors">Pricing</Link>
           <Link href="/ads" className="hover:text-foreground transition-colors">Advertisers</Link>
         </nav>
         <div className="flex items-center gap-4">
@@ -410,78 +558,185 @@ export default function Landing() {
           )}
         </section>
 
-        {/* Features Section */}
-        <section id="features" className="max-w-5xl mx-auto px-6 py-24 scroll-mt-16">
+        {/* Audiences / Use Cases Section */}
+        <section id="use-cases" className="max-w-5xl mx-auto px-6 py-24 border-t border-border/50 scroll-mt-16 text-left">
           <div className="text-center mb-16 space-y-4">
-            <h2 className="text-3xl md:text-5xl font-bold tracking-tight">Everything you need to master any subject</h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              OpenBALC combines AI-driven learning tools with customizable organization to supercharge your study flow.
+            <div className="flex justify-center">
+              <Badge className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/15">
+                Targeted Solutions
+              </Badge>
+            </div>
+            <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-center">Built for how we actually learn and work</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto text-center">
+              Whether you are an individual learner mastering a new field, an educator running a class, or an enterprise scaling team knowledge, OpenBALC cuts through the information overload.
             </p>
           </div>
+
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="p-6 rounded-xl border border-border bg-card hover:border-primary/30 transition-all duration-300 hover:shadow-md hover:shadow-primary/5">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                <BookOpen className="h-5 w-5 text-primary" />
+            {/* Individual Users */}
+            <div className="p-8 rounded-2xl border border-border bg-card/45 hover:border-primary/45 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 flex flex-col justify-between group">
+              <div className="space-y-4">
+                <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+                  <GraduationCap className="h-6 w-6" />
+                </div>
+                <h3 className="text-2xl font-bold text-foreground">For Self-Learners & Professionals</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  <strong>The Problem:</strong> Drowning in massive research papers, 800-page textbooks, or dense developer documentation. Reading passively leads to poor retention and cognitive fatigue.
+                </p>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  <strong>The Solution:</strong> Upload your PDFs or paste reference links. OpenBALC converts dry text into structured chapters, generates interactive visual mindmaps to connect concepts, and auto-drafts practice quizzes. Master complex material 3x faster using active recall.
+                </p>
               </div>
-              <h3 className="text-xl font-bold mb-2">Intelligent Modules</h3>
-              <p className="text-muted-foreground text-sm">
-                Upload PDFs, textbook chapters, online articles, or raw notes. OpenBALC structures them into coherent, readable study chapters instantly.
-              </p>
-            </div>
-            <div className="p-6 rounded-xl border border-border bg-card hover:border-primary/30 transition-all duration-300 hover:shadow-md hover:shadow-primary/5">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                <Sparkles className="h-5 w-5 text-primary" />
+              <div className="pt-6">
+                <Link href="/solutions/individuals" className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                  Explore individual solutions <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
               </div>
-              <h3 className="text-xl font-bold mb-2">Active Recall Quizzes</h3>
-              <p className="text-muted-foreground text-sm">
-                Test your mastery with AI-generated practice questions and interactive tests tailored specifically to your uploaded materials.
-              </p>
             </div>
-            <div className="p-6 rounded-xl border border-border bg-card hover:border-primary/30 transition-all duration-300 hover:shadow-md hover:shadow-primary/5">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                <MessageSquare className="h-5 w-5 text-primary" />
+
+            {/* Educational Institutions */}
+            <div className="p-8 rounded-2xl border border-border bg-card/45 hover:border-primary/45 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 flex flex-col justify-between group">
+              <div className="space-y-4">
+                <div className="w-12 h-12 rounded-xl bg-violet-500/10 flex items-center justify-center text-violet-500">
+                  <Users className="h-6 w-6" />
+                </div>
+                <h3 className="text-2xl font-bold text-foreground">For Schools & Universities</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  <strong>The Problem:</strong> Static syllabus resources fail to engage students. Standard AI tutors hallucinate facts and draw from unapproved, low-quality external sources.
+                </p>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  <strong>The Solution:</strong> Create dedicated workspaces for classes. Ingest your approved textbooks and curricula to provide students with a secure AI tutor that references <em>only</em> your syllabus. Auto-generate study guides and diagnostic quizzes to track course comprehension.
+                </p>
               </div>
-              <h3 className="text-xl font-bold mb-2">Contextual AI Chat</h3>
-              <p className="text-muted-foreground text-sm">
-                Have a conversation with your documents. Ask questions, clarify tough concepts, and get instant answers with citations from your sources.
-              </p>
-            </div>
-            <div className="p-6 rounded-xl border border-border bg-card hover:border-primary/30 transition-all duration-300 hover:shadow-md hover:shadow-primary/5">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                <User className="h-5 w-5 text-primary" />
+              <div className="pt-6">
+                <Link href="/solutions/educators" className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                  Explore educational solutions <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
               </div>
-              <h3 className="text-xl font-bold mb-2">Collaborative Workspaces</h3>
-              <p className="text-muted-foreground text-sm">
-                Share study modules with classmates, synchronize resources, and learn together in high-performance workspaces.
-              </p>
             </div>
-            <div className="p-6 rounded-xl border border-border bg-card hover:border-primary/30 transition-all duration-300 hover:shadow-md hover:shadow-primary/5">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                <Zap className="h-5 w-5 text-primary" />
+
+            {/* Enterprises */}
+            <div className="p-8 rounded-2xl border border-border bg-card/45 hover:border-primary/45 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 flex flex-col justify-between group">
+              <div className="space-y-4">
+                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                  <Building2 className="h-6 w-6" />
+                </div>
+                <h3 className="text-2xl font-bold text-foreground">For Teams & Enterprises</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  <strong>The Problem:</strong> Critical company knowledge is scattered across Notion, Slack, and Google Drive. Onboarding new hires is slow, and employees waste hours searching for internal procedures.
+                </p>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  <strong>The Solution:</strong> Turn your compliance wikis, developer APIs, and procedure handbooks into structured, searchable learning modules. Enable employees to safely query internal documentation using secure hybrid-RAG retrieval that respects data boundaries.
+                </p>
               </div>
-              <h3 className="text-xl font-bold mb-2">Credit-Based Economy</h3>
-              <p className="text-muted-foreground text-sm">
-                Earn credits by contributing valuable resources to the public library, and spend them to access premium AI power and features.
-              </p>
-            </div>
-            <div className="p-6 rounded-xl border border-border bg-card hover:border-primary/30 transition-all duration-300 hover:shadow-md hover:shadow-primary/5">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                <Bot className="h-5 w-5 text-primary" />
+              <div className="pt-6">
+                <Link href="/solutions/enterprises" className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                  Explore enterprise solutions <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
               </div>
-              <h3 className="text-xl font-bold mb-2">Premium Experience</h3>
-              <p className="text-muted-foreground text-sm">
-                Designed for long study sessions. A modern, minimalist glassmorphism interface that keeps you focused and reduces eye strain.
-              </p>
             </div>
+          </div>
+        </section>
+
+        {/* Features Section */}
+        <section id="features" className="max-w-6xl mx-auto px-6 py-24 scroll-mt-16">
+          <div className="text-center mb-16 space-y-4">
+            <div className="flex justify-center">
+              <Badge className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/15">
+                Features
+              </Badge>
+            </div>
+            <h2 className="text-3xl md:text-5xl font-bold tracking-tight">Features tailored to your workflow</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Select your use case to explore how OpenBALC structures knowledge, automates testing, and connects your learning resources.
+            </p>
+          </div>
+
+          {/* User Type Selection Dock */}
+          <div className="flex justify-center mb-12">
+            <div className="bg-card/60 backdrop-blur-md border border-border/80 p-1.5 rounded-full flex flex-col sm:flex-row gap-1 shadow-lg shadow-primary/5">
+              <button
+                onClick={() => setSelectedUserType("individual")}
+                className={cn(
+                  "flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all duration-300 cursor-pointer",
+                  selectedUserType === "individual" 
+                    ? "bg-primary text-primary-foreground shadow-md" 
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <GraduationCap className="h-4 w-4" />
+                For Individuals
+              </button>
+              <button
+                onClick={() => setSelectedUserType("educator")}
+                className={cn(
+                  "flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all duration-300 cursor-pointer",
+                  selectedUserType === "educator" 
+                    ? "bg-primary text-primary-foreground shadow-md" 
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Users className="h-4 w-4" />
+                For Educators
+              </button>
+              <button
+                onClick={() => setSelectedUserType("enterprise")}
+                className={cn(
+                  "flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all duration-300 cursor-pointer",
+                  selectedUserType === "enterprise" 
+                    ? "bg-primary text-primary-foreground shadow-md" 
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Building2 className="h-4 w-4" />
+                For Enterprises
+              </button>
+            </div>
+          </div>
+
+          {/* Features Grid with thin borders and hover effects */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 border-t border-l border-border/50 rounded-lg overflow-hidden">
+            {featuresData[selectedUserType].map((feature, idx) => {
+              const Icon = feature.icon;
+              return (
+                <div 
+                  key={idx} 
+                  className="p-8 border-r border-b border-border/50 relative overflow-hidden group hover:bg-muted/10 transition-colors duration-300 min-h-[240px] flex flex-col justify-between text-left"
+                >
+                  {/* Spotlight hover effect */}
+                  <div className="absolute inset-0 bg-gradient-to-tr from-primary/[0.04] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                  
+                  {/* Left border indicator line on hover */}
+                  <div className="absolute left-0 top-8 bottom-8 w-[3px] bg-gradient-to-b from-indigo-500 to-violet-600 rounded-r-md opacity-0 group-hover:opacity-100 transition-all duration-300" />
+                  
+                  <div>
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center mb-6 text-primary group-hover:scale-110 transition-transform duration-300">
+                      <Icon className="h-4.5 w-4.5" />
+                    </div>
+                    <h4 className="font-bold text-foreground text-sm mb-2 group-hover:text-primary transition-colors">
+                      {feature.title}
+                    </h4>
+                    <p className="text-muted-foreground text-xs leading-relaxed">
+                      {feature.desc}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
 
         {/* How It Works Section */}
         <section id="how-it-works" className="max-w-5xl mx-auto px-6 py-24 border-t border-border/50 scroll-mt-16">
           <div className="text-center mb-16 space-y-4">
-            <h2 className="text-3xl md:text-5xl font-bold tracking-tight">From source materials to exam-ready in seconds</h2>
+            <div className="flex justify-center">
+              <Badge className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/15">
+                How It Works
+              </Badge>
+            </div>
+            <h2 className="text-3xl md:text-5xl font-bold tracking-tight">From dry documents to absolute mastery in three steps</h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Our streamlined pipeline transforms unstructured PDFs and websites into highly organized study tools.
+              Our intelligent pipeline takes care of layout analysis, text chunking, and semantic mapping. All you have to do is focus on learning.
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-8 relative">
@@ -489,27 +744,27 @@ export default function Landing() {
               <div className="w-12 h-12 rounded-full bg-primary/10 text-primary font-bold text-lg flex items-center justify-center mx-auto shadow-sm">
                 1
               </div>
-              <h3 className="text-xl font-semibold">Upload & Feed</h3>
+              <h3 className="text-xl font-semibold">Ingest Your Knowledge Base</h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
-                Drag and drop PDFs, paste web URLs, or write down raw topics. OpenBALC parses the text and gets to work.
+                Drag and drop textbooks (PDFs), paste web links (articles or documentation), or type key topics. Our platform processes, extracts, and parses the files securely.
               </p>
             </div>
             <div className="text-center p-6 space-y-4">
               <div className="w-12 h-12 rounded-full bg-primary/10 text-primary font-bold text-lg flex items-center justify-center mx-auto shadow-sm">
                 2
               </div>
-              <h3 className="text-xl font-semibold">Structure & Synthesize</h3>
+              <h3 className="text-xl font-semibold">Layout-Aware Synthesis</h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
-                Our AI splits the content into bite-sized chapters, extracts key formulas, and outlines core definitions.
+                Our pipeline uses advanced text chunking and metadata tracking to automatically map concepts, structures, tables, and image captions into organized chapters and visual mindmaps.
               </p>
             </div>
             <div className="text-center p-6 space-y-4">
               <div className="w-12 h-12 rounded-full bg-primary/10 text-primary font-bold text-lg flex items-center justify-center mx-auto shadow-sm">
                 3
               </div>
-              <h3 className="text-xl font-semibold">Interact & Retain</h3>
+              <h3 className="text-xl font-semibold">Active Learning & Recall</h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
-                Chat with the AI to probe deeper, run flashcard drills, and generate practice exams to lock in your understanding.
+                Test your memory with active recall quizzes, drill with context-aware practice questions, or chat with the AI assistant referencing exact source citations.
               </p>
             </div>
           </div>
@@ -662,12 +917,92 @@ export default function Landing() {
                     Absolutely! OpenBALC features a Public Library of modules created by our community. You can browse, search, and view public modules directly from the navigation bar without signing in. To save modules, star them, or start chatting, you will need to create a free account.
                   </AccordionContent>
                 </AccordionItem>
+                <AccordionItem value="item-7">
+                  <AccordionTrigger className="text-base font-semibold hover:no-underline">How do organizations and educational institutions use OpenBALC?</AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground leading-relaxed pt-2">
+                    OpenBALC is built with secure collaborative workspaces. School departments or corporate L&D teams can create private workspaces, ingest proprietary documentation or curricula, and share structured study modules with students or staff. This ensures a uniform training pipeline and a context-bound AI tutor that references only the organization's approved knowledge base.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="item-8">
+                  <AccordionTrigger className="text-base font-semibold hover:no-underline">Is my data secure for business or academic use?</AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground leading-relaxed pt-2">
+                    Yes. OpenBALC is fully open-source, allowing you to self-host the database and ingestion pipeline on your own private cloud or local servers. If you use our cloud-hosted plans, your workspace data is logically isolated and is never used to train public foundational AI models.
+                  </AccordionContent>
+                </AccordionItem>
               </Accordion>
             </div>
           </div>
         </section>
 
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-border/50 bg-background/50 backdrop-blur py-16 px-6 mt-12">
+        <div className="max-w-6xl mx-auto flex flex-col items-center text-center">
+          {/* Logo */}
+          <div className="flex items-center gap-2 mb-6">
+            <img 
+              src={isDark ? "/logo/light_logo.svg" : "/logo/dark_logo.svg"} 
+              alt="OpenBALC Logo" 
+              className="h-8 object-contain" 
+            />
+          </div>
+          
+          {/* Links */}
+          <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10 text-sm font-medium text-muted-foreground mb-10">
+            <Link href="/modules" className="hover:text-foreground transition-colors">Modules</Link>
+            <Link href="/#use-cases" onClick={handleNavClick("use-cases")} className="hover:text-foreground transition-colors">Use Cases</Link>
+            <Link href="/#features" onClick={handleNavClick("features")} className="hover:text-foreground transition-colors">Features</Link>
+            <Link href="/#how-it-works" onClick={handleNavClick("how-it-works")} className="hover:text-foreground transition-colors">How it works</Link>
+            <Link href="/#pricing" onClick={handleNavClick("pricing")} className="hover:text-foreground transition-colors">Pricing</Link>
+            <Link href="/ads" className="hover:text-foreground transition-colors">Advertisers</Link>
+            <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
+          </div>
+
+          {/* Separator */}
+          <div className="border-t border-border/40 w-full my-6" />
+
+          {/* Bottom Row */}
+          <div className="flex flex-col md:flex-row items-center justify-between w-full gap-6">
+            <p className="text-xs text-muted-foreground">
+              © {new Date().getFullYear()} OpenBALC. All rights reserved.
+            </p>
+            
+            <div className="flex items-center justify-center">
+              <FloatingDock 
+                items={[
+                  {
+                    title: "Twitter / X",
+                    icon: <IconBrandX className="h-5 w-5 text-neutral-500 dark:text-neutral-300" />,
+                    href: "https://x.com",
+                  },
+                  {
+                    title: "LinkedIn",
+                    icon: <IconBrandLinkedin className="h-5 w-5 text-neutral-500 dark:text-neutral-300" />,
+                    href: "https://linkedin.com",
+                  },
+                  {
+                    title: "GitHub",
+                    icon: <IconBrandGithub className="h-5 w-5 text-neutral-500 dark:text-neutral-300" />,
+                    href: "https://github.com",
+                  },
+                  {
+                    title: "Facebook",
+                    icon: <IconBrandFacebook className="h-5 w-5 text-neutral-500 dark:text-neutral-300" />,
+                    href: "https://facebook.com",
+                  },
+                  {
+                    title: "Instagram",
+                    icon: <IconBrandInstagram className="h-5 w-5 text-neutral-500 dark:text-neutral-300" />,
+                    href: "https://instagram.com",
+                  },
+                ]}
+              />
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

@@ -15,6 +15,9 @@ OpenBALC is a high-performance workspace and open source education system design
 
 ## Public Index
 - [Home Page](https://openbalc.com/): Product overview and free public sandbox chat.
+- [Solutions for Individuals](https://openbalc.com/solutions/individuals): Product detail and active recall science for self-directed students.
+- [Solutions for Educators](https://openbalc.com/solutions/educators): Detail on curriculum locking, syllabus security, and university workspaces.
+- [Solutions for Enterprises](https://openbalc.com/solutions/enterprises): Self-hosted hybrid RAG, corporate knowledge base setups, and security.
 - [Public Modules Library](https://openbalc.com/modules): Explore community-generated study modules.
 - [Pricing](https://openbalc.com/#pricing): View membership tiers and credit options.
 - [Advertiser Portal](https://openbalc.com/ads): Run contextual sponsor assets in the learning buffer.

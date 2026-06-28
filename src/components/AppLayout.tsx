@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Sidebar, DesktopSidebar, SidebarLink } from "@/components/ui/sidebar";
 
 const navItems = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard, exact: true },
@@ -65,6 +66,7 @@ function NavItem({ href, label, icon: Icon, collapsed, exact }: {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { isDark, toggleTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [location] = useLocation();
   const { logout } = useAuth();
@@ -111,54 +113,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
-      {/* Sidebar */}
-      {location.startsWith("/app") && (
-        <aside className={cn(
-          "fixed top-0 left-0 bottom-0 z-50 flex flex-col border-r border-border bg-card/85 backdrop-blur-md transition-all duration-200",
-          collapsed ? "w-[72px]" : "w-[280px]",
-          "hidden lg:flex",
-          mobileOpen && "flex w-[280px]"
-        )}>
+      {/* Mobile Sidebar */}
+      {location.startsWith("/app") && mobileOpen && (
+        <aside className="fixed top-0 left-0 bottom-0 z-50 flex flex-col border-r border-border bg-card/85 backdrop-blur-md w-[280px] lg:hidden">
           {/* Top of Sidebar: Workspace Switcher */}
-          <div className={cn(
-            "h-20 flex items-center border-b border-border px-4 shrink-0",
-            collapsed && "justify-center px-0"
-          )}>
+          <div className="h-20 flex items-center border-b border-border px-4 shrink-0">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                {collapsed ? (
-                  <button className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-sm cursor-pointer hover:opacity-90 shadow-md shadow-indigo-500/10 shrink-0">
+                <button className="flex items-center gap-3 w-full px-3 py-2 rounded-xl border border-border bg-muted/20 hover:bg-muted/50 transition-all text-left group cursor-pointer">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-xs shrink-0 shadow">
                     {org?.name ? getInitials(org.name) : "OB"}
-                  </button>
-                ) : (
-                  <button className="flex items-center gap-3 w-full px-3 py-2 rounded-xl border border-border bg-muted/20 hover:bg-muted/50 transition-all text-left group cursor-pointer">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-xs shrink-0 shadow">
-                      {org?.name ? getInitials(org.name) : "OB"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 justify-between">
+                      <span className="font-semibold text-xs text-foreground truncate">{org?.name || "Workspace"}</span>
+                      <Badge className="text-[9px] font-bold h-3.5 px-1 capitalize shrink-0 bg-primary/10 text-primary border-0">
+                        {org?.plan || "Personal"}
+                      </Badge>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 justify-between">
-                        <span className="font-semibold text-xs text-foreground truncate">{org?.name || "Workspace"}</span>
-                        <Badge className="text-[9px] font-bold h-3.5 px-1 capitalize shrink-0 bg-primary/10 text-primary border-0">
-                          {org?.plan || "Personal"}
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between items-center mt-0.5 text-[9px] text-muted-foreground/80 font-medium">
-                        <span>{org?.memberCount || 1} members</span>
-                        <span className="flex items-center gap-0.5 text-amber-500">
-                          <Zap className="h-2.5 w-2.5" /> {credits?.balance ?? user?.credits ?? 0}
-                        </span>
-                      </div>
+                    <div className="flex justify-between items-center mt-0.5 text-[9px] text-muted-foreground/80 font-medium">
+                      <span>{org?.memberCount || 1} members</span>
+                      <span className="flex items-center gap-0.5 text-amber-500">
+                        <Zap className="h-2.5 w-2.5" /> {credits?.balance ?? user?.credits ?? 0}
+                      </span>
                     </div>
-                    <ChevronsUpDown className="h-3 w-3 text-muted-foreground/50 group-hover:text-foreground shrink-0" />
-                  </button>
-                )}
+                  </div>
+                  <ChevronsUpDown className="h-3 w-3 text-muted-foreground/50 group-hover:text-foreground shrink-0" />
+                </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align={collapsed ? "start" : "center"}
-                side={collapsed ? "right" : "bottom"}
-                sideOffset={collapsed ? 12 : 4}
-                className="w-[220px]"
-              >
+              <DropdownMenuContent align="start" side="bottom" sideOffset={4} className="w-[220px]">
                 <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                   Workspaces
                 </div>
@@ -172,6 +155,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                           switchWorkspace.mutate({ workspaceId: ws.id }, {
                             onSuccess: () => {
                               toast.success(`Switched to ${ws.name}`);
+                              setMobileOpen(false);
                             }
                           });
                         }
@@ -194,84 +178,269 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     </DropdownMenuItem>
                   );
                 })}
-                
                 <DropdownMenuSeparator />
-                
                 <DropdownMenuItem asChild>
-                  <Link href="/app/org" className="cursor-pointer w-full flex items-center text-muted-foreground hover:text-foreground">
+                  <Link href="/app/org" onClick={() => setMobileOpen(false)} className="cursor-pointer w-full flex items-center text-muted-foreground hover:text-foreground">
                     <Settings className="h-4 w-4 mr-2 shrink-0" />
                     <span>Workspace Settings</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer text-muted-foreground hover:text-foreground" onClick={() => setCreateOpen(true)}>
+                <DropdownMenuItem className="cursor-pointer text-muted-foreground hover:text-foreground" onClick={() => { setCreateOpen(true); setMobileOpen(false); }}>
                   <Plus className="h-4 w-4 mr-2 shrink-0" />
                   <span>New Workspace</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          
+
           {/* Nav */}
           <nav className="flex-1 overflow-y-auto py-4 space-y-1">
-            {navItems.map(item => (
-              <NavItem key={item.href} {...item} collapsed={collapsed} />
-            ))}
+            {navItems.map(item => {
+              const Icon = item.icon;
+              return (
+                <SidebarLink
+                  key={item.href}
+                  link={{
+                    label: item.label,
+                    href: item.href,
+                    icon: <Icon className="h-5 w-5 shrink-0" />
+                  }}
+                  onClick={() => setMobileOpen(false)}
+                />
+              );
+            })}
             {user?.role === "admin" && (
-              <NavItem href="/admin" label="Admin Portal" icon={Shield} collapsed={collapsed} />
+              <SidebarLink
+                link={{
+                  label: "Admin Portal",
+                  href: "/admin",
+                  icon: <Shield className="h-5 w-5 shrink-0" />
+                }}
+                onClick={() => setMobileOpen(false)}
+              />
             )}
           </nav>
 
           {/* Bottom */}
           <div className="border-t border-border py-4 space-y-1">
-            {bottomItems.map(item => (
-              <NavItem key={item.href} {...item} collapsed={collapsed} />
-            ))}
-            
-            {/* Theme Toggle Button */}
+            {bottomItems.map(item => {
+              const Icon = item.icon;
+              return (
+                <SidebarLink
+                  key={item.href}
+                  link={{
+                    label: item.label,
+                    href: item.href,
+                    icon: <Icon className="h-5 w-5 shrink-0" />
+                  }}
+                  onClick={() => setMobileOpen(false)}
+                />
+              );
+            })}
+
             <button
-              onClick={toggleTheme}
-              className={cn(
-                "flex items-center gap-3 py-3 rounded-r-full mr-4 pl-6 pr-4 text-muted-foreground hover:text-foreground hover:bg-muted/50 w-full transition-all duration-150 cursor-pointer group",
-                collapsed && "justify-center px-0 w-12 mx-auto rounded-xl mr-auto ml-auto"
-              )}
-              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              onClick={() => { toggleTheme(); setMobileOpen(false); }}
+              className="flex items-center gap-3 py-2.5 px-3 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/50 w-full transition-all duration-150 cursor-pointer"
             >
               {isDark ? (
                 <>
-                  <Sun className="h-5 w-5 shrink-0 text-amber-500 group-hover:rotate-45 transition-transform" />
-                  {!collapsed && <span className="text-[15px] font-medium truncate">Light Mode</span>}
+                  <Sun className="h-5 w-5 shrink-0 text-amber-500" />
+                  <span className="text-sm font-medium">Light Mode</span>
                 </>
               ) : (
                 <>
-                  <Moon className="h-5 w-5 shrink-0 text-indigo-500 group-hover:-rotate-12 transition-transform" />
-                  {!collapsed && <span className="text-[15px] font-medium truncate">Dark Mode</span>}
+                  <Moon className="h-5 w-5 shrink-0 text-indigo-500" />
+                  <span className="text-sm font-medium">Dark Mode</span>
                 </>
               )}
-            </button>
-
-            <button
-              onClick={() => setCollapsed(!collapsed)}
-              className={cn(
-                "flex items-center gap-3 py-3 rounded-r-full mr-4 pl-6 pr-4 text-muted-foreground hover:text-foreground hover:bg-muted/50 w-full transition-colors cursor-pointer",
-                collapsed && "justify-center px-0 w-12 mx-auto rounded-xl mr-auto ml-auto"
-              )}
-            >
-              {collapsed
-                ? <ChevronRight className="h-5 w-5 mx-auto" />
-                : <><ChevronLeft className="h-5 w-5" /><span className="text-[15px]">Collapse</span></>
-              }
             </button>
           </div>
         </aside>
       )}
 
+      {/* Desktop Sidebar */}
+      {location.startsWith("/app") && (
+        <Sidebar open={!collapsed || isHovered} setOpen={(open) => setIsHovered(open)} animate={true}>
+          <DesktopSidebar className="h-screen sticky top-0 z-50 border-r border-border bg-card/85 backdrop-blur-md flex flex-col py-6 justify-between shrink-0 hidden lg:flex">
+            {/* Top of Sidebar: Workspace Switcher */}
+            <div className={cn(
+              "h-20 flex items-center border-b border-border px-4 shrink-0 w-full",
+              (!collapsed || isHovered) ? "justify-start" : "justify-center px-0"
+            )}>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  {(!collapsed || isHovered) ? (
+                    <button className="flex items-center gap-3 w-full px-3 py-2 rounded-xl border border-border bg-muted/20 hover:bg-muted/50 transition-all text-left group cursor-pointer">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-xs shrink-0 shadow">
+                        {org?.name ? getInitials(org.name) : "OB"}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 justify-between">
+                          <span className="font-semibold text-xs text-foreground truncate">{org?.name || "Workspace"}</span>
+                          <Badge className="text-[9px] font-bold h-3.5 px-1 capitalize shrink-0 bg-primary/10 text-primary border-0">
+                            {org?.plan || "Personal"}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center mt-0.5 text-[9px] text-muted-foreground/80 font-medium">
+                          <span>{org?.memberCount || 1} members</span>
+                          <span className="flex items-center gap-0.5 text-amber-500">
+                            <Zap className="h-2.5 w-2.5" /> {credits?.balance ?? user?.credits ?? 0}
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronsUpDown className="h-3 w-3 text-muted-foreground/50 group-hover:text-foreground shrink-0" />
+                    </button>
+                  ) : (
+                    <button className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-sm cursor-pointer hover:opacity-90 shadow-md shadow-indigo-500/10 shrink-0">
+                      {org?.name ? getInitials(org.name) : "OB"}
+                    </button>
+                  )}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align={(!collapsed || isHovered) ? "center" : "start"}
+                  side={(!collapsed || isHovered) ? "bottom" : "right"}
+                  sideOffset={(!collapsed || isHovered) ? 4 : 12}
+                  className="w-[220px]"
+                >
+                  <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Workspaces
+                  </div>
+                  {Array.isArray(workspaces) && workspaces.map((ws: any) => {
+                    const isActive = ws.id === org?.id;
+                    return (
+                      <DropdownMenuItem
+                        key={ws.id}
+                        onClick={() => {
+                          if (!isActive) {
+                            switchWorkspace.mutate({ workspaceId: ws.id }, {
+                              onSuccess: () => {
+                                toast.success(`Switched to ${ws.name}`);
+                              }
+                            });
+                          }
+                        }}
+                        className={cn(
+                          "cursor-pointer font-medium",
+                          isActive ? "bg-accent/25" : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          <div className={cn(
+                            "w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold shrink-0",
+                            isActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                          )}>
+                            {getInitials(ws.name)}
+                          </div>
+                          <span className="flex-1 truncate">{ws.name}</span>
+                          {isActive && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+                        </div>
+                      </DropdownMenuItem>
+                    );
+                  })}
+
+                  <DropdownMenuSeparator />
+
+                  <DropdownMenuItem asChild>
+                    <Link href="/app/org" className="cursor-pointer w-full flex items-center text-muted-foreground hover:text-foreground">
+                      <Settings className="h-4 w-4 mr-2 shrink-0" />
+                      <span>Workspace Settings</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer text-muted-foreground hover:text-foreground" onClick={() => setCreateOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2 shrink-0" />
+                    <span>New Workspace</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Nav */}
+            <nav className="flex-1 overflow-y-auto py-4 space-y-1 w-full">
+              {navItems.map(item => {
+                const Icon = item.icon;
+                return (
+                  <SidebarLink
+                    key={item.href}
+                    link={{
+                      label: item.label,
+                      href: item.href,
+                      icon: <Icon className="h-5 w-5 shrink-0" />
+                    }}
+                  />
+                );
+              })}
+              {user?.role === "admin" && (
+                <SidebarLink
+                  link={{
+                    label: "Admin Portal",
+                    href: "/admin",
+                    icon: <Shield className="h-5 w-5 shrink-0" />
+                  }}
+                />
+              )}
+            </nav>
+
+            {/* Bottom */}
+            <div className="border-t border-border py-4 space-y-1 w-full">
+              {bottomItems.map(item => {
+                const Icon = item.icon;
+                return (
+                  <SidebarLink
+                    key={item.href}
+                    link={{
+                      label: item.label,
+                      href: item.href,
+                      icon: <Icon className="h-5 w-5 shrink-0" />
+                    }}
+                  />
+                );
+              })}
+
+              {/* Theme Toggle Button */}
+              <button
+                onClick={toggleTheme}
+                className={cn(
+                  "flex items-center gap-3 py-2.5 px-3 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/50 w-full transition-all duration-150 cursor-pointer group",
+                  (!collapsed || isHovered) ? "justify-start" : "justify-center px-0 w-10 mx-auto"
+                )}
+                title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              >
+                {isDark ? (
+                  <>
+                    <Sun className="h-5 w-5 shrink-0 text-amber-500 group-hover:rotate-45 transition-transform" />
+                    {(!collapsed || isHovered) && <span className="text-sm font-medium truncate">Light Mode</span>}
+                  </>
+                ) : (
+                  <>
+                    <Moon className="h-5 w-5 shrink-0 text-indigo-500 group-hover:-rotate-12 transition-transform" />
+                    {(!collapsed || isHovered) && <span className="text-sm font-medium truncate">Dark Mode</span>}
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={() => setCollapsed(!collapsed)}
+                className={cn(
+                  "flex items-center gap-3 py-2.5 px-3 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/50 w-full transition-colors cursor-pointer",
+                  (!collapsed || isHovered) ? "justify-start" : "justify-center px-0 w-10 mx-auto"
+                )}
+              >
+                {(!collapsed || isHovered) ? (
+                  <>
+                    <ChevronLeft className="h-5 w-5 shrink-0" />
+                    <span className="text-sm font-medium">Pin</span>
+                  </>
+                ) : (
+                  <ChevronRight className="h-5 w-5 shrink-0 mx-auto" />
+                )}
+              </button>
+            </div>
+          </DesktopSidebar>
+        </Sidebar>
+      )}
+
       {/* Main */}
-      <div className={cn(
-        "flex-1 flex flex-col min-w-0 max-w-full overflow-x-hidden transition-all duration-200",
-        location.startsWith("/app")
-          ? (collapsed ? "lg:ml-[72px]" : "lg:ml-[280px]")
-          : "lg:ml-0"
-      )}>
+      <div className="flex-1 flex flex-col min-w-0 max-w-full overflow-x-hidden">
         {/* Topbar */}
         <header className="h-16 border-b border-border bg-background/80 backdrop-blur sticky top-0 z-30 flex items-center px-6 gap-4">
           {(!location.startsWith("/app") || (location !== "/app" && location !== "/app/")) ? (
@@ -348,8 +517,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   {user?.avatarUrl
                     ? <img src={user.avatarUrl} className="h-10 w-10 rounded-full object-cover" alt="" />
                     : <div className="h-10 w-10 rounded-full bg-primary/20 text-primary text-sm font-bold flex items-center justify-center">
-                        {user ? getInitials(user.displayName || user.username) : "?"}
-                      </div>
+                      {user ? getInitials(user.displayName || user.username) : "?"}
+                    </div>
                   }
                 </Button>
               </DropdownMenuTrigger>

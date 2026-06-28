@@ -37,6 +37,52 @@ export default function PublicModuleDetailPage() {
     ? content?.filter((c: any) => c.chapter === selectedChapter)
     : content?.slice(0, 1);
 
+  const updateQueryParam = (key: string, value: string | null) => {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (value !== null && value !== undefined) {
+      searchParams.set(key, value);
+    } else {
+      searchParams.delete(key);
+    }
+    const newSearch = searchParams.toString();
+    const newUrl = `${window.location.pathname}${newSearch ? "?" + newSearch : ""}`;
+    window.history.pushState(null, "", newUrl);
+  };
+
+  useEffect(() => {
+    const parseUrlParams = () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      
+      const chapterParam = searchParams.get("topic") || searchParams.get("chapter");
+      if (chapterParam && content && content.length > 0) {
+        const decoded = decodeURIComponent(chapterParam);
+        const match = chapters.find(ch => ch.toLowerCase() === decoded.toLowerCase()) || 
+                      content.find((c: any) => c.topic.toLowerCase() === decoded.toLowerCase())?.chapter;
+        if (match) {
+          setSelectedChapter(match);
+        }
+      }
+
+      const sourceParam = searchParams.get("source") || searchParams.get("sourceId");
+      if (sourceParam && sources && sources.length > 0) {
+        const decoded = decodeURIComponent(sourceParam);
+        const match = sources.find(
+          (s: any) => String(s.id) === decoded || s.name.toLowerCase() === decoded.toLowerCase()
+        );
+        if (match) {
+          toast.info(`Viewing source: ${match.name}`);
+        }
+      }
+    };
+
+    parseUrlParams();
+
+    window.addEventListener("popstate", parseUrlParams);
+    return () => {
+      window.removeEventListener("popstate", parseUrlParams);
+    };
+  }, [content, sources]);
+
   function handleActionClick(action: string) {
     toast.info(`Please sign in to ${action}.`);
     setLocation("/login");
@@ -80,11 +126,12 @@ export default function PublicModuleDetailPage() {
             />
           </div>
         </Link>
-        <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
+        <nav className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
+          <Link href="/modules" className="text-foreground transition-colors font-bold">Modules</Link>
+          <Link href="/#use-cases" className="hover:text-foreground transition-colors">Use Cases</Link>
           <Link href="/#features" className="hover:text-foreground transition-colors">Features</Link>
           <Link href="/#how-it-works" className="hover:text-foreground transition-colors">How it works</Link>
           <Link href="/#pricing" className="hover:text-foreground transition-colors">Pricing</Link>
-          <Link href="/modules" className="text-foreground transition-colors font-bold">Modules</Link>
           <Link href="/ads" className="hover:text-foreground transition-colors">Advertisers</Link>
         </nav>
         <div className="flex items-center gap-4">
@@ -157,7 +204,10 @@ export default function PublicModuleDetailPage() {
                   {chapters.map(ch => (
                     <button
                       key={ch}
-                      onClick={() => setSelectedChapter(ch)}
+                      onClick={() => {
+                        setSelectedChapter(ch);
+                        updateQueryParam("topic", ch);
+                      }}
                       className={cn(
                         "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex items-center gap-2 font-medium",
                         selectedChapter === ch || (!selectedChapter && chapters[0] === ch)
@@ -210,7 +260,14 @@ export default function PublicModuleDetailPage() {
                 ) : (
                   <div className="space-y-2">
                     {sources.map((s: any) => (
-                      <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/30">
+                      <div 
+                        key={s.id} 
+                        onClick={() => {
+                          updateQueryParam("source", s.name);
+                          toast.info(`Viewing source: ${s.name}`);
+                        }}
+                        className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                      >
                         <div className="w-6.5 h-6.5 rounded bg-primary/10 flex items-center justify-center shrink-0">
                           {s.type === "url" ? <Link2 className="h-3.5 w-3.5 text-primary" />
                             : s.type === "pdf" ? <FileText className="h-3.5 w-3.5 text-primary" />

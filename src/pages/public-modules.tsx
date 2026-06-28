@@ -92,11 +92,12 @@ export default function PublicModulesPage() {
             />
           </div>
         </Link>
-        <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
+        <nav className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
+          <Link href="/modules" className="text-foreground transition-colors font-bold">Modules</Link>
+          <Link href="/#use-cases" className="hover:text-foreground transition-colors">Use Cases</Link>
           <Link href="/#features" className="hover:text-foreground transition-colors">Features</Link>
           <Link href="/#how-it-works" className="hover:text-foreground transition-colors">How it works</Link>
           <Link href="/#pricing" className="hover:text-foreground transition-colors">Pricing</Link>
-          <Link href="/modules" className="text-foreground transition-colors font-bold">Modules</Link>
           <Link href="/ads" className="hover:text-foreground transition-colors">Advertisers</Link>
         </nav>
         <div className="flex items-center gap-4">

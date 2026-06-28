@@ -582,7 +582,7 @@ const MAGIC_QUOTES = [
   "Brewing your custom study guide... ☕"
 ];
 
-function SourceCard({ source }: { source: any }) {
+function SourceCard({ source, onClick }: { source: any; onClick?: () => void }) {
   // Poll ingestion_status for this source while it is pending/processing
   const needsPoll = 
     source.ingestionStatus === "processing" || 
@@ -625,7 +625,7 @@ function SourceCard({ source }: { source: any }) {
   }
 
   return (
-    <div className="flex items-center gap-2.5 p-2 rounded-lg bg-muted/20 border border-border/50 hover:border-primary/20 transition-colors group">
+    <div onClick={onClick} className="flex items-center gap-2.5 p-2 rounded-lg bg-muted/20 border border-border/50 hover:border-primary/20 transition-colors group cursor-pointer">
       <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center shrink-0">
         {source.type === "url" ? <Link2 className="h-3 w-3 text-primary" />
           : source.type === "pdf" ? <FileText className="h-3 w-3 text-primary" />
@@ -762,7 +762,11 @@ export default function ModuleDetailPage() {
   // Set default active artifact once loaded (only on desktop to allow clean list/detail toggle on mobile)
   useEffect(() => {
     if (!isMobile && displayArtifacts.length > 0 && !selectedArtifactId) {
-      setSelectedArtifactId(displayArtifacts[0].id);
+      const searchParams = new URLSearchParams(window.location.search);
+      const hasArtifactParam = searchParams.get("artifact") || searchParams.get("artifactId");
+      if (!hasArtifactParam) {
+        setSelectedArtifactId(displayArtifacts[0].id);
+      }
     }
   }, [displayArtifacts, selectedArtifactId, isMobile]);
 
@@ -795,6 +799,181 @@ export default function ModuleDetailPage() {
   // Module filter for tests
   const moduleTests = tests?.filter((t: any) => t.moduleId === id) || [];
   const activeTest = tests?.find((t: any) => t.id === selectedTestId);
+
+  const updateQueryParam = (key: string, value: string | null) => {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (value !== null && value !== undefined) {
+      searchParams.set(key, value);
+    } else {
+      searchParams.delete(key);
+    }
+    
+    if (key === "tab") {
+      if (value !== "study") {
+        searchParams.delete("topic");
+        searchParams.delete("chapter");
+      }
+      if (value !== "artifacts") {
+        searchParams.delete("artifact");
+        searchParams.delete("artifactId");
+      }
+      if (value !== "quizzes") {
+        searchParams.delete("quiz");
+        searchParams.delete("quizId");
+      }
+      if (value !== "sources") {
+        searchParams.delete("source");
+        searchParams.delete("sourceId");
+      }
+    } else if (key === "topic" || key === "chapter") {
+      searchParams.set("tab", "study");
+      searchParams.delete("artifact");
+      searchParams.delete("artifactId");
+      searchParams.delete("quiz");
+      searchParams.delete("quizId");
+      searchParams.delete("source");
+      searchParams.delete("sourceId");
+    } else if (key === "artifact" || key === "artifactId") {
+      searchParams.set("tab", "artifacts");
+      searchParams.delete("topic");
+      searchParams.delete("chapter");
+      searchParams.delete("quiz");
+      searchParams.delete("quizId");
+      searchParams.delete("source");
+      searchParams.delete("sourceId");
+    } else if (key === "quiz" || key === "quizId") {
+      searchParams.set("tab", "quizzes");
+      searchParams.delete("topic");
+      searchParams.delete("chapter");
+      searchParams.delete("artifact");
+      searchParams.delete("artifactId");
+      searchParams.delete("source");
+      searchParams.delete("sourceId");
+    } else if (key === "source" || key === "sourceId") {
+      if (isMobile) {
+        searchParams.set("tab", "sources");
+      }
+      searchParams.delete("topic");
+      searchParams.delete("chapter");
+      searchParams.delete("artifact");
+      searchParams.delete("artifactId");
+      searchParams.delete("quiz");
+      searchParams.delete("quizId");
+    }
+    
+    const newSearch = searchParams.toString();
+    const newUrl = `${window.location.pathname}${newSearch ? "?" + newSearch : ""}`;
+    window.history.pushState(null, "", newUrl);
+  };
+
+  useEffect(() => {
+    const parseUrlParams = () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      
+      const tabParam = searchParams.get("tab");
+      if (tabParam && ["study", "chat", "quizzes", "artifacts", "sources"].includes(tabParam)) {
+        setActiveTab(tabParam as any);
+      }
+
+      const chapterParam = searchParams.get("topic") || searchParams.get("chapter");
+      if (chapterParam && content && content.length > 0) {
+        const decoded = decodeURIComponent(chapterParam);
+        const match = chapters.find(ch => ch.toLowerCase() === decoded.toLowerCase()) || 
+                      content.find((c: any) => c.topic.toLowerCase() === decoded.toLowerCase())?.chapter;
+        if (match) {
+          setSelectedChapter(match);
+          setActiveTab("study");
+        }
+      }
+
+      const artifactParam = searchParams.get("artifact") || searchParams.get("artifactId");
+      if (artifactParam && displayArtifacts && displayArtifacts.length > 0) {
+        const decoded = decodeURIComponent(artifactParam);
+        const match = displayArtifacts.find(
+          a => String(a.id) === decoded || a.title.toLowerCase() === decoded.toLowerCase()
+        );
+        if (match) {
+          setSelectedArtifactId(match.id);
+          setActiveTab("artifacts");
+        }
+      }
+
+      const quizParam = searchParams.get("quiz") || searchParams.get("quizId");
+      if (quizParam && tests && tests.length > 0) {
+        const decoded = decodeURIComponent(quizParam);
+        const match = moduleTests.find(
+          (t: any) => String(t.id) === decoded || t.title.toLowerCase() === decoded.toLowerCase()
+        );
+        if (match) {
+          setSelectedTestId(match.id);
+          setActiveTab("quizzes");
+        }
+      }
+
+      const sourceParam = searchParams.get("source") || searchParams.get("sourceId");
+      if (sourceParam && sources && sources.length > 0) {
+        const decoded = decodeURIComponent(sourceParam);
+        const match = sources.find(
+          (s: any) => String(s.id) === decoded || s.name.toLowerCase() === decoded.toLowerCase()
+        );
+        if (match) {
+          if (isMobile) {
+            setActiveTab("sources");
+          }
+        }
+      }
+    };
+
+    parseUrlParams();
+
+    window.addEventListener("popstate", parseUrlParams);
+    return () => {
+      window.removeEventListener("popstate", parseUrlParams);
+    };
+  }, [content, displayArtifacts, tests, sources, isMobile]);
+
+  const handleTabChange = (tab: "study" | "chat" | "quizzes" | "artifacts" | "sources") => {
+    setActiveTab(tab);
+    updateQueryParam("tab", tab);
+  };
+
+  const handleChapterSelect = (ch: any) => {
+    setSelectedChapter(ch);
+    updateQueryParam("topic", ch);
+  };
+
+  const handleQuizSelect = (t: any | null) => {
+    if (t) {
+      setSelectedTestId(t.id);
+      setQuizAnswers({});
+      setQuizScore(null);
+      setCurrentQuizQuestionIndex(0);
+      updateQueryParam("quiz", t.title);
+    } else {
+      setSelectedTestId(null);
+      updateQueryParam("quiz", null);
+    }
+  };
+
+  const handleArtifactSelect = (art: any | null) => {
+    if (art) {
+      setSelectedArtifactId(art.id);
+      setFlashcardIndex(0);
+      setFlashcardFlipped(false);
+      updateQueryParam("artifact", art.title);
+    } else {
+      setSelectedArtifactId(null);
+      updateQueryParam("artifact", null);
+    }
+  };
+
+  const handleSourceSelect = (s: any) => {
+    updateQueryParam("source", s.name);
+    if (isMobile) {
+      setActiveTab("sources");
+    }
+    toast.info(`Viewing source: ${s.name}`);
+  };
 
   const handleSendChatMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -942,7 +1121,7 @@ export default function ModuleDetailPage() {
         {/* Navigation Tabs */}
         <div className="flex border-b border-border mb-4 sm:mb-6 overflow-x-auto scrollbar-none shrink-0 gap-2">
           <button
-            onClick={() => setActiveTab("study")}
+            onClick={() => handleTabChange("study")}
             className={cn("px-4 py-2.5 text-sm font-semibold border-b-2 transition-all flex items-center gap-1.5",
               activeTab === "study" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
             )}
@@ -952,7 +1131,7 @@ export default function ModuleDetailPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("quizzes")}
+            onClick={() => handleTabChange("quizzes")}
             className={cn("px-4 py-2.5 text-sm font-semibold border-b-2 transition-all flex items-center gap-1.5",
               activeTab === "quizzes" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
             )}
@@ -961,7 +1140,7 @@ export default function ModuleDetailPage() {
             Practice Quizzes
           </button>
           <button
-            onClick={() => setActiveTab("artifacts")}
+            onClick={() => handleTabChange("artifacts")}
             className={cn("px-4 py-2.5 text-sm font-semibold border-b-2 transition-all flex items-center gap-1.5",
               activeTab === "artifacts" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
             )}
@@ -971,7 +1150,7 @@ export default function ModuleDetailPage() {
           </button>
           {isMobile && (
             <button
-              onClick={() => setActiveTab("sources")}
+              onClick={() => handleTabChange("sources")}
               className={cn("px-4 py-2.5 text-sm font-semibold border-b-2 transition-all flex items-center gap-1.5",
                 activeTab === "sources" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
               )}
@@ -1010,7 +1189,7 @@ export default function ModuleDetailPage() {
                       {chapters.map(ch => (
                         <button
                           key={ch}
-                          onClick={() => setSelectedChapter(ch)}
+                          onClick={() => handleChapterSelect(ch)}
                           className={cn(
                             "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex items-center gap-2 font-medium",
                             selectedChapter === ch || (!selectedChapter && chapters[0] === ch)
@@ -1046,12 +1225,7 @@ export default function ModuleDetailPage() {
                       {moduleTests.map((t: any) => (
                         <button
                           key={t.id}
-                          onClick={() => {
-                            setSelectedTestId(t.id);
-                            setQuizAnswers({});
-                            setQuizScore(null);
-                            setCurrentQuizQuestionIndex(0);
-                          }}
+                          onClick={() => handleQuizSelect(t)}
                           className={cn(
                             "w-full text-left p-3 rounded-lg text-xs transition-all border flex flex-col gap-1.5",
                             selectedTestId === t.id
@@ -1086,11 +1260,7 @@ export default function ModuleDetailPage() {
                     {displayArtifacts.map(art => (
                       <button
                         key={art.id}
-                        onClick={() => {
-                          setSelectedArtifactId(art.id);
-                          setFlashcardIndex(0);
-                          setFlashcardFlipped(false);
-                        }}
+                        onClick={() => handleArtifactSelect(art)}
                         className={cn(
                           "w-full text-left p-2.5 rounded-lg text-xs transition-colors flex items-center gap-2.5 font-medium border border-transparent",
                           String(selectedArtifact?.id) === String(art.id)
@@ -1154,7 +1324,7 @@ export default function ModuleDetailPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setSelectedChapter(null)}
+                      onClick={() => handleChapterSelect(null)}
                       className="mb-4 h-8 px-2 text-xs font-semibold flex items-center gap-1 w-fit border border-border"
                     >
                       <ArrowLeft className="h-4 w-4" /> Back to Chapters
@@ -1209,7 +1379,7 @@ export default function ModuleDetailPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setSelectedTestId(null)}
+                            onClick={() => handleQuizSelect(null)}
                             className="h-7 px-2 text-xs font-semibold mr-2 shrink-0 border border-border"
                           >
                             <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
@@ -1322,7 +1492,7 @@ export default function ModuleDetailPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => setSelectedArtifactId(null)}
+                              onClick={() => handleArtifactSelect(null)}
                               className="h-7 px-2 text-xs font-semibold mr-2 shrink-0 border border-border"
                             >
                               <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
@@ -1508,7 +1678,7 @@ export default function ModuleDetailPage() {
               ) : (
                 <div className="space-y-2 overflow-y-auto flex-1 pr-0.5">
                   {sources.map((s: any) => (
-                    <SourceCard key={s.id} source={s} />
+                    <SourceCard key={s.id} source={s} onClick={() => handleSourceSelect(s)} />
                   ))}
                 </div>
               )}

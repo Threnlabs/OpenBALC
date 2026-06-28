@@ -22,6 +22,9 @@ import PublicModulesPage from "@/pages/public-modules";
 import PublicModuleDetailPage from "@/pages/public-module-detail";
 import AdminPage from "@/pages/admin";
 import ArtifactsPage from "@/pages/artifacts";
+import IndividualsSolution from "@/pages/solutions/individuals";
+import EducatorsSolution from "@/pages/solutions/educators";
+import EnterprisesSolution from "@/pages/solutions/enterprises";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,7 +46,6 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   }, [isLoggedIn, setLocation]);
 
   if (!isLoggedIn) return null;
-
   return <Component />;
 }
 
@@ -65,6 +67,10 @@ function Router() {
       <Route path="/ads" component={AdsPortal} />
       <Route path="/modules" component={PublicModulesPage} />
       <Route path="/modules/:id" component={PublicModuleDetailPage} />
+
+      <Route path="/solutions/individuals" component={IndividualsSolution} />
+      <Route path="/solutions/educators" component={EducatorsSolution} />
+      <Route path="/solutions/enterprises" component={EnterprisesSolution} />
 
       <Route path="/app" component={() => <ProtectedRoute component={Dashboard} />} />
       <Route path="/app/chat" component={() => <ProtectedRoute component={ChatPage} />} />
