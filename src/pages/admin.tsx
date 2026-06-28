@@ -56,6 +56,10 @@ export default function AdminPage() {
   const [configSaving, setConfigSaving] = useState(false);
   const [selectedTopics, setSelectedTopics] = useState<Record<number, number[]>>({});
   const [triggeringIngestion, setTriggeringIngestion] = useState<Record<number, boolean>>({});
+  // Live chunk counts: moduleId -> chunkCount
+  const [chunkCounts, setChunkCounts] = useState<Record<number, number>>({});
+  // Live polling for processing status
+  const pollingRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchCacheTelemetry = async () => {
     setCacheLoading(true);
@@ -63,6 +67,58 @@ export default function AdminPage() {
     setCacheData(data);
     setCacheLoading(false);
   };
+
+  // Fetch chunk counts from Supabase for all modules
+  const fetchChunkCounts = async (modules: any[]) => {
+    if (!modules || modules.length === 0) return;
+    try {
+      const counts: Record<number, number> = {};
+      await Promise.all(modules.map(async (mod: any) => {
+        const { count } = await supabase
+          .from("module_chunks")
+          .select("id", { count: "exact", head: true })
+          .eq("module_id", mod.id);
+        counts[mod.id] = count ?? 0;
+      }));
+      setChunkCounts(counts);
+    } catch { /* non-fatal */ }
+  };
+
+  // Determine if any ingestion is actively processing
+  const hasActiveIngestion = (modules: any[]): boolean => {
+    return modules.some((mod: any) =>
+      (mod.sources || []).some((s: any) => s.ingestionStatus === "processing") ||
+      (mod.contents || []).some((t: any) => t.indexingStatus === "processing")
+    );
+  };
+
+  // Start/stop polling based on active ingestion
+  useEffect(() => {
+    if (activeTab !== "modules") {
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+      return;
+    }
+    const runPoll = async () => {
+      const result = await refetchModules();
+      const mods = (result.data as any[]) || [];
+      await fetchChunkCounts(mods);
+      if (hasActiveIngestion(mods)) {
+        if (!pollingRef.current) {
+          pollingRef.current = setInterval(async () => {
+            const r = await refetchModules();
+            const ms = (r.data as any[]) || [];
+            await fetchChunkCounts(ms);
+            if (!hasActiveIngestion(ms)) {
+              clearInterval(pollingRef.current!);
+              pollingRef.current = null;
+            }
+          }, 3000);
+        }
+      }
+    };
+    runPoll();
+    return () => { if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; } };
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === "cache") fetchCacheTelemetry();
@@ -302,11 +358,24 @@ export default function AdminPage() {
       });
       const resJson = await res.json();
       if (res.ok && resJson.success) {
-        toast.success(topicIds.length > 0
-          ? `Ingestion triggered for ${topicIds.length} selected sections`
-          : "Ingestion triggered for all unindexed sections"
-        );
+        const label = topicIds.length > 0
+          ? `Indexing ${topicIds.length} section(s) — live status updating below…`
+          : "Indexing all unindexed sections — live status updating below…";
+        toast.success(label);
         setSelectedTopics(prev => ({ ...prev, [moduleId]: [] }));
+        // Kick off live polling immediately
+        if (!pollingRef.current) {
+          pollingRef.current = setInterval(async () => {
+            const r = await refetchModules();
+            const ms = (r.data as any[]) || [];
+            await fetchChunkCounts(ms);
+            if (!hasActiveIngestion(ms)) {
+              clearInterval(pollingRef.current!);
+              pollingRef.current = null;
+              toast.success("✅ Ingestion complete — all sections indexed.");
+            }
+          }, 3000);
+        }
         refetchModules();
       } else {
         toast.error(`Ingestion failed: ${resJson.error || "unknown error"}`);
@@ -1161,24 +1230,90 @@ export default function AdminPage() {
             )}
 
             {/* 6. Modules Ingestion Tab */}
-            {activeTab === "modules" && (
+            {activeTab === "modules" && (() => {
+              // Compute live ingestion status across all modules
+              const allProcessingSources = adminModules.flatMap((m: any) =>
+                (m.sources || []).filter((s: any) => s.ingestionStatus === "processing")
+              );
+              const allProcessingTopics = adminModules.flatMap((m: any) =>
+                (m.contents || []).filter((t: any) => t.indexingStatus === "processing")
+              );
+              const allFailedTopics = adminModules.flatMap((m: any) =>
+                (m.contents || []).filter((t: any) => t.indexingStatus === "failed")
+              );
+              const isLivePolling = !!pollingRef.current;
+              return (
               <div className="space-y-6 animate-in fade-in duration-200">
                 <div className="border-b border-slate-800 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <h2 className="text-2xl font-bold tracking-tight">Modules & Ingestion Control</h2>
                     <p className="text-xs text-slate-400 mt-1">Manage embeddings — ingest or remove chunks from the vector database per module or per source.</p>
                   </div>
-                  <div className="relative w-full md:w-72">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
-                    <input
-                      type="text"
-                      value={searchModuleQuery}
-                      onChange={(e) => setSearchModuleQuery(e.target.value)}
-                      placeholder="Search module titles, creators..."
-                      className="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => { const r = await refetchModules(); await fetchChunkCounts((r.data as any[]) || []); }}
+                      className="h-8 text-xs border-slate-700 hover:bg-slate-800 text-slate-300 gap-1.5"
+                    >
+                      <RefreshCw className={cn("h-3.5 w-3.5", modulesLoading && "animate-spin")} />
+                      Refresh
+                    </Button>
+                    <div className="relative w-full md:w-64">
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                      <input
+                        type="text"
+                        value={searchModuleQuery}
+                        onChange={(e) => setSearchModuleQuery(e.target.value)}
+                        placeholder="Search module titles, creators..."
+                        className="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
                   </div>
                 </div>
+
+                {/* ── Live Ingestion Status Banner ─────────────────────────── */}
+                {(allProcessingSources.length > 0 || allProcessingTopics.length > 0 || allFailedTopics.length > 0) && (
+                  <div className="space-y-2">
+                    {(allProcessingSources.length > 0 || allProcessingTopics.length > 0) && (
+                      <div className="flex items-center gap-3 bg-amber-950/30 border border-amber-500/30 rounded-xl px-4 py-3">
+                        <Loader2 className="h-4 w-4 text-amber-400 animate-spin shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-amber-300">
+                            Ingestion running — auto-refreshing every 3s
+                          </p>
+                          <p className="text-[10px] text-amber-400/70 mt-0.5">
+                            {allProcessingSources.length > 0 && `${allProcessingSources.length} source(s) extracting · `}
+                            {allProcessingTopics.length > 0 && `${allProcessingTopics.length} topic(s) embedding chunks`}
+                          </p>
+                        </div>
+                        <span className="text-[9px] font-bold text-amber-400/60 shrink-0">LIVE</span>
+                      </div>
+                    )}
+                    {allFailedTopics.length > 0 && (
+                      <div className="flex items-start gap-3 bg-red-950/30 border border-red-500/30 rounded-xl px-4 py-3">
+                        <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-red-300">{allFailedTopics.length} topic(s) failed to index</p>
+                          <div className="mt-1.5 space-y-1">
+                            {allFailedTopics.slice(0, 3).map((t: any) => (
+                              <div key={t.id} className="flex items-start gap-1.5">
+                                <XCircle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />
+                                <p className="text-[10px] text-red-300/70 break-all">
+                                  <span className="font-semibold text-red-300">{t.topic}</span>
+                                  {t.indexingError && ` — ${t.indexingError}`}
+                                </p>
+                              </div>
+                            ))}
+                            {allFailedTopics.length > 3 && (
+                              <p className="text-[10px] text-red-400/50">+{allFailedTopics.length - 3} more failed topics (see below)</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* ── Chunk Configuration Panel ────────────────────────────────── */}
                 <div className="bg-slate-900 border border-indigo-500/20 rounded-xl p-5 shadow-sm">
@@ -1238,8 +1373,14 @@ export default function AdminPage() {
                     filteredModules.map((mod: any) => {
                       const doneCount = (mod.sources || []).filter((s: any) => s.ingestionStatus === "done").length;
                       const totalSrcs = (mod.sources || []).length;
+                      const doneTopics = (mod.contents || []).filter((t: any) => t.indexingStatus === "done").length;
+                      const failedTopics = (mod.contents || []).filter((t: any) => t.indexingStatus === "failed").length;
+                      const processingTopics = (mod.contents || []).filter((t: any) => t.indexingStatus === "processing").length;
+                      const totalTopics = (mod.contents || []).length;
+                      const chunkCount = chunkCounts[mod.id] ?? null;
+                      const isModuleProcessing = processingTopics > 0 || (mod.sources || []).some((s: any) => s.ingestionStatus === "processing");
                       return (
-                        <div key={mod.id} className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4 shadow-sm hover:border-slate-700 transition-colors">
+                        <div key={mod.id} className={cn("bg-slate-900 border rounded-xl p-5 space-y-4 shadow-sm transition-colors", isModuleProcessing ? "border-amber-500/30 hover:border-amber-500/50" : "border-slate-800 hover:border-slate-700")}>
 
                           {/* Module header */}
                           <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
@@ -1260,10 +1401,21 @@ export default function AdminPage() {
                             </div>
 
                             {/* Module-level action buttons */}
-                            <div className="flex items-center gap-2 shrink-0">
-                              <div className="text-right mr-2">
-                                <div className="text-xs font-bold text-slate-300">{doneCount}/{totalSrcs} indexed</div>
-                                <div className="text-[10px] text-slate-500">{mod.processingPct || 0}% processed</div>
+                            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                              <div className="text-right mr-1 space-y-0.5">
+                                <div className="text-xs font-bold text-slate-300">{doneCount}/{totalSrcs} sources indexed</div>
+                                <div className="text-[10px] text-slate-400">
+                                  {totalTopics > 0 && (
+                                    <span>
+                                      <span className="text-emerald-400">{doneTopics}</span>/{totalTopics} topics
+                                      {failedTopics > 0 && <span className="text-red-400 ml-1">· {failedTopics} failed</span>}
+                                      {processingTopics > 0 && <span className="text-amber-400 ml-1">· {processingTopics} running</span>}
+                                    </span>
+                                  )}
+                                </div>
+                                {chunkCount !== null && (
+                                  <div className="text-[10px] text-indigo-400 font-mono">{chunkCount.toLocaleString()} chunks in DB</div>
+                                )}
                               </div>
                               <Button
                                 size="sm"
@@ -1424,7 +1576,7 @@ export default function AdminPage() {
                                         </div>
                                       </div>
                                       
-                                      <div className="flex items-center gap-1.5 shrink-0">
+                                      <div className="flex flex-col items-end gap-1 shrink-0">
                                         <span
                                           className={cn(
                                             "text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border",
@@ -1433,10 +1585,15 @@ export default function AdminPage() {
                                             : topic.indexingStatus === "failed" ? "bg-red-500/10 text-red-400 border-red-500/20"
                                             : "bg-slate-800/50 text-slate-500 border-slate-800"
                                           )}
-                                          title={topic.indexingError || undefined}
                                         >
-                                          {topic.indexingStatus === "done" ? "✓" : topic.indexingStatus === "failed" ? "!" : topic.indexingStatus || "pending"}
+                                          {topic.indexingStatus === "done" ? "✓ done"
+                                            : topic.indexingStatus === "processing" ? "⏳ running"
+                                            : topic.indexingStatus === "failed" ? "✗ failed"
+                                            : topic.indexingStatus || "pending"}
                                         </span>
+                                        {topic.indexingStatus === "failed" && topic.indexingError && (
+                                          <p className="text-[8px] text-red-400/80 max-w-[160px] text-right break-words leading-tight">{topic.indexingError}</p>
+                                        )}
                                       </div>
                                     </div>
                                   );
@@ -1450,7 +1607,8 @@ export default function AdminPage() {
                   )}
                 </div>
               </div>
-            )}
+              );
+            })()}
 
 
             {/* 7. Cache Telemetry Tab */}

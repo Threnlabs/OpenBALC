@@ -74,7 +74,7 @@ interface EmbeddedChunk extends TextChunk {
 /** Rough average chars-per-token for English text */
 const CHARS_PER_TOKEN = 4;
 
-const GEMINI_EMBED_MODEL = "text-embedding-004";
+const GEMINI_EMBED_MODEL = "gemini-embedding-001";
 const GEMINI_FLASH_MODEL = "gemini-1.5-flash";
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
@@ -460,6 +460,7 @@ async function embedText(text: string, geminiApiKey: string): Promise<number[]> 
         model: `models/${GEMINI_EMBED_MODEL}`,
         content: { parts: [{ text }] },
         taskType: "RETRIEVAL_DOCUMENT",
+        outputDimensionality: 768,
       }),
     }
   );
@@ -471,7 +472,7 @@ async function embedText(text: string, geminiApiKey: string): Promise<number[]> 
 }
 
 async function embedChunks(chunks: TextChunk[], geminiApiKey: string): Promise<EmbeddedChunk[]> {
-  const EMBED_DIMS = 768;
+  const EMBED_DIMS = 768; // truncated to match vector(768) pgvector column
   const embedded: EmbeddedChunk[] = [];
 
   for (const chunk of chunks) {
