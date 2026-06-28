@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
-import { ingestSource } from "../src/lib/ingestion";
+import { ingestSource, ingestTopics } from "../src/lib/ingestion";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
@@ -13,8 +13,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { sourceId, moduleId, type, name, content, url, storagePath } = req.body;
+  const { action, sourceId, moduleId, type, name, content, url, storagePath, topicIds } = req.body;
 
+  // ── Handle Action: Direct Content Ingestion (from module_content table) ────
+  if (action === "ingest_content") {
+    if (!moduleId) {
+      return res.status(400).json({ error: "Missing required field: moduleId" });
+    }
+
+    const supabase = createClient(
+      VITE_SUPABASE_URL || "https://placeholder.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+    );
+
+    // Fetch config sizes
+    let chunkTargetTokens = 500;
+    let chunkOverlapTokens = 100;
+    try {
+      const { data: cfg } = await supabase.from("ingestion_config").select("key, value");
+      if (cfg) {
+        const map = Object.fromEntries(cfg.map((r: any) => [r.key, r.value]));
+        if (map["chunk_target_tokens"]) chunkTargetTokens = parseInt(map["chunk_target_tokens"], 10);
+        if (map["chunk_overlap_tokens"]) chunkOverlapTokens = parseInt(map["chunk_overlap_tokens"], 10);
+      }
+    } catch {
+      // ignore
+    }
+
+    if (!GEMINI_API_KEY) {
+      return res.status(400).json({ error: "GEMINI_API_KEY is required for embedding/indexing." });
+    }
+
+    // Determine topic IDs to ingest
+    let targetTopicIds = topicIds;
+    if (!targetTopicIds || targetTopicIds.length === 0) {
+      const { data: contents } = await supabase
+        .from("module_content")
+        .select("topic_id")
+        .eq("module_id", moduleId)
+        .neq("indexing_status", "done");
+      targetTopicIds = (contents || []).map((c: any) => c.topic_id);
+    }
+
+    if (targetTopicIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No unindexed topics found to ingest.",
+      });
+    }
+
+    // Trigger ingestTopics asynchronously
+    ingestTopics(
+      Number(moduleId),
+      targetTopicIds,
+      GEMINI_API_KEY,
+      { targetTokens: chunkTargetTokens, overlapTokens: chunkOverlapTokens }
+    ).catch((err: any) => {
+      console.error(`[backend-ingest] Async ingestTopics error for module ${moduleId}:`, err);
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Ingestion of ${targetTopicIds.length} topics triggered.`,
+    });
+  }
+
+  // ── Handle Action: Standard Source Ingestion (PDF, URL, Text) ────────────
   if (!sourceId || !moduleId || !type || !name) {
     return res.status(400).json({ error: "Missing required fields: sourceId, moduleId, type, name" });
   }
@@ -24,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
   );
 
-  // ── Fetch admin-configured chunk sizes ───────────────────────────────────
+  // Fetch admin-configured chunk sizes
   let chunkTargetTokens = 500;
   let chunkOverlapTokens = 100;
   try {
@@ -38,12 +102,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Non-fatal — use defaults
   }
 
-  // ── No Gemini key: create placeholder content ─────────────────────────────
+  // No Gemini key: create placeholder content
   if (!GEMINI_API_KEY) {
     console.warn("[backend-ingest] GEMINI_API_KEY not configured. Creating placeholder content.");
     try {
       await supabase.from("module_sources")
-        .update({ processed: true, ingestion_status: "done" })
+        .update({ processed: true, ingestion_status: "done", extraction_status: "done", indexing_status: "done" })
         .eq("id", sourceId);
 
       await supabase.from("module_content").insert({
@@ -113,4 +177,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: err.message || "Internal server error" });
   }
 }
+
 

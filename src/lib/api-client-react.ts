@@ -1688,6 +1688,11 @@ export function useGetModuleSources(id: number, options?: any): any {
         name: s.name,
         url: s.url,
         processed: s.processed,
+        ingestionStatus: s.ingestion_status,
+        extractionStatus: s.extraction_status,
+        extractionError: s.extraction_error,
+        indexingStatus: s.indexing_status,
+        indexingError: s.indexing_error,
         createdAt: s.created_at
       }));
 
@@ -1720,9 +1725,12 @@ export function useGetModuleContent(id: number, options?: any): any {
       const result = (data || []).map(c => ({
         id: c.id,
         moduleId: c.module_id,
+        topicId: c.topic_id,
         chapter: c.chapter,
         topic: c.topic,
         content: c.content,
+        indexingStatus: c.indexing_status,
+        indexingError: c.indexing_error,
         createdAt: c.created_at
       }));
 
@@ -1929,7 +1937,8 @@ export function useIngestionStatus(sourceId: number | null, options?: any): any 
     queryKey: getGetIngestionStatusQueryKey(sourceId ?? 0),
     enabled: !!sourceId && hasSupabase,
     refetchInterval: (query: any) => {
-      const status = query.state.data;
+      const data = query.state.data;
+      const status = data?.ingestionStatus ?? data?.ingestion_status;
       if (status === "processing" || status === "pending") return 3000;
       return false; // stop polling once done/failed
     },
@@ -1937,10 +1946,24 @@ export function useIngestionStatus(sourceId: number | null, options?: any): any 
       if (!hasSupabase || !sourceId) return null;
       const { data } = await supabase
         .from("module_sources")
-        .select("ingestion_status")
+        .select("id, module_id, type, name, url, processed, ingestion_status, extraction_status, extraction_error, indexing_status, indexing_error, created_at")
         .eq("id", sourceId)
         .single();
-      return (data?.ingestion_status ?? null) as string | null;
+      if (!data) return null;
+      return {
+        id: data.id,
+        moduleId: data.module_id,
+        type: data.type,
+        name: data.name,
+        url: data.url,
+        processed: data.processed,
+        ingestionStatus: data.ingestion_status,
+        extractionStatus: data.extraction_status,
+        extractionError: data.extraction_error,
+        indexingStatus: data.indexing_status,
+        indexingError: data.indexing_error,
+        createdAt: data.created_at
+      };
     },
     ...options,
   });
@@ -3695,6 +3718,12 @@ export function useGetAdminModules(options?: any): any {
         .from("module_sources")
         .select("*");
       if (srcErr) throw srcErr;
+
+      // Fetch all module content items
+      const { data: contents, error: contentErr } = await supabase
+        .from("module_content")
+        .select("id, topic_id, chapter, topic, indexing_status, indexing_error, module_id");
+      if (contentErr) throw contentErr;
       
       return (mods || []).map((m: any) => ({
         id: m.id,
@@ -3718,6 +3747,14 @@ export function useGetAdminModules(options?: any): any {
           ingestionStatus: s.ingestion_status,
           storageKey: s.storage_key,
           content: s.content
+        })),
+        contents: (contents || []).filter((c: any) => c.module_id === m.id).map((c: any) => ({
+          id: c.id,
+          topicId: c.topic_id,
+          chapter: c.chapter,
+          topic: c.topic,
+          indexingStatus: c.indexing_status,
+          indexingError: c.indexing_error
         }))
       }));
     },

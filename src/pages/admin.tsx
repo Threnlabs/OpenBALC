@@ -54,6 +54,8 @@ export default function AdminPage() {
   const [chunkOverlapTokens, setChunkOverlapTokens] = useState(100);
   const [configLoading, setConfigLoading] = useState(false);
   const [configSaving, setConfigSaving] = useState(false);
+  const [selectedTopics, setSelectedTopics] = useState<Record<number, number[]>>({});
+  const [triggeringIngestion, setTriggeringIngestion] = useState<Record<number, boolean>>({});
 
   const fetchCacheTelemetry = async () => {
     setCacheLoading(true);
@@ -272,6 +274,47 @@ export default function AdminPage() {
       toast.error(`Failed to trigger ingestion: ${err.message || err}`);
     } finally {
       setTriggeringSourceId(null);
+    }
+  };
+
+  const handleToggleTopic = (moduleId: number, topicId: number) => {
+    setSelectedTopics(prev => {
+      const current = prev[moduleId] || [];
+      const updated = current.includes(topicId)
+        ? current.filter(id => id !== topicId)
+        : [...current, topicId];
+      return { ...prev, [moduleId]: updated };
+    });
+  };
+
+  const handleIngestContent = async (moduleId: number) => {
+    const topicIds = selectedTopics[moduleId] || [];
+    setTriggeringIngestion(prev => ({ ...prev, [moduleId]: true }));
+    try {
+      const res = await fetch("/api/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "ingest_content",
+          moduleId,
+          topicIds: topicIds.length > 0 ? topicIds : undefined,
+        })
+      });
+      const resJson = await res.json();
+      if (res.ok && resJson.success) {
+        toast.success(topicIds.length > 0
+          ? `Ingestion triggered for ${topicIds.length} selected sections`
+          : "Ingestion triggered for all unindexed sections"
+        );
+        setSelectedTopics(prev => ({ ...prev, [moduleId]: [] }));
+        refetchModules();
+      } else {
+        toast.error(`Ingestion failed: ${resJson.error || "unknown error"}`);
+      }
+    } catch (err: any) {
+      toast.error(`Failed to trigger ingestion: ${err.message || err}`);
+    } finally {
+      setTriggeringIngestion(prev => ({ ...prev, [moduleId]: false }));
     }
   };
 
@@ -1324,6 +1367,83 @@ export default function AdminPage() {
                               ))}
                             </div>
                           )}
+
+                          {/* Chapters & Topics List */}
+                          <div className="space-y-2 mt-4 pt-4 border-t border-slate-800">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                Chapter Sections ({mod.contents?.length || 0})
+                              </h4>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleIngestContent(mod.id)}
+                                disabled={triggeringIngestion[mod.id]}
+                                className="h-7 text-[9px] font-bold border-indigo-500/30 hover:bg-indigo-950/40 text-indigo-400 gap-1"
+                              >
+                                {triggeringIngestion[mod.id] ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Play className="h-3 w-3 text-indigo-400" />
+                                )}
+                                {(selectedTopics[mod.id] || []).length > 0 ? (
+                                  `Ingest Selected (${selectedTopics[mod.id].length})`
+                                ) : (
+                                  "Ingest Unindexed"
+                                )}
+                              </Button>
+                            </div>
+                            
+                            {(!mod.contents || mod.contents.length === 0) ? (
+                              <div className="text-slate-600 text-[10px] italic">
+                                No chapters or topics extracted yet. Ingest a source to extract content.
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                                {mod.contents.map((topic: any) => {
+                                  const isSelected = (selectedTopics[mod.id] || []).includes(topic.topicId);
+                                  return (
+                                    <div
+                                      key={topic.id}
+                                      className="flex items-center justify-between gap-2 p-2 bg-slate-950/40 border border-slate-850 rounded-lg hover:border-slate-800 transition-colors text-[11px]"
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={() => handleToggleTopic(mod.id, topic.topicId)}
+                                          className="rounded border-slate-800 bg-slate-900 text-indigo-600 focus:ring-indigo-500 h-3 w-3"
+                                        />
+                                        <div className="min-w-0">
+                                          <p className="font-semibold text-slate-300 truncate" title={topic.topic}>
+                                            {topic.topic}
+                                          </p>
+                                          <p className="text-[9px] text-slate-500 truncate">
+                                            {topic.chapter}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        <span
+                                          className={cn(
+                                            "text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border",
+                                            topic.indexingStatus === "done" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                            : topic.indexingStatus === "processing" ? "bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse"
+                                            : topic.indexingStatus === "failed" ? "bg-red-500/10 text-red-400 border-red-500/20"
+                                            : "bg-slate-800/50 text-slate-500 border-slate-800"
+                                          )}
+                                          title={topic.indexingError || undefined}
+                                        >
+                                          {topic.indexingStatus === "done" ? "✓" : topic.indexingStatus === "failed" ? "!" : topic.indexingStatus || "pending"}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })

@@ -14,7 +14,7 @@ import {
   BookOpen, Globe, Lock, Star, MessageSquare, Plus, FileText, Link2,
   Type, ChevronRight, Loader2, ArrowLeft, Send, Sparkles, Award, Check, X,
   HelpCircle, Eye, Info, BrainCircuit, RefreshCw, Layers, GraduationCap, ClipboardList,
-  UploadCloud, Trash2, FileCode
+  UploadCloud, Trash2, FileCode, AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,7 @@ import InteractiveMindMap from "@/components/InteractiveMindMap";
 import { ChevronLeft } from "lucide-react";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import ArtifactQuizPlayer from "@/components/ArtifactQuizPlayer";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Modal component to add sources
 // Helper to parse DOCX using Mammoth from CDN
@@ -573,38 +574,55 @@ function AddSourceModal({
 
 // ─── Per-source ingestion status card ──────────────────────────────────────────
 
+const MAGIC_QUOTES = [
+  "Wait for the magic to happen... ✨",
+  "Structuring chapters and concepts... 📚",
+  "Embedding semantic vectors... 🧠",
+  "Optimizing retrieval paths... ⚡",
+  "Brewing your custom study guide... ☕"
+];
+
 function SourceCard({ source }: { source: any }) {
   // Poll ingestion_status for this source while it is pending/processing
-  const needsPoll = source.ingestionStatus === "processing" || source.ingestionStatus === "pending"
-    || (!source.processed && !source.ingestionStatus);
+  const needsPoll = 
+    source.ingestionStatus === "processing" || 
+    source.ingestionStatus === "pending" ||
+    source.extractionStatus === "processing" ||
+    source.indexingStatus === "processing" ||
+    (!source.processed && !source.ingestionStatus);
+    
   const { data: liveStatus } = useIngestionStatus(needsPoll ? source.id : null);
 
-  const status: string = liveStatus ?? source.ingestionStatus ?? (source.processed ? "done" : "pending");
+  const extractionStatus = liveStatus?.extractionStatus ?? source.extractionStatus ?? (source.processed ? "done" : "pending");
+  const indexingStatus = liveStatus?.indexingStatus ?? source.indexingStatus ?? (source.processed ? "done" : "pending");
+  const ingestionStatus = liveStatus?.ingestionStatus ?? source.ingestionStatus ?? (source.processed ? "done" : "pending");
 
-  const statusConfig: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
-    done: {
-      label: "Embedded ✓",
-      className: "text-emerald-500",
-      icon: <Check className="h-3 w-3 text-emerald-500 shrink-0" />,
-    },
-    processing: {
-      label: "Ingesting…",
-      className: "text-amber-500",
-      icon: <Loader2 className="h-3 w-3 text-amber-500 animate-spin shrink-0" />,
-    },
-    pending: {
-      label: "Queued",
-      className: "text-blue-400",
-      icon: <Loader2 className="h-3 w-3 text-blue-400 animate-spin shrink-0" />,
-    },
-    failed: {
-      label: "Failed",
-      className: "text-red-500",
-      icon: <X className="h-3 w-3 text-red-500 shrink-0" />,
-    },
-  };
+  let label = "Queued";
+  let className = "text-blue-400";
+  let icon = <Loader2 className="h-3 w-3 text-blue-400 animate-spin shrink-0" />;
 
-  const cfg = statusConfig[status] ?? statusConfig.pending;
+  if (extractionStatus === "failed") {
+    label = "Extraction error, please try again later";
+    className = "text-red-500";
+    icon = <X className="h-3 w-3 text-red-500 shrink-0" />;
+  } else if (extractionStatus === "processing") {
+    label = "Extracting content...";
+    className = "text-amber-500";
+    icon = <Loader2 className="h-3 w-3 text-amber-500 animate-spin shrink-0" />;
+  } else if (extractionStatus === "done" && indexingStatus === "processing") {
+    const quoteIndex = Math.floor(Date.now() / 3000) % MAGIC_QUOTES.length;
+    label = MAGIC_QUOTES[quoteIndex];
+    className = "text-indigo-400 animate-pulse";
+    icon = <Sparkles className="h-3 w-3 text-indigo-400 animate-pulse shrink-0" />;
+  } else if (extractionStatus === "done" && indexingStatus === "failed") {
+    label = "Indexing failure";
+    className = "text-amber-500";
+    icon = <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />;
+  } else if (ingestionStatus === "done") {
+    label = "Ready";
+    className = "text-emerald-500 font-semibold";
+    icon = <Check className="h-3 w-3 text-emerald-500 shrink-0" />;
+  }
 
   return (
     <div className="flex items-center gap-2.5 p-2 rounded-lg bg-muted/20 border border-border/50 hover:border-primary/20 transition-colors group">
@@ -615,9 +633,9 @@ function SourceCard({ source }: { source: any }) {
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium truncate text-foreground">{source.name}</p>
-        <p className={cn("text-[9px] font-semibold flex items-center gap-1", cfg.className)}>
-          {cfg.icon}
-          {cfg.label}
+        <p className={cn("text-[9px] font-semibold flex items-center gap-1", className)}>
+          {icon}
+          <span className="truncate">{label}</span>
         </p>
       </div>
     </div>
@@ -652,8 +670,9 @@ export default function ModuleDetailPage() {
     }
   };
 
-  // Layout tabs state: study guide, chat workspace, tests/quizzes, custom study artifacts
-  const [activeTab, setActiveTab] = useState<"study" | "chat" | "quizzes" | "artifacts">("study");
+  const isMobile = useIsMobile();
+  // Layout tabs state: study guide, chat workspace, tests/quizzes, custom study artifacts, mobile sources
+  const [activeTab, setActiveTab] = useState<"study" | "chat" | "quizzes" | "artifacts" | "sources">("study");
   const [addSourceOpen, setAddSourceOpen] = useState(false);
   const [selectedChapter, setSelectedChapter] = useState<any | null>(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
@@ -740,12 +759,12 @@ export default function ModuleDetailPage() {
 
   const selectedArtifact = displayArtifacts.find(a => String(a.id) === String(selectedArtifactId)) || displayArtifacts[0];
 
-  // Set default active artifact once loaded
+  // Set default active artifact once loaded (only on desktop to allow clean list/detail toggle on mobile)
   useEffect(() => {
-    if (displayArtifacts.length > 0 && !selectedArtifactId) {
+    if (!isMobile && displayArtifacts.length > 0 && !selectedArtifactId) {
       setSelectedArtifactId(displayArtifacts[0].id);
     }
-  }, [displayArtifacts, selectedArtifactId]);
+  }, [displayArtifacts, selectedArtifactId, isMobile]);
 
   // Automatically find or create conversation for this module when chat tab is active
   useEffect(() => {
@@ -905,6 +924,11 @@ export default function ModuleDetailPage() {
                   {module.visibility === "public" ? <Globe className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
                   {module.visibility}
                 </Badge>
+                {module.status && (
+                  <Badge className={cn("border-0 font-medium", module.status === "active" ? "bg-emerald-500/90 text-white" : "bg-amber-500/90 text-white")}>
+                    {module.status === "active" ? "Ready to Use" : "Processing"}
+                  </Badge>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-4 mt-5 text-white/70 text-xs font-medium">
@@ -945,146 +969,165 @@ export default function ModuleDetailPage() {
             <Layers className="h-4 w-4" />
             AI Study Artifacts
           </button>
+          {isMobile && (
+            <button
+              onClick={() => setActiveTab("sources")}
+              className={cn("px-4 py-2.5 text-sm font-semibold border-b-2 transition-all flex items-center gap-1.5",
+                activeTab === "sources" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <FileText className="h-4 w-4" />
+              Sources & Info
+            </button>
+          )}
         </div>
 
         {/* 3-panel layout */}
         <div className="flex flex-col lg:flex-row gap-6 flex-1 items-stretch min-h-0 relative lg:overflow-hidden">
           
           {/* LEFT PANEL (Dynamic based on active tab) */}
-          <div className={cn(
-            "rounded-xl border border-border bg-card p-4 flex flex-col h-auto lg:h-full min-h-[300px] transition-all duration-300 relative",
-            leftCollapsed ? "w-0 p-0 border-0 overflow-hidden lg:min-h-0" : "w-full lg:w-[230px]"
-          )}>
-            {/* STUDY GUIDE Left Side */}
-            {activeTab === "study" && (
-              <div className="flex flex-col h-full">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">Chapters</h3>
-                {contentLoading ? (
-                  <div className="space-y-2 flex-1">
-                    {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
-                  </div>
-                ) : !chapters.length ? (
-                  <p className="text-xs text-muted-foreground p-1 flex-1">No content yet</p>
-                ) : (
-                  <div className="space-y-1 overflow-y-auto flex-1 max-h-[400px]">
-                    {chapters.map(ch => (
+          {(!isMobile || (
+            (activeTab === "study" && selectedChapter === null) ||
+            (activeTab === "quizzes" && selectedTestId === null) ||
+            (activeTab === "artifacts" && selectedArtifactId === null)
+          )) && activeTab !== "sources" && (
+            <div className={cn(
+              "rounded-xl border border-border bg-card p-4 flex flex-col transition-all duration-300 relative",
+              isMobile ? "w-full min-h-[300px]" : (leftCollapsed ? "w-0 p-0 border-0 overflow-hidden lg:min-h-0" : "w-[230px] h-full")
+            )}>
+              {/* STUDY GUIDE Left Side */}
+              {activeTab === "study" && (
+                <div className="flex flex-col h-full">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">Chapters</h3>
+                  {contentLoading ? (
+                    <div className="space-y-2 flex-1">
+                      {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+                    </div>
+                  ) : !chapters.length ? (
+                    <p className="text-xs text-muted-foreground p-1 flex-1">No content yet</p>
+                  ) : (
+                    <div className="space-y-1 overflow-y-auto flex-1 max-h-[400px]">
+                      {chapters.map(ch => (
+                        <button
+                          key={ch}
+                          onClick={() => setSelectedChapter(ch)}
+                          className={cn(
+                            "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex items-center gap-2 font-medium",
+                            selectedChapter === ch || (!selectedChapter && chapters[0] === ch)
+                              ? "bg-primary/10 text-primary"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                          )}
+                        >
+                          <ChevronRight className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{ch}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+
+              {/* QUIZZES Left Side */}
+              {activeTab === "quizzes" && (
+                <div className="flex flex-col h-full">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">Quizzes Available</h3>
+                  {testsLoading ? (
+                    <div className="space-y-2 flex-1">
+                      {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+                    </div>
+                  ) : moduleTests.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-2 text-xs">
+                      <ClipboardList className="h-8 w-8 text-muted-foreground/30 mb-2" />
+                      <p className="text-muted-foreground">No quizzes generated yet.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 overflow-y-auto flex-1">
+                      {moduleTests.map((t: any) => (
+                        <button
+                          key={t.id}
+                          onClick={() => {
+                            setSelectedTestId(t.id);
+                            setQuizAnswers({});
+                            setQuizScore(null);
+                            setCurrentQuizQuestionIndex(0);
+                          }}
+                          className={cn(
+                            "w-full text-left p-3 rounded-lg text-xs transition-all border flex flex-col gap-1.5",
+                            selectedTestId === t.id
+                              ? "border-primary bg-primary/5 text-primary"
+                              : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                          )}
+                        >
+                          <span className="font-semibold line-clamp-1">{t.title}</span>
+                          <div className="flex justify-between items-center w-full text-[10px]">
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0">{t.difficulty}</Badge>
+                            <span>{t.questionCount} Questions</span>
+                          </div>
+                          {t.bestScore !== undefined && (
+                            <div className="text-[9px] text-emerald-500 font-semibold mt-0.5">Best Score: {t.bestScore}%</div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <Button onClick={handleGenerateQuiz} size="sm" className="w-full mt-4 text-xs font-semibold" disabled={createTest.isPending}>
+                    {createTest.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+                    Generate AI Quiz
+                  </Button>
+                </div>
+              )}
+
+              {/* STUDY ARTIFACTS Left Side */}
+              {activeTab === "artifacts" && (
+                <div className="flex flex-col h-full">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">Study Artifacts</h3>
+                  <div className="space-y-1.5 flex-1 overflow-y-auto max-h-[400px]">
+                    {displayArtifacts.map(art => (
                       <button
-                        key={ch}
-                        onClick={() => setSelectedChapter(ch)}
+                        key={art.id}
+                        onClick={() => {
+                          setSelectedArtifactId(art.id);
+                          setFlashcardIndex(0);
+                          setFlashcardFlipped(false);
+                        }}
                         className={cn(
-                          "w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex items-center gap-2 font-medium",
-                          selectedChapter === ch || (!selectedChapter && chapters[0] === ch)
-                            ? "bg-primary/10 text-primary"
+                          "w-full text-left p-2.5 rounded-lg text-xs transition-colors flex items-center gap-2.5 font-medium border border-transparent",
+                          String(selectedArtifact?.id) === String(art.id)
+                            ? "bg-primary/10 text-primary border-primary/20"
                             : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                         )}
                       >
-                        <ChevronRight className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{ch}</span>
+                        {art.type === "diagram" ? <BrainCircuit className="h-4 w-4 shrink-0 text-primary" /> :
+                         art.type === "document" ? <Layers className="h-4 w-4 shrink-0 text-primary" /> :
+                         art.type === "test" ? <GraduationCap className="h-4 w-4 shrink-0 text-primary" /> :
+                         <FileText className="h-4 w-4 shrink-0 text-primary" />}
+                        <span className="truncate">{art.title}</span>
                       </button>
                     ))}
                   </div>
-                )}
-              </div>
-            )}
-
-
-            {/* QUIZZES Left Side */}
-            {activeTab === "quizzes" && (
-              <div className="flex flex-col h-full">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">Quizzes Available</h3>
-                {testsLoading ? (
-                  <div className="space-y-2 flex-1">
-                    {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
-                  </div>
-                ) : moduleTests.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center p-2 text-xs">
-                    <ClipboardList className="h-8 w-8 text-muted-foreground/30 mb-2" />
-                    <p className="text-muted-foreground">No quizzes generated yet.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-1.5 overflow-y-auto flex-1">
-                    {moduleTests.map((t: any) => (
-                      <button
-                        key={t.id}
-                        onClick={() => {
-                          setSelectedTestId(t.id);
-                          setQuizAnswers({});
-                          setQuizScore(null);
-                          setCurrentQuizQuestionIndex(0);
-                        }}
-                        className={cn(
-                          "w-full text-left p-3 rounded-lg text-xs transition-all border flex flex-col gap-1.5",
-                          selectedTestId === t.id
-                            ? "border-primary bg-primary/5 text-primary"
-                            : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"
-                        )}
-                      >
-                        <span className="font-semibold line-clamp-1">{t.title}</span>
-                        <div className="flex justify-between items-center w-full text-[10px]">
-                          <Badge variant="secondary" className="text-[9px] px-1 py-0">{t.difficulty}</Badge>
-                          <span>{t.questionCount} Questions</span>
-                        </div>
-                        {t.bestScore !== undefined && (
-                          <div className="text-[9px] text-emerald-500 font-semibold mt-0.5">Best Score: {t.bestScore}%</div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <Button onClick={handleGenerateQuiz} size="sm" className="w-full mt-4 text-xs font-semibold" disabled={createTest.isPending}>
-                  {createTest.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
-                  Generate AI Quiz
-                </Button>
-              </div>
-            )}
-
-            {/* STUDY ARTIFACTS Left Side */}
-            {activeTab === "artifacts" && (
-              <div className="flex flex-col h-full">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">Study Artifacts</h3>
-                <div className="space-y-1.5 flex-1 overflow-y-auto max-h-[400px]">
-                  {displayArtifacts.map(art => (
-                    <button
-                      key={art.id}
-                      onClick={() => {
-                        setSelectedArtifactId(art.id);
-                        setFlashcardIndex(0);
-                        setFlashcardFlipped(false);
-                      }}
-                      className={cn(
-                        "w-full text-left p-2.5 rounded-lg text-xs transition-colors flex items-center gap-2.5 font-medium border border-transparent",
-                        String(selectedArtifact?.id) === String(art.id)
-                          ? "bg-primary/10 text-primary border-primary/20"
-                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                      )}
-                    >
-                      {art.type === "diagram" ? <BrainCircuit className="h-4 w-4 shrink-0 text-primary" /> :
-                       art.type === "document" ? <Layers className="h-4 w-4 shrink-0 text-primary" /> :
-                       art.type === "test" ? <GraduationCap className="h-4 w-4 shrink-0 text-primary" /> :
-                       <FileText className="h-4 w-4 shrink-0 text-primary" />}
-                      <span className="truncate">{art.title}</span>
-                    </button>
-                  ))}
                 </div>
-              </div>
-            )}
+              )}
 
-          </div>
+            </div>
+          )}
 
           {/* Left Collapse Trigger Button */}
-          <button
-            onClick={() => setLeftCollapsed(!leftCollapsed)}
-            className={cn(
-              "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-r-lg border-l-0 shadow-sm",
-              leftCollapsed ? "left-0" : "left-[229px]"
-            )}
-            title={leftCollapsed ? "Expand index" : "Collapse index"}
-          >
-            {leftCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
-          </button>
+          {!isMobile && (
+            <button
+              onClick={() => setLeftCollapsed(!leftCollapsed)}
+              className={cn(
+                "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-r-lg border-l-0 shadow-sm",
+                leftCollapsed ? "left-0" : "left-[229px]"
+              )}
+              title={leftCollapsed ? "Expand index" : "Collapse index"}
+            >
+              {leftCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+            </button>
+          )}
 
           {/* Hover Expand Trigger on top of Center Panel (Left Edge) */}
-          {leftCollapsed && (
+          {!isMobile && leftCollapsed && (
             <div 
               className="absolute left-0 top-0 bottom-0 w-4 group z-40 cursor-pointer hidden lg:flex items-center justify-start"
               onClick={() => setLeftCollapsed(false)}
@@ -1097,24 +1140,39 @@ export default function ModuleDetailPage() {
           )}
 
           {/* CENTER PANEL (Main Area) */}
-          <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col h-auto lg:h-full min-h-[400px] flex-1">
-            
-            {/* STUDY GUIDE Center Panel */}
-            {activeTab === "study" && (
-              <div className="p-6 overflow-y-auto h-full">
-                {contentLoading ? (
-                  <div className="space-y-4">
-                    <Skeleton className="h-6 w-1/3" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-5/6" />
-                  </div>
-                ) : !content?.length ? (
-                  <div className="flex flex-col items-center justify-center h-64 text-center">
-                    <BookOpen className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                    <p className="text-sm text-muted-foreground">No content generated yet</p>
-                    <p className="text-xs text-muted-foreground mt-1">Add study sources to let the AI process and build this module.</p>
-                  </div>
-                ) : (
+          {(!isMobile || (
+            (activeTab === "study" && selectedChapter !== null) ||
+            (activeTab === "quizzes" && selectedTestId !== null) ||
+            (activeTab === "artifacts" && selectedArtifactId !== null)
+          )) && activeTab !== "sources" && (
+            <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col h-full flex-1">
+              
+              {/* STUDY GUIDE Center Panel */}
+              {activeTab === "study" && (
+                <div className="p-6 overflow-y-auto h-full">
+                  {isMobile && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedChapter(null)}
+                      className="mb-4 h-8 px-2 text-xs font-semibold flex items-center gap-1 w-fit border border-border"
+                    >
+                      <ArrowLeft className="h-4 w-4" /> Back to Chapters
+                    </Button>
+                  )}
+                  {contentLoading ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-6 w-1/3" />
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-5/6" />
+                    </div>
+                  ) : !content?.length ? (
+                    <div className="flex flex-col items-center justify-center h-64 text-center">
+                      <BookOpen className="h-10 w-10 text-muted-foreground/30 mb-3" />
+                      <p className="text-sm text-muted-foreground">No content generated yet</p>
+                      <p className="text-xs text-muted-foreground mt-1">Add study sources to let the AI process and build this module.</p>
+                    </div>
+                  ) : (
                   <div className="space-y-6">
                     {selectedContent?.map((c: any) => (
                       <div key={c.id} className="mb-6 last:mb-0">
@@ -1147,6 +1205,16 @@ export default function ModuleDetailPage() {
                   <div className="space-y-6 flex-1 flex flex-col justify-between">
                     <div>
                       <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
+                        {isMobile && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedTestId(null)}
+                            className="h-7 px-2 text-xs font-semibold mr-2 shrink-0 border border-border"
+                          >
+                            <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
+                          </Button>
+                        )}
                         <h3 className="font-bold text-base text-foreground">{activeTest.title}</h3>
                         <Badge variant="secondary" className="capitalize">{activeTest.difficulty}</Badge>
                       </div>
@@ -1249,7 +1317,19 @@ export default function ModuleDetailPage() {
                   <div className="space-y-4 flex-1 flex flex-col justify-between">
                     <div className="space-y-4 flex-1">
                       <div className="flex items-center justify-between border-b border-border/60 pb-3">
-                        <h4 className="font-bold text-sm text-foreground">{selectedArtifact.title}</h4>
+                        <div className="flex items-center min-w-0 flex-1">
+                          {isMobile && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSelectedArtifactId(null)}
+                              className="h-7 px-2 text-xs font-semibold mr-2 shrink-0 border border-border"
+                            >
+                              <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
+                            </Button>
+                          )}
+                          <h4 className="font-bold text-sm text-foreground truncate">{selectedArtifact.title}</h4>
+                        </div>
                         <Badge className="uppercase text-[9px] font-bold h-5 bg-primary/10 text-primary border-0">{selectedArtifact.type}</Badge>
                       </div>
 
@@ -1350,22 +1430,25 @@ export default function ModuleDetailPage() {
               </div>
             )}
 
-          </div>
+            </div>
+          )}
 
           {/* Right Collapse Trigger Button */}
-          <button
-            onClick={() => setRightCollapsed(!rightCollapsed)}
-            className={cn(
-              "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-l-lg border-r-0 shadow-sm",
-              rightCollapsed ? "right-0" : "right-[249px]"
-            )}
-            title={rightCollapsed ? "Expand details" : "Collapse details"}
-          >
-            {rightCollapsed ? <ChevronLeft className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-          </button>
+          {!isMobile && (
+            <button
+              onClick={() => setRightCollapsed(!rightCollapsed)}
+              className={cn(
+                "absolute top-1/2 -translate-y-1/2 z-30 w-5 h-12 bg-card border border-border hover:bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-all duration-300 rounded-l-lg border-r-0 shadow-sm",
+                rightCollapsed ? "right-0" : "right-[249px]"
+              )}
+              title={rightCollapsed ? "Expand details" : "Collapse details"}
+            >
+              {rightCollapsed ? <ChevronLeft className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            </button>
+          )}
 
           {/* Hover Expand Trigger on top of Center Panel (Right Edge) */}
-          {rightCollapsed && (
+          {!isMobile && rightCollapsed && (
             <div 
               className="absolute right-0 top-0 bottom-0 w-4 group z-40 cursor-pointer hidden lg:flex items-center justify-end"
               onClick={() => setRightCollapsed(false)}
@@ -1378,10 +1461,11 @@ export default function ModuleDetailPage() {
           )}
 
           {/* RIGHT PANEL (Sources & details, persistent) */}
-          <div className={cn(
-            "space-y-4 shrink-0 flex flex-col h-auto lg:h-full transition-all duration-300 relative",
-            rightCollapsed ? "w-0 p-0 overflow-hidden lg:min-h-0" : "w-full lg:w-[250px] min-h-[300px]"
-          )}>
+          {(!isMobile || activeTab === "sources") && (
+            <div className={cn(
+              "space-y-4 shrink-0 flex flex-col transition-all duration-300 relative",
+              isMobile ? "w-full" : (rightCollapsed ? "w-0 p-0 overflow-hidden lg:min-h-0" : "w-[250px] h-full")
+            )}>
             
             {/* Sources list */}
             <div
@@ -1480,7 +1564,7 @@ export default function ModuleDetailPage() {
                     <span className="text-xs text-muted-foreground italic font-normal">None</span>
                   </div>
                 )}
-                {module.tags && module.tags.length > 0 ? (
+                {module.tags && module.tags.length > 0 && (
                   <div className="flex flex-col gap-1 pt-2.5 border-t border-border/50">
                     <span className="text-muted-foreground text-[10px] uppercase tracking-wider font-semibold">Tags</span>
                     <div className="flex flex-wrap gap-1 mt-0.5">
@@ -1491,17 +1575,11 @@ export default function ModuleDetailPage() {
                       ))}
                     </div>
                   </div>
-                ) : (
-                  <div className="flex flex-col gap-1 pt-2.5 border-t border-border/50">
-                    <span className="text-muted-foreground text-[10px] uppercase tracking-wider font-semibold">Tags</span>
-                    <span className="text-xs text-muted-foreground italic font-normal">None</span>
-                  </div>
                 )}
               </div>
             </div>
-
           </div>
-
+          )}
         </div>
       </div>
 

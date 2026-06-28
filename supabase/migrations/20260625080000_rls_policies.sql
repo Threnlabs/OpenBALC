@@ -152,7 +152,7 @@ CREATE POLICY ct_insert_self ON credit_transactions FOR INSERT TO authenticated
 
 -- 2.10 MODULES (Knowledge Core)
 ALTER TABLE modules ENABLE ROW LEVEL SECURITY;
-CREATE POLICY modules_select ON modules FOR SELECT TO authenticated 
+CREATE POLICY modules_select ON modules FOR SELECT 
   USING (user_id = public.current_user_id() OR visibility = 'public');
 CREATE POLICY modules_all_self ON modules FOR ALL TO authenticated 
   USING (user_id = public.current_user_id())
@@ -160,7 +160,7 @@ CREATE POLICY modules_all_self ON modules FOR ALL TO authenticated
 
 -- 2.11 MODULE SOURCES
 ALTER TABLE module_sources ENABLE ROW LEVEL SECURITY;
-CREATE POLICY ms_select ON module_sources FOR SELECT TO authenticated 
+CREATE POLICY ms_select ON module_sources FOR SELECT 
   USING (module_id IN (SELECT id FROM modules WHERE user_id = public.current_user_id() OR visibility = 'public'));
 CREATE POLICY ms_all_creator ON module_sources FOR ALL TO authenticated 
   USING (module_id IN (SELECT id FROM modules WHERE user_id = public.current_user_id()))
@@ -168,7 +168,7 @@ CREATE POLICY ms_all_creator ON module_sources FOR ALL TO authenticated
 
 -- 2.12 FILES (Assets)
 ALTER TABLE files ENABLE ROW LEVEL SECURITY;
-CREATE POLICY files_select ON files FOR SELECT TO authenticated 
+CREATE POLICY files_select ON files FOR SELECT 
   USING (user_id = public.current_user_id() OR module_id IN (SELECT id FROM modules WHERE visibility = 'public'));
 CREATE POLICY files_all_self ON files FOR ALL TO authenticated 
   USING (user_id = public.current_user_id())
@@ -232,7 +232,7 @@ CREATE POLICY eq_all_creator ON expert_queue FOR ALL TO authenticated
 
 -- 2.19 TOPICS (Module Outline)
 ALTER TABLE topics ENABLE ROW LEVEL SECURITY;
-CREATE POLICY topics_select ON topics FOR SELECT TO authenticated 
+CREATE POLICY topics_select ON topics FOR SELECT 
   USING (module_id IN (SELECT id FROM modules WHERE user_id = public.current_user_id() OR visibility = 'public'));
 CREATE POLICY topics_all_creator ON topics FOR ALL TO authenticated 
   USING (module_id IN (SELECT id FROM modules WHERE user_id = public.current_user_id()))
@@ -240,7 +240,7 @@ CREATE POLICY topics_all_creator ON topics FOR ALL TO authenticated
 
 -- 2.20 MODULE CONTENT
 ALTER TABLE module_content ENABLE ROW LEVEL SECURITY;
-CREATE POLICY mc_select ON module_content FOR SELECT TO authenticated 
+CREATE POLICY mc_select ON module_content FOR SELECT 
   USING (module_id IN (SELECT id FROM modules WHERE user_id = public.current_user_id() OR visibility = 'public'));
 CREATE POLICY mc_all_creator ON module_content FOR ALL TO authenticated 
   USING (module_id IN (SELECT id FROM modules WHERE user_id = public.current_user_id()))
@@ -248,7 +248,7 @@ CREATE POLICY mc_all_creator ON module_content FOR ALL TO authenticated
 
 -- 2.21 MODULE CHUNKS
 ALTER TABLE module_chunks ENABLE ROW LEVEL SECURITY;
-CREATE POLICY mchunks_select ON module_chunks FOR SELECT TO authenticated 
+CREATE POLICY mchunks_select ON module_chunks FOR SELECT 
   USING (module_id IN (SELECT id FROM modules WHERE user_id = public.current_user_id() OR visibility = 'public'));
 CREATE POLICY mchunks_all_creator ON module_chunks FOR ALL TO authenticated 
   USING (module_id IN (SELECT id FROM modules WHERE user_id = public.current_user_id()))

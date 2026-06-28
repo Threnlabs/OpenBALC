@@ -571,43 +571,341 @@ export async function ingestSource(
   }
 
   try {
-    await supabase.from("module_sources").update({ ingestion_status: "processing" }).eq("id", source.id);
+    // ── Stage 1: Extraction ──────────────────────────────────────────────────
+    await supabase.from("module_sources").update({
+      extraction_status: "processing",
+      ingestion_status: "processing",
+      indexing_status: "pending",
+      extraction_error: null,
+      indexing_error: null,
+    }).eq("id", source.id);
     await supabase.from("modules").update({ status: "processing", processing_pct: 10 }).eq("id", source.moduleId);
 
-    // Stage A
-    const { text: rawText, assets } = await extractText(source, llamaCloudApiKey);
-    await supabase.from("modules").update({ processing_pct: 30 }).eq("id", source.moduleId);
+    const { assetDescriptions } = await extractAndStructure(source, geminiApiKey, llamaCloudApiKey);
 
-    // Stage B
-    const assetDescriptions = await captionAssets(assets, geminiApiKey);
+    await supabase.from("module_sources").update({
+      extraction_status: "done",
+      indexing_status: "processing",
+      ingestion_status: "processing",
+    }).eq("id", source.id);
     await supabase.from("modules").update({ processing_pct: 50 }).eq("id", source.moduleId);
 
-    // Stage C — Hybrid chunking
-    const config = configOverride ?? await fetchChunkConfig();
-    const chunks = hybridChunkText(rawText, assets, assetDescriptions, {
-      source_id: source.id,
-      module_id: source.moduleId,
-      source_name: source.name,
-    }, config);
-    await supabase.from("modules").update({ processing_pct: 65 }).eq("id", source.moduleId);
+    // Fetch the newly created topic IDs for this source
+    const { data: topics } = await supabase
+      .from("topics")
+      .select("id")
+      .eq("source_id", source.id);
 
-    // Stage D
-    const embeddedChunks = await embedChunks(chunks, geminiApiKey);
-    await supabase.from("modules").update({ processing_pct: 90 }).eq("id", source.moduleId);
+    const topicIds = (topics || []).map((t) => t.id);
 
-    // Stage E
-    await writeToDatabase(source, embeddedChunks, rawText, assetDescriptions);
+    // ── Stage 2: Indexing ────────────────────────────────────────────────────
+    if (topicIds.length > 0) {
+      await ingestTopics(source.moduleId, topicIds, geminiApiKey, configOverride);
+    }
 
-    const contentCount = chunks.filter((c) => c.chunkType === "content").length;
-    const tableCount = chunks.filter((c) => c.chunkType === "table").length;
-    const captionCount = chunks.filter((c) => c.chunkType === "image_caption").length;
-    console.info(
-      `[ingestion] ✅ "${source.name}" — ${chunks.length} chunks ` +
-      `(content: ${contentCount}, tables: ${tableCount}, captions: ${captionCount})`
-    );
-  } catch (err) {
+    await supabase.from("module_sources").update({
+      indexing_status: "done",
+      ingestion_status: "done",
+      processed: true,
+    }).eq("id", source.id);
+
+    await updateModuleStatus(source.moduleId);
+
+  } catch (err: any) {
     console.error(`[ingestion] ❌ Pipeline failed for source ${source.id}:`, err);
-    await supabase.from("module_sources").update({ ingestion_status: "failed", processed: false }).eq("id", source.id);
-    await supabase.from("modules").update({ status: "active", processing_pct: 100 }).eq("id", source.moduleId);
+    
+    // Check if extraction succeeded before indexing failed
+    const { data: src } = await supabase
+      .from("module_sources")
+      .select("extraction_status")
+      .eq("id", source.id)
+      .single();
+
+    if (src?.extraction_status === "done") {
+      await supabase.from("module_sources").update({
+        indexing_status: "failed",
+        indexing_error: err.message || String(err),
+        ingestion_status: "failed",
+      }).eq("id", source.id);
+    } else {
+      await supabase.from("module_sources").update({
+        extraction_status: "failed",
+        extraction_error: err.message || String(err),
+        ingestion_status: "failed",
+      }).eq("id", source.id);
+    }
+
+    await updateModuleStatus(source.moduleId);
   }
+}
+
+export async function extractAndStructure(
+  source: IngestionSource,
+  geminiApiKey: string,
+  llamaCloudApiKey?: string
+): Promise<{ rawText: string; assetDescriptions: AssetDescription[] }> {
+  const supabase = getSupabase();
+
+  // Stage A: Text Extraction
+  const { text: rawText, assets } = await extractText(source, llamaCloudApiKey);
+
+  // Stage B: Asset Captioning
+  const assetDescriptions = await captionAssets(assets, geminiApiKey);
+
+  // Stage C: Structure Content via Gemini
+  const prompt = `You are a curriculum design expert. Analyze the following textbook content and structure it into a cohesive outline of chapters and topics. For each topic, extract the detailed content associated with it (written in standard Markdown, including any tables, figures, references, and descriptions, preserving their exact references).
+Output the result ONLY as a valid JSON array matching this TypeScript type:
+interface StructuredChapter {
+  chapter: string; // The chapter title (e.g. "Chapter 1: Intro")
+  topics: Array<{
+    topic: string; // The topic title (e.g. "Core Concepts")
+    content: string; // Detailed study content for this topic, formatted in markdown, with embedded tables and images/captions preserved from the text.
+  }>;
+}
+Do not include any wrapping markdown codes like \`\`\`json ... \`\`\`. Just return raw valid JSON.
+
+Text to analyze:
+${rawText}`;
+
+  const res = await fetch(
+    `${GEMINI_BASE_URL}/models/${GEMINI_FLASH_MODEL}:generateContent?key=${geminiApiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
+      }),
+    }
+  );
+
+  if (!res.ok) throw new Error(`Gemini structuring failed (${res.status}): ${await res.text()}`);
+  const resData = await res.json();
+  const jsonText = resData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  
+  let chapters: any[] = [];
+  try {
+    chapters = JSON.parse(jsonText.trim());
+  } catch (parseErr) {
+    const cleanJson = jsonText.replace(/```json|```/g, "").trim();
+    chapters = JSON.parse(cleanJson);
+  }
+
+  if (!Array.isArray(chapters)) {
+    throw new Error("Gemini did not return an array of chapters");
+  }
+
+  // Delete old topics/contents for this source
+  await supabase.from("module_content").delete().eq("source_id", source.id);
+  await supabase.from("topics").delete().eq("source_id", source.id);
+
+  let orderIndex = 0;
+  for (const ch of chapters) {
+    if (!ch.topics || !Array.isArray(ch.topics)) continue;
+    for (const t of ch.topics) {
+      // 1. Insert topic
+      const { data: topicData, error: topicErr } = await supabase
+        .from("topics")
+        .insert({
+          module_id: source.moduleId,
+          source_id: source.id,
+          name: t.topic,
+          description: `Topic from ${ch.chapter}`,
+          order_index: orderIndex++,
+        })
+        .select("id")
+        .single();
+      
+      if (topicErr || !topicData) {
+        throw new Error(`Failed to insert topic: ${topicErr?.message}`);
+      }
+
+      // 2. Insert module content
+      const { error: contentErr } = await supabase
+        .from("module_content")
+        .insert({
+          module_id: source.moduleId,
+          source_id: source.id,
+          topic_id: topicData.id,
+          chapter: ch.chapter,
+          topic: t.topic,
+          content: t.content,
+          format: "markdown",
+          indexing_status: "pending",
+        });
+
+      if (contentErr) {
+        throw new Error(`Failed to insert module content: ${contentErr.message}`);
+      }
+    }
+  }
+
+  // Save raw content and asset descriptions to the source
+  await supabase.from("module_sources").update({
+    raw_content: rawText,
+    asset_descriptions: assetDescriptions,
+  }).eq("id", source.id);
+
+  return { rawText, assetDescriptions };
+}
+
+export async function ingestTopics(
+  moduleId: number,
+  topicIds: number[],
+  geminiApiKey: string,
+  configOverride?: ChunkConfig
+): Promise<void> {
+  const supabase = getSupabase();
+  const config = configOverride ?? await fetchChunkConfig();
+
+  // Fetch target module_content records
+  const { data: contents, error } = await supabase
+    .from("module_content")
+    .select("id, topic_id, chapter, topic, content, source_id")
+    .in("topic_id", topicIds);
+
+  if (error) throw error;
+  if (!contents || contents.length === 0) return;
+
+  for (const c of contents) {
+    try {
+      await supabase.from("module_content").update({ indexing_status: "processing", indexing_error: null }).eq("id", c.id);
+
+      // Fetch source's asset_descriptions if available
+      let assetDescriptions: AssetDescription[] = [];
+      if (c.source_id) {
+        const { data: src } = await supabase
+          .from("module_sources")
+          .select("asset_descriptions")
+          .eq("id", c.source_id)
+          .single();
+        if (src?.asset_descriptions) {
+          assetDescriptions = src.asset_descriptions as AssetDescription[];
+        }
+      }
+
+      // Detect assets in this topic's content
+      const assets = detectAssets(c.content);
+
+      // Hybrid chunking
+      const chunks = hybridChunkText(
+        c.content,
+        assets,
+        assetDescriptions,
+        {
+          module_id: moduleId,
+          source_id: c.source_id,
+          topic_id: c.topic_id,
+          chapter: c.chapter,
+          topic: c.topic,
+        },
+        config
+      );
+
+      // Embed chunks
+      const embeddedChunks = await embedChunks(chunks, geminiApiKey);
+
+      // Write chunks to DB
+      // 1. Delete old chunks for this topic
+      await supabase.from("module_chunks").delete().eq("topic_id", c.topic_id);
+
+      // 2. Insert new chunks
+      if (embeddedChunks.length > 0) {
+        const BATCH_SIZE = 100;
+        for (let i = 0; i < embeddedChunks.length; i += BATCH_SIZE) {
+          const batch = embeddedChunks.slice(i, i + BATCH_SIZE);
+          const rows = batch.map((chunk) => ({
+            module_id: moduleId,
+            source_id: c.source_id,
+            topic_id: c.topic_id,
+            content: chunk.text,
+            token_count: chunk.tokenCount,
+            chunk_type: chunk.chunkType,
+            chunk_index: chunk.chunkIndex,
+            asset_url: chunk.assetUrl ?? null,
+            times_retrieved: 0,
+            metadata: {
+              ...chunk.metadata,
+              chapter: c.chapter,
+              topic: c.topic,
+            },
+            embedding: `[${chunk.embedding.join(",")}]`,
+          }));
+
+          const { error: insertErr } = await supabase.from("module_chunks").insert(rows);
+          if (insertErr) throw insertErr;
+        }
+      }
+
+      await supabase.from("module_content").update({ 
+        indexing_status: "done", 
+        indexing_error: null 
+      }).eq("id", c.id);
+
+      // Update indexing_status to done on source if all topics for this source are done
+      if (c.source_id) {
+        const { data: siblingContents } = await supabase
+          .from("module_content")
+          .select("indexing_status")
+          .eq("source_id", c.source_id);
+        const allDone = (siblingContents || []).every((sc) => sc.indexing_status === "done");
+        if (allDone) {
+          await supabase.from("module_sources").update({ 
+            indexing_status: "done",
+            ingestion_status: "done",
+            processed: true
+          }).eq("id", c.source_id);
+        }
+      }
+
+    } catch (err: any) {
+      console.error(`[ingestion] Failed to index topic ${c.topic_id}:`, err);
+      await supabase.from("module_content").update({ 
+        indexing_status: "failed", 
+        indexing_error: err.message || String(err) 
+      }).eq("id", c.id);
+      
+      if (c.source_id) {
+        await supabase.from("module_sources").update({ 
+          indexing_status: "failed", 
+          indexing_error: err.message || String(err),
+          ingestion_status: "failed" 
+        }).eq("id", c.source_id);
+      }
+      throw err;
+    }
+  }
+}
+
+export async function updateModuleStatus(moduleId: number): Promise<void> {
+  const supabase = getSupabase();
+
+  const { data: sources } = await supabase
+    .from("module_sources")
+    .select("ingestion_status")
+    .eq("module_id", moduleId);
+
+  const anyProcessing = (sources || []).some(
+    (s) => s.ingestion_status === "processing" || s.ingestion_status === "pending"
+  );
+  
+  const { count: sourceCount } = await supabase
+    .from("module_sources")
+    .select("id", { count: "exact", head: true })
+    .eq("module_id", moduleId);
+
+  const { count: topicCount } = await supabase
+    .from("topics")
+    .select("id", { count: "exact", head: true })
+    .eq("module_id", moduleId);
+
+  await supabase
+    .from("modules")
+    .update({
+      status: anyProcessing ? "processing" : "active",
+      processing_pct: anyProcessing ? 50 : 100,
+      source_count: sourceCount || 0,
+      chapter_count: topicCount || 0,
+    })
+    .eq("id", moduleId);
 }

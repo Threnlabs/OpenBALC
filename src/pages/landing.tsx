@@ -1,13 +1,19 @@
 import { Link } from "wouter";
 import { useState, useEffect } from "react";
-import { Check, Zap, Send, Bot, User, Loader2, MessageSquare, ArrowRight, BookOpen, Sparkles, Clock, Globe, Sun, Moon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Check, Zap, Send, Bot, User, Loader2, MessageSquare, ArrowRight, BookOpen, Sparkles, Clock, Globe, Sun, Moon, Star } from "lucide-react";
+import { cn, getModuleColor } from "@/lib/utils";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { useTheme } from "@/hooks/use-theme";
+import { useListPublicModules } from "@/lib/api-client-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export default function Landing() {
   const { isDark, toggleTheme } = useTheme();
   const [chatInput, setChatInput] = useState("");
+  
+  const { data: publicModules, isLoading: isLoadingPub } = useListPublicModules({ sort: "most_used" });
+  const publicModulesHighlight = Array.isArray(publicModules) ? publicModules.slice(0, 4) : [];
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [hasStartedChat, setHasStartedChat] = useState(false);
@@ -312,6 +318,85 @@ export default function Landing() {
           )}
 
         </div>
+
+        {/* Public Modules Highlights Section */}
+        <section className="max-w-5xl mx-auto px-6 py-12 text-left">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
+            <div>
+              <Badge className="mb-2 bg-primary/10 text-primary border-primary/20 hover:bg-primary/15">
+                <Globe className="h-3 w-3 mr-1 animate-pulse" /> Community Library
+              </Badge>
+              <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Explore Public Modules</h2>
+              <p className="text-muted-foreground mt-2 max-w-xl">
+                See what the community is building. Access high-quality, structured study resources immediately without signing in.
+              </p>
+            </div>
+            <Button asChild variant="outline" className="group">
+              <Link href="/modules" className="flex items-center gap-1.5 cursor-pointer">
+                Browse Public Library
+                <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </Button>
+          </div>
+
+          {isLoadingPub ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-xl border border-border bg-card p-4 space-y-3">
+                  <div className="h-20 bg-muted rounded-lg animate-pulse" />
+                  <div className="h-4 bg-muted rounded w-3/4 animate-pulse" />
+                  <div className="h-3 bg-muted rounded w-1/2 animate-pulse" />
+                </div>
+              ))}
+            </div>
+          ) : !publicModulesHighlight?.length ? (
+            <div className="text-center py-12 rounded-xl border border-dashed border-border bg-card/30">
+              <BookOpen className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">No public modules available right now.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {publicModulesHighlight.map((m: any) => {
+                const color = getModuleColor(m.id);
+                return (
+                  <Link href={`/modules/${m.id}`} key={m.id}>
+                    <div className="rounded-xl border border-border bg-card overflow-hidden hover:border-primary/45 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 cursor-pointer group flex flex-col h-full">
+                      <div className={cn("h-24 bg-gradient-to-br relative shrink-0", color)}>
+                        <div className="absolute inset-0 bg-black/10" />
+                        <div className="absolute top-2 left-2">
+                          <Badge className="text-[9px] px-1.5 py-0.5 border-0 bg-black/40 text-white backdrop-blur-sm">
+                            {m.subject || "Study"}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="p-4 flex-1 flex flex-col">
+                        <h3 className="font-bold text-sm line-clamp-1 group-hover:text-primary transition-colors text-foreground mb-1">
+                          {m.title}
+                        </h3>
+                        {m.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-2 mb-3 flex-1">
+                            {m.description}
+                          </p>
+                        )}
+                        {!m.description && <div className="flex-1" />}
+                        <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-3 border-t border-border/60">
+                          <span className="flex items-center gap-1">
+                            <BookOpen className="h-3 w-3" />
+                            {m.chapterCount ?? 0} chapters
+                          </span>
+                          <span className="flex items-center gap-1 font-medium text-amber-500">
+                            <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                            {m.starCount ?? 0}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
         {/* Features Section */}
         <section id="features" className="max-w-5xl mx-auto px-6 py-24 scroll-mt-16">

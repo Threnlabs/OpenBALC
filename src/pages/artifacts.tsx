@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import InteractiveMindMap from "@/components/InteractiveMindMap";
 import ArtifactQuizPlayer from "@/components/ArtifactQuizPlayer";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { ArrowLeft } from "lucide-react";
 import {
   BrainCircuit, Layers, GraduationCap, FileText, Code, Search, Trash2,
   Calendar, ArrowUpRight, MessageSquare, BookOpen, Download, Copy, Sparkles, Clock, ChevronRight
@@ -163,16 +165,18 @@ export default function ArtifactsPage() {
 
   const selectedArtifact = filtered.find(a => String(a.id) === String(selectedArtifactId)) || filtered[0];
 
-  // Auto select first artifact on load or filter change
+  const isMobile = useIsMobile();
+
+  // Auto select first artifact on load or filter change (only on desktop to allow clean list/detail toggle on mobile)
   useEffect(() => {
     if (filtered.length > 0) {
-      if (!selectedArtifactId || !filtered.some(a => String(a.id) === String(selectedArtifactId))) {
+      if (!isMobile && (!selectedArtifactId || !filtered.some(a => String(a.id) === String(selectedArtifactId)))) {
         setSelectedArtifactId(filtered[0].id);
       }
     } else {
       setSelectedArtifactId(null);
     }
-  }, [filtered, selectedArtifactId]);
+  }, [filtered, selectedArtifactId, isMobile]);
 
   function getArtifactIcon(type: string) {
     switch (type) {
@@ -289,93 +293,106 @@ export default function ArtifactsPage() {
         {/* Main Content Split View */}
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0 relative items-stretch">
           {/* Left Column: Artifacts list */}
-          <div className="lg:col-span-5 flex flex-col min-h-[300px] lg:min-h-0 border border-border bg-muted/10 rounded-xl overflow-hidden">
-            <div className="p-3 border-b border-border bg-card/60 flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <Layers className="h-3.5 w-3.5" />
-                Artifacts list ({filtered.length})
-              </span>
-            </div>
-            
-            {isLoading ? (
-              <div className="p-4 space-y-3 flex-1 overflow-y-auto">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="h-16 rounded-xl bg-card border border-border animate-pulse" />
-                ))}
+          {(!isMobile || !selectedArtifactId) && (
+            <div className="lg:col-span-5 flex flex-col min-h-[300px] lg:min-h-0 border border-border bg-muted/10 rounded-xl overflow-hidden">
+              <div className="p-3 border-b border-border bg-card/60 flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  <Layers className="h-3.5 w-3.5" />
+                  Artifacts list ({filtered.length})
+                </span>
               </div>
-            ) : filtered.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-card/20">
-                <Layers className="h-10 w-10 text-muted-foreground/30 mb-2" />
-                <p className="text-xs font-semibold text-muted-foreground">No artifacts found</p>
-                <p className="text-[10px] text-muted-foreground/60 max-w-[200px] mt-0.5">
-                  Try adjusting your search query or filter settings.
-                </p>
-              </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto divide-y divide-border/60 bg-card/20">
-                {filtered.map(art => {
-                  const isActive = String(selectedArtifact?.id) === String(art.id);
-                  const isDemo = String(art.id).startsWith("demo-");
-                  return (
-                    <div
-                      key={art.id}
-                      onClick={() => setSelectedArtifactId(art.id)}
-                      className={cn(
-                        "p-4 cursor-pointer transition-all flex items-start justify-between gap-3 group relative select-none",
-                        isActive
-                          ? "bg-primary/5 border-l-2 border-primary"
-                          : "hover:bg-muted/40 border-l-2 border-transparent"
-                      )}
-                    >
-                      <div className="space-y-1.5 flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={cn(
-                            "p-1.5 rounded-lg border",
-                            isActive 
-                              ? "bg-primary/10 text-primary border-primary/20" 
-                              : "bg-muted/80 text-muted-foreground border-border"
-                          )}>
-                            {getArtifactIcon(art.type)}
-                          </span>
-                          <h3 className="font-semibold text-xs text-foreground truncate group-hover:text-primary transition-colors">
-                            {art.title}
-                          </h3>
+              
+              {isLoading ? (
+                <div className="p-4 space-y-3 flex-1 overflow-y-auto">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="h-16 rounded-xl bg-card border border-border animate-pulse" />
+                  ))}
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-card/20">
+                  <Layers className="h-10 w-10 text-muted-foreground/30 mb-2" />
+                  <p className="text-xs font-semibold text-muted-foreground">No artifacts found</p>
+                  <p className="text-[10px] text-muted-foreground/60 max-w-[200px] mt-0.5">
+                    Try adjusting your search query or filter settings.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-y-auto divide-y divide-border/60 bg-card/20">
+                  {filtered.map(art => {
+                    const isActive = String(selectedArtifact?.id) === String(art.id);
+                    const isDemo = String(art.id).startsWith("demo-");
+                    return (
+                      <div
+                        key={art.id}
+                        onClick={() => setSelectedArtifactId(art.id)}
+                        className={cn(
+                          "p-4 cursor-pointer transition-all flex items-start justify-between gap-3 group relative select-none",
+                          isActive
+                            ? "bg-primary/5 border-l-2 border-primary"
+                            : "hover:bg-muted/40 border-l-2 border-transparent"
+                        )}
+                      >
+                        <div className="space-y-1.5 flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              "p-1.5 rounded-lg border",
+                              isActive 
+                                ? "bg-primary/10 text-primary border-primary/20" 
+                                : "bg-muted/80 text-muted-foreground border-border"
+                            )}>
+                              {getArtifactIcon(art.type)}
+                            </span>
+                            <h3 className="font-semibold text-xs text-foreground truncate group-hover:text-primary transition-colors">
+                              {art.title}
+                            </h3>
+                          </div>
+
+                          {/* Metadata row */}
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
+                            {isDemo && (
+                              <Badge className="bg-amber-500/10 text-amber-500 hover:bg-amber-500/10 border-0 h-4 px-1 text-[8px] font-bold">Demo</Badge>
+                            )}
+                            <span className="flex items-center gap-0.5">
+                              <Clock className="h-2.5 w-2.5" />
+                              {timeAgo(art.createdAt)}
+                            </span>
+                          </div>
                         </div>
 
-                        {/* Metadata row */}
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
-                          {isDemo && (
-                            <Badge className="bg-amber-500/10 text-amber-500 hover:bg-amber-500/10 border-0 h-4 px-1 text-[8px] font-bold">Demo</Badge>
-                          )}
-                          <span className="flex items-center gap-0.5">
-                            <Clock className="h-2.5 w-2.5" />
-                            {timeAgo(art.createdAt)}
-                          </span>
-                        </div>
+                        <ChevronRight className={cn(
+                          "h-4 w-4 text-muted-foreground transition-transform shrink-0 self-center",
+                          isActive ? "translate-x-1 text-primary" : "group-hover:translate-x-1"
+                        )} />
                       </div>
-
-                      <ChevronRight className={cn(
-                        "h-4 w-4 text-muted-foreground transition-transform shrink-0 self-center",
-                        isActive ? "translate-x-1 text-primary" : "group-hover:translate-x-1"
-                      )} />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Right Column: Interactive previewer */}
-          <div className="lg:col-span-7 flex flex-col min-h-[400px] lg:min-h-0 border border-border bg-card rounded-xl overflow-hidden">
-            {selectedArtifact ? (
-              <div className="flex-1 flex flex-col min-h-0">
-                {/* Preview Toolbar */}
-                <div className="p-4 border-b border-border bg-muted/10 flex flex-wrap items-center justify-between gap-3 shrink-0">
-                  <div className="space-y-0.5">
-                    <h2 className="font-bold text-sm text-foreground flex items-center gap-1.5">
-                      {getArtifactIcon(selectedArtifact.type)}
-                      {selectedArtifact.title}
-                    </h2>
+          {(!isMobile || selectedArtifactId) && (
+            <div className="lg:col-span-7 flex flex-col min-h-[400px] lg:min-h-0 border border-border bg-card rounded-xl overflow-hidden">
+              {selectedArtifact && (
+                <div className="flex-1 flex flex-col min-h-0">
+                  {/* Preview Toolbar */}
+                  <div className="p-4 border-b border-border bg-muted/10 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                    <div className="space-y-0.5 flex items-center gap-2">
+                      {isMobile && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedArtifactId(null)}
+                          className="h-8 px-2 text-xs font-semibold border border-border mr-1"
+                        >
+                          <ArrowLeft className="h-4 w-4 mr-1" /> Back
+                        </Button>
+                      )}
+                      <h2 className="font-bold text-sm text-foreground flex items-center gap-1.5 truncate">
+                        {getArtifactIcon(selectedArtifact.type)}
+                        {selectedArtifact.title}
+                      </h2>
                     
                     {/* Origin display */}
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground font-medium">
@@ -483,16 +500,9 @@ export default function ArtifactsPage() {
                   )}
                 </div>
               </div>
-            ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-12 bg-card">
-                <Sparkles className="h-12 w-12 text-muted-foreground/30 mb-3 animate-pulse" />
-                <h3 className="font-bold text-sm text-foreground">Select an Artifact</h3>
-                <p className="text-xs text-muted-foreground max-w-xs mt-1">
-                  Choose any mindmap, practice quiz, or document on the left panel to play and inspect it.
-                </p>
-              </div>
             )}
           </div>
+          )}
         </div>
       </div>
     </AppLayout>
