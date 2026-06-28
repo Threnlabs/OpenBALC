@@ -100,7 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       GEMINI_API_KEY,
       LLAMA_CLOUD_API_KEY || undefined,
       { targetTokens: chunkTargetTokens, overlapTokens: chunkOverlapTokens }
-    ).catch(err => {
+    ).catch((err: any) => {
       console.error(`[backend-ingest] Async pipeline error for source ${sourceId}:`, err);
     });
 
