@@ -345,7 +345,15 @@ function AccountTab() {
 
 function BillingTab() {
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
-  const [currency, setCurrency] = useState<"USD" | "INR">("USD");
+  const [currency, setCurrency] = useState<"USD" | "INR">(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const isIndia = tz === "Asia/Kolkata" || tz === "Asia/Calcutta" || navigator.language === "en-IN" || navigator.languages?.includes("en-IN");
+      return isIndia ? "INR" : "USD";
+    } catch (e) {
+      return "USD";
+    }
+  });
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
 
   const handlePurchase = (id: string) => {

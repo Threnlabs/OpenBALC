@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useListPublicModules, useStarModule, getListPublicModulesQueryKey } from "@/lib/api-client-react";
 import { getModuleColor, cn } from "@/lib/utils";
@@ -70,6 +70,10 @@ export default function PublicModulesPage() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<string>("newest");
   const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    document.title = "Explore Public Modules - OpenBALC";
+  }, []);
 
   const { data: publicModules, isLoading } = useListPublicModules({ search: search || undefined, sort: sort as any });
 

@@ -267,7 +267,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main */}
       <div className={cn(
-        "flex-1 flex flex-col transition-all duration-200",
+        "flex-1 flex flex-col min-w-0 max-w-full overflow-x-hidden transition-all duration-200",
         location.startsWith("/app")
           ? (collapsed ? "lg:ml-[72px]" : "lg:ml-[280px]")
           : "lg:ml-0"

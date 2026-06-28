@@ -99,7 +99,7 @@ export default function Dashboard() {
 
   return (
     <AppLayout>
-      <div className="w-full px-6 lg:px-10 py-8">
+      <div className="w-full px-4 sm:px-6 lg:px-10 py-6 sm:py-8">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-xl font-bold">{greeting}{me?.displayName ? `, ${me.displayName.split(" ")[0]}` : me?.username ? `, ${me.username}` : ""}</h1>

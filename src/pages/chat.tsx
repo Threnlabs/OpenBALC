@@ -359,7 +359,11 @@ function MessageBubble({
                       </div>
                     );
                   } catch (_) {}
-                  return <div className="text-xs text-muted-foreground whitespace-pre-wrap p-3 border border-border/40 rounded-xl">{art.content}</div>;
+                  return (
+                    <div className="border border-border/40 rounded-xl bg-background/50 p-3">
+                      <MarkdownRenderer content={art.content} className="text-xs text-muted-foreground leading-relaxed" />
+                    </div>
+                  );
                 })()}
 
                 {art.type === "test" && (
@@ -1031,7 +1035,7 @@ export default function ChatPage() {
                                       <div
                                         onClick={() => setFlashcardFlipped(!flashcardFlipped)}
                                         className={cn(
-                                          "w-[340px] h-[180px] rounded-2xl border flex items-center justify-center p-6 text-center cursor-pointer transition-all duration-300 shadow-md relative select-none",
+                                          "w-full max-w-[340px] h-[180px] rounded-2xl border flex items-center justify-center p-6 text-center cursor-pointer transition-all duration-300 shadow-md relative select-none",
                                           flashcardFlipped 
                                             ? "border-primary bg-primary/5 text-primary scale-[1.01]" 
                                             : "border-border bg-card text-foreground hover:border-primary/20"
@@ -1071,7 +1075,7 @@ export default function ChatPage() {
                                   );
                                 }
                               } catch (_) {}
-                              return <div className="text-xs text-muted-foreground whitespace-pre-wrap">{selectedArtifact.content}</div>;
+                              return <MarkdownRenderer content={selectedArtifact.content} className="text-xs text-muted-foreground leading-relaxed" />;
                             })()}
                           </div>
                         )}

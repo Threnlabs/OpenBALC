@@ -1,0 +1,43 @@
+# OpenBALC
+
+> Open source courses management and AI-powered learning platform.
+
+OpenBALC is a high-performance workspace and open source education system designed to accelerate learning. It transforms static documents, textbook PDFs, and websites into structured study modules, offering active recall quizzes, interactive Reingold-Tilford mindmap visualizations, and context-aware chat.
+
+## Core Features
+
+- **Intelligent study modules**: Upload PDFs, text documents, or paste web URLs. OpenBALC parses, extracts, and organizes the knowledge into readable chapters.
+- **Active recall quizzes**: Generate practice questions and multi-modal tests dynamically based on uploaded materials.
+- **Contextual AI study assistant**: Chat directly with your documents. Receive grounded answers with exact source citations.
+- **Interactive mindmaps**: Visualize conceptual structures and chapter hierarchies using advanced balanced mindmaps.
+- **Collaborative workspaces**: Classmates, schools, or teams can synchronize study modules and learn in unified workspaces.
+- **Credit-based economy**: Spend credits to trigger AI processing or earn credits by contributing high-quality open modules to the community library.
+
+## Public Index
+- [Home Page](https://openbalc.com/): Product overview and free public sandbox chat.
+- [Public Modules Library](https://openbalc.com/modules): Explore community-generated study modules.
+- [Pricing](https://openbalc.com/#pricing): View membership tiers and credit options.
+- [Advertiser Portal](https://openbalc.com/ads): Run contextual sponsor assets in the learning buffer.
+
+## Pricing Tiers
+
+### Subscription Plans
+- **Freemium** ($0 / ₹0): Up to 2 active modules, standard AI models, and community support.
+- **Pro** ($10.00/mo or ₹840.00/mo; yearly saves 16%): Unlimited modules, advanced AI models, priority processing, and workspace creation.
+- **Max** ($25.00/mo or ₹2100.00/mo; yearly saves 16%): Everything in Pro, early feature access, dedicated manager, and custom integrations.
+
+### Credit Add-ons
+Credits are valid for 12 months.
+- **Micro** ($0.75 / ₹63) - 100 credits (~50 chats)
+- **Boost** ($2.00 / ₹168) - 300 credits (~150 chats)
+- **Popular** ($4.00 / ₹336) - 700 credits (~350 chats)
+- **Pro** ($7.50 / ₹630) - 1,500 credits (~750 chats)
+- **Power** ($15.00 / ₹1,260) - 3,500 credits
+- **Max** ($30.00 / ₹2,520) - 8,000 credits
+
+## Technical Architecture
+
+OpenBALC is built on a modern hybrid search and retrieval model.
+- **Hybrid RAG Pipeline**: Combines semantic embeddings with dense lexical search (reciprocal rank fusion, RRF) over a 7-step pipeline.
+- **Type-Aware Chunking**: Extracts table structures, captions, and text, creating granular fragments stored in Supabase with structural metadata.
+- **AI Buffer loading**: Integrates quotes or short sponsored media blocks during AI-processing periods, allowing users to earn credits organically.

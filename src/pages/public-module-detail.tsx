@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useLocation, Link } from "wouter";
 import { Skeleton } from "@/components/Skeleton";
 import { useGetModule, useGetModuleSources, useGetModuleContent } from "@/lib/api-client-react";
@@ -20,6 +20,14 @@ export default function PublicModuleDetailPage() {
   const { data: module, isLoading: moduleLoading } = useGetModule(id ?? 0);
   const { data: sources, isLoading: sourcesLoading } = useGetModuleSources(id ?? 0);
   const { data: content, isLoading: contentLoading } = useGetModuleContent(id ?? 0);
+
+  useEffect(() => {
+    if (module?.title) {
+      document.title = `${module.title} | ${module.subject || "Study"} Module | OpenBALC`;
+    } else {
+      document.title = "Public Module Details - OpenBALC";
+    }
+  }, [module]);
 
   const color = module ? getModuleColor(module.id) : "from-indigo-500 to-violet-600";
 

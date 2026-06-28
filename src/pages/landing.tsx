@@ -18,8 +18,20 @@ export default function Landing() {
   const [isTyping, setIsTyping] = useState(false);
   const [hasStartedChat, setHasStartedChat] = useState(false);
 
-  const [currency, setCurrency] = useState<"USD" | "INR">("USD");
+  const [currency, setCurrency] = useState<"USD" | "INR">(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const isIndia = tz === "Asia/Kolkata" || tz === "Asia/Calcutta" || navigator.language === "en-IN" || navigator.languages?.includes("en-IN");
+      return isIndia ? "INR" : "USD";
+    } catch (e) {
+      return "USD";
+    }
+  });
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+
+  useEffect(() => {
+    document.title = "OpenBALC - Open Source Courses Management & AI Learning Platform";
+  }, []);
 
   const formatPrice = (usd: number, inr: number, isYearly: boolean = false, isSubscription: boolean = false) => {
     const multiplier = isSubscription && isYearly ? 10 : 1;

@@ -461,8 +461,11 @@ export default function ArtifactsPage() {
                       }
                     } catch (_) {}
                     return (
-                      <div className="bg-muted/30 border border-border/50 rounded-2xl p-5 text-xs text-foreground whitespace-pre-wrap leading-relaxed leading-relaxed font-medium">
-                        {selectedArtifact.content}
+                      <div className="w-full max-w-2xl mx-auto border border-border/40 rounded-2xl p-6 bg-background/25">
+                        <MarkdownRenderer
+                          content={selectedArtifact.content}
+                          className="text-xs text-muted-foreground leading-relaxed"
+                        />
                       </div>
                     );
                   })()}

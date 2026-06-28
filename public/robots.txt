@@ -1,2 +1,67 @@
+# robots.txt for OpenBALC
+
+# General Search Engines (Google, Bing, Yahoo, etc.)
 User-agent: *
 Allow: /
+Allow: /modules
+Allow: /modules/*
+Allow: /pricing
+Allow: /login
+Allow: /ads
+Disallow: /app/
+Disallow: /admin/
+Disallow: /api/
+
+# AI Search and Crawlers (ChatGPT/GPTBot, ClaudeBot, PerplexityBot, etc.)
+User-agent: GPTBot
+Allow: /
+Allow: /modules
+Allow: /modules/*
+Allow: /pricing
+Allow: /ads
+Disallow: /app/
+Disallow: /admin/
+Disallow: /api/
+
+User-agent: ChatGPT-User
+Allow: /
+Allow: /modules
+Allow: /modules/*
+Allow: /pricing
+Allow: /ads
+Disallow: /app/
+Disallow: /admin/
+Disallow: /api/
+
+User-agent: ClaudeBot
+Allow: /
+Allow: /modules
+Allow: /modules/*
+Allow: /pricing
+Allow: /ads
+Disallow: /app/
+Disallow: /admin/
+Disallow: /api/
+
+User-agent: PerplexityBot
+Allow: /
+Allow: /modules
+Allow: /modules/*
+Allow: /pricing
+Allow: /ads
+Disallow: /app/
+Disallow: /admin/
+Disallow: /api/
+
+User-agent: Google-Extended
+Allow: /
+Allow: /modules
+Allow: /modules/*
+Allow: /pricing
+Allow: /ads
+Disallow: /app/
+Disallow: /admin/
+Disallow: /api/
+
+# Sitemap Link
+Sitemap: https://openbalc.com/sitemap.xml

@@ -896,42 +896,42 @@ export default function ModuleDetailPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex flex-col min-h-[calc(100vh-5rem)]">
+      <div className="w-full h-[calc(100vh-64px)] max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col overflow-hidden">
         {/* Back link */}
         <button
           onClick={() => setLocation("/app/modules")}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-4 transition-colors w-fit"
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-3 transition-colors w-fit shrink-0"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> Back to Modules
         </button>
 
         {/* Module Header Banner */}
-        <div className={cn("rounded-xl bg-gradient-to-br p-6 mb-6 relative overflow-hidden shadow-sm shrink-0", color)}>
+        <div className={cn("rounded-xl bg-gradient-to-br p-4 sm:p-6 mb-4 sm:mb-6 relative overflow-hidden shadow-sm shrink-0", color)}>
           <div className="absolute inset-0 bg-black/20" />
           <div className="relative">
-            <div className="flex items-start justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
               <div>
-                <h1 className="text-2xl font-bold text-white tracking-tight">{module.title}</h1>
+                <h1 className="text-lg sm:text-2xl font-bold text-white tracking-tight">{module.title}</h1>
                 {module.description && (
-                  <p className="text-white/80 mt-1 text-sm max-w-2xl leading-relaxed">{module.description}</p>
+                  <p className="text-white/80 mt-1 text-xs sm:text-sm max-w-2xl leading-relaxed line-clamp-2 sm:line-clamp-none">{module.description}</p>
                 )}
                 {module.subject && (
-                  <Badge className="mt-2 bg-white/20 text-white hover:bg-white/30 border-0">{module.subject}</Badge>
+                  <Badge className="mt-1.5 bg-white/20 text-white hover:bg-white/30 border-0">{module.subject}</Badge>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                <Badge className={cn("border-0 font-medium", module.visibility === "public" ? "bg-emerald-500/80 text-white" : "bg-black/30 text-white")}>
-                  {module.visibility === "public" ? <Globe className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
+              <div className="flex items-center gap-2 self-start shrink-0">
+                <Badge className={cn("border-0 font-medium text-[10px] sm:text-xs", module.visibility === "public" ? "bg-emerald-500/80 text-white" : "bg-black/30 text-white")}>
+                  {module.visibility === "public" ? <Globe className="h-2.5 w-2.5 mr-1" /> : <Lock className="h-2.5 w-2.5 mr-1" />}
                   {module.visibility}
                 </Badge>
                 {module.status && (
-                  <Badge className={cn("border-0 font-medium", module.status === "active" ? "bg-emerald-500/90 text-white" : "bg-amber-500/90 text-white")}>
+                  <Badge className={cn("border-0 font-medium text-[10px] sm:text-xs", module.status === "active" ? "bg-emerald-500/90 text-white" : "bg-amber-500/90 text-white")}>
                     {module.status === "active" ? "Ready to Use" : "Processing"}
                   </Badge>
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-4 mt-5 text-white/70 text-xs font-medium">
+            <div className="flex items-center gap-4 mt-3 sm:mt-5 text-white/70 text-xs font-medium">
               <span className="flex items-center gap-1"><BookOpen className="h-3.5 w-3.5" />{module.chapterCount ?? 0} chapters</span>
               <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5" />{module.sourceCount ?? 0} sources</span>
               <span className="flex items-center gap-1"><Star className="h-3.5 w-3.5" />{module.starCount ?? 0} stars</span>
@@ -940,7 +940,7 @@ export default function ModuleDetailPage() {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-border mb-6 overflow-x-auto scrollbar-none shrink-0 gap-2">
+        <div className="flex border-b border-border mb-4 sm:mb-6 overflow-x-auto scrollbar-none shrink-0 gap-2">
           <button
             onClick={() => setActiveTab("study")}
             className={cn("px-4 py-2.5 text-sm font-semibold border-b-2 transition-all flex items-center gap-1.5",
@@ -1359,7 +1359,7 @@ export default function ModuleDetailPage() {
                                     <div
                                       onClick={() => setFlashcardFlipped(!flashcardFlipped)}
                                       className={cn(
-                                        "w-[320px] h-[200px] rounded-2xl border flex items-center justify-center p-6 text-center cursor-pointer transition-all duration-300 shadow-lg relative select-none",
+                                        "w-full max-w-[320px] h-[200px] rounded-2xl border flex items-center justify-center p-6 text-center cursor-pointer transition-all duration-300 shadow-lg relative select-none",
                                         flashcardFlipped 
                                           ? "border-primary bg-primary/5 text-primary scale-[1.02]" 
                                           : "border-border bg-card text-foreground hover:border-primary/30"
@@ -1397,7 +1397,7 @@ export default function ModuleDetailPage() {
                                 );
                               }
                             } catch (_) {}
-                            return <div className="text-xs text-muted-foreground whitespace-pre-wrap">{selectedArtifact.content}</div>;
+                            return <MarkdownRenderer content={selectedArtifact.content} className="text-xs text-muted-foreground leading-relaxed" />;
                           })()}
                         </div>
                       )}
