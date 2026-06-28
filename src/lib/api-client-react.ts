@@ -1281,6 +1281,8 @@ export function useListModules(params?: any, options?: any): any {
         creditsValue: m.credits_value,
         processingPct: m.processing_pct,
         tags: m.tags || [],
+        fields: m.fields || [],
+        domains: m.domains || [],
         chapterCount: m.chapter_count,
         topicCount: m.topic_count,
         sourceCount: m.source_count,
@@ -1354,6 +1356,8 @@ export function useListPublicModules(params?: any, options?: any): any {
         creditsValue: m.credits_value,
         processingPct: m.processing_pct,
         tags: m.tags || [],
+        fields: m.fields || [],
+        domains: m.domains || [],
         chapterCount: m.chapter_count,
         topicCount: m.topic_count,
         sourceCount: m.source_count,
@@ -1399,6 +1403,8 @@ export function useGetModule(id: number, options?: any): any {
         creditsValue: data.credits_value,
         processingPct: data.processing_pct,
         tags: data.tags || [],
+        fields: data.fields || [],
+        domains: data.domains || [],
         chapterCount: data.chapter_count,
         topicCount: data.topic_count,
         sourceCount: data.source_count,
@@ -1523,6 +1529,9 @@ export function useCreateModule(options?: any): any {
         status: newMod.status,
         creditsValue: newMod.credits_value,
         processingPct: newMod.processing_pct,
+        tags: newMod.tags || [],
+        fields: newMod.fields || [],
+        domains: newMod.domains || [],
         chapterCount: newMod.chapter_count,
         sourceCount: newMod.source_count,
         starCount: newMod.star_count,
@@ -1586,7 +1595,9 @@ export function usePublishModule(options?: any): any {
       
       const mapped = {
         visibility: "public",
-        tags: data?.tags || []
+        tags: data?.tags || [],
+        fields: data?.fields || [],
+        domains: data?.domains || []
       };
       
       const { data: updated, error } = await supabase.from("modules").update(mapped).eq("id", id).select("*").single();
@@ -1603,6 +1614,8 @@ export function usePublishModule(options?: any): any {
         creditsValue: updated.credits_value,
         processingPct: updated.processing_pct,
         tags: updated.tags || [],
+        fields: updated.fields || [],
+        domains: updated.domains || [],
         chapterCount: updated.chapter_count,
         sourceCount: updated.source_count,
         starCount: updated.star_count,
@@ -2689,7 +2702,27 @@ export function useGetTrendingModules(options?: any): any {
       }
       
       const { data } = await supabase.from("modules").select("*").eq("visibility", "public").order("use_count", { ascending: false }).limit(6);
-      return data || [];
+      return (data || []).map(m => ({
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        subject: m.subject,
+        method: m.method,
+        visibility: m.visibility,
+        status: m.status,
+        creditsValue: m.credits_value,
+        processingPct: m.processing_pct,
+        tags: m.tags || [],
+        fields: m.fields || [],
+        domains: m.domains || [],
+        chapterCount: m.chapter_count,
+        topicCount: m.topic_count,
+        sourceCount: m.source_count,
+        starCount: m.star_count,
+        useCount: m.use_count,
+        createdAt: m.created_at,
+        updatedAt: m.updated_at
+      }));
     },
     ...options
   });
