@@ -1,6 +1,20 @@
+/**
+ * InteractiveMindMap — Reingold-Tilford Tree Layout
+ *
+ * Layout algorithm (2 passes):
+ *   Pass 1 (bottom-up): Each node's "subtree width" = sum of its children's
+ *                        subtree widths + gaps between them.
+ *   Pass 2 (top-down):  Place each node centered over its children's span.
+ *                        Y is purely level × LEVEL_HEIGHT.
+ *
+ * Result: perfectly balanced, non-overlapping, evenly distributed tree.
+ */
+
 import { useState, useRef, useEffect, useCallback, MouseEvent, WheelEvent } from "react";
 import { ZoomIn, ZoomOut, Maximize2, Download, BrainCircuit } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface MindMapNode {
   name: string;
@@ -12,22 +26,47 @@ interface InteractiveMindMapProps {
   title?: string;
 }
 
+// Internal layout node (mutable during computation)
+interface LayoutNode {
+  name: string;
+  children: LayoutNode[];
+  level: number;
+  // Set during Pass 1
+  subtreeW: number;
+  nodeW: number;
+  nodeH: number;
+  lines: string[];
+  // Set during Pass 2
+  x: number;
+  y: number;
+}
+
+// ─── Layout constants ─────────────────────────────────────────────────────────
+
+const LEVEL_H    = 110;  // px between level rows (center-to-center)
+const SIBLING_GAP = 24;  // horizontal gap between adjacent subtrees
+const CANVAS_PAD  = 48;  // padding around the whole diagram
+const LINE_H      = 13;  // px per text line
+
+// ─── Content parsers ──────────────────────────────────────────────────────────
+
 const parseOutlineText = (text: string): MindMapNode => {
-  const lines = text.split("\n").map(l => l.replace(/\r/g, "")).filter(l => l.trim().length > 0);
-  if (lines.length === 0) return { name: "Root", children: [] };
-  const rootName = lines[0].replace(/[├└─││]/g, "").trim();
+  const lines = text.split("\n").map(l => l.replace(/\r/g, "")).filter(l => l.trim());
+  if (!lines.length) return { name: "Root", children: [] };
+  const rootName = lines[0].replace(/[├└─│]/g, "").trim();
   const root: MindMapNode = { name: rootName, children: [] };
-  let currentGroup: MindMapNode | null = null;
+  let cur: MindMapNode | null = null;
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
-    const isSubChild = line.includes("│") || line.match(/^[ ├──└─]{4,}/) || (line.startsWith(" ") && line.trim().startsWith("├──") || line.trim().startsWith("└──"));
-    const name = line.replace(/[├└─││]/g, "").trim();
-    if (isSubChild && currentGroup) {
-      currentGroup.children.push({ name, children: [] });
+    const isSub = line.includes("│") || /^[ ├──└─]{4,}/.test(line) ||
+                  (line.startsWith(" ") && (line.trim().startsWith("├──") || line.trim().startsWith("└──")));
+    const name = line.replace(/[├└─│]/g, "").trim();
+    if (isSub && cur) {
+      cur.children.push({ name, children: [] });
     } else {
-      const group: MindMapNode = { name, children: [] };
-      root.children.push(group);
-      currentGroup = group;
+      const g: MindMapNode = { name, children: [] };
+      root.children.push(g);
+      cur = g;
     }
   }
   return root;
@@ -35,33 +74,24 @@ const parseOutlineText = (text: string): MindMapNode => {
 
 const parseContent = (text: string): MindMapNode => {
   try {
-    const parsed = JSON.parse(text);
-    if (parsed && typeof parsed === "object") {
-      if (typeof parsed.name === "string") {
-        const sanitizeNode = (node: any): MindMapNode => ({
-          name: String(node.name || ""),
-          children: Array.isArray(node.children) ? node.children.map(sanitizeNode) : []
-        });
-        return sanitizeNode(parsed);
+    const p = JSON.parse(text);
+    if (p && typeof p === "object") {
+      if (typeof p.name === "string") {
+        const san = (n: any): MindMapNode => ({ name: String(n.name ?? ""), children: Array.isArray(n.children) ? n.children.map(san) : [] });
+        return san(p);
       }
-      if (Array.isArray(parsed.nodes) && Array.isArray(parsed.connections)) {
-        const nodeMap: Record<string, MindMapNode & { id: string }> = {};
-        for (const n of parsed.nodes) {
-          nodeMap[String(n.id)] = { id: String(n.id), name: String(n.text || n.name || n.id), children: [] };
-        }
+      if (Array.isArray(p.nodes) && Array.isArray(p.connections)) {
+        const map: Record<string, MindMapNode & { id: string }> = {};
+        for (const n of p.nodes) map[String(n.id)] = { id: String(n.id), name: String(n.text ?? n.name ?? n.id), children: [] };
         const hasParent = new Set<string>();
-        for (const c of parsed.connections) {
-          const from = String(c.from ?? c.source);
-          const to   = String(c.to   ?? c.target);
-          if (nodeMap[from] && nodeMap[to]) {
-            nodeMap[from].children.push(nodeMap[to]);
-            hasParent.add(to);
-          }
+        for (const c of p.connections) {
+          const from = String(c.from ?? c.source), to = String(c.to ?? c.target);
+          if (map[from] && map[to]) { map[from].children.push(map[to]); hasParent.add(to); }
         }
-        const roots = Object.values(nodeMap).filter(n => !hasParent.has(n.id));
+        const roots = Object.values(map).filter(n => !hasParent.has(n.id));
         if (roots.length === 1) return roots[0];
         if (roots.length > 1) return { name: "Mind Map", children: roots };
-        const first = Object.values(nodeMap)[0];
+        const first = Object.values(map)[0];
         if (first) return first;
       }
     }
@@ -69,141 +99,134 @@ const parseContent = (text: string): MindMapNode => {
   return parseOutlineText(text);
 };
 
-// ─── Layout constants ─────────────────────────────────────────────────────────
-const CANVAS_PAD   = 40;   // padding around entire graph
-const LEAF_GAP     = 20;   // horizontal gap between leaf cards
-const GROUP_MIN_GAP = 16;  // minimum horizontal gap between group cards
-const ROOT_Y       = 70;
-const GROUP_Y      = 190;
-const LEAF_Y       = 310;
-const LINE_H       = 13;
+// ─── Text helpers ─────────────────────────────────────────────────────────────
+
+const wrapText = (text: string, maxChars: number): string[] => {
+  const words = text.split(" ");
+  const lines: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    const candidate = cur ? `${cur} ${w}` : w;
+    if (candidate.length <= maxChars) {
+      cur = candidate;
+    } else {
+      if (cur) lines.push(cur);
+      cur = w.length > maxChars ? w.slice(0, maxChars - 1) + "…" : w;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines.length ? lines : [text];
+};
+
+const getNodeDim = (name: string, level: number) => {
+  const maxChars = level === 0 ? 22 : level === 1 ? 18 : 15;
+  const lines    = wrapText(name, maxChars);
+  const maxLen   = Math.max(...lines.map(l => l.length), 1);
+  // Width scales with longest line; level 0 gets more room
+  const minW = level === 0 ? 150 : level === 1 ? 120 : 100;
+  const w    = Math.max(minW, maxLen * 6.5 + 24);
+  const h    = Math.max(34, lines.length * LINE_H + 16);
+  return { w, h, lines };
+};
+
+// ─── Reingold-Tilford layout (simplified, top-to-bottom) ─────────────────────
+
+/** Pass 1 — annotate each node with its natural subtree width. */
+function measureSubtree(node: MindMapNode, level: number): LayoutNode {
+  const { w, h, lines } = getNodeDim(node.name, level);
+  const children = node.children.map(c => measureSubtree(c, level + 1));
+
+  let subtreeW: number;
+  if (children.length === 0) {
+    // Leaf: its slot is its own node width + a uniform side gap
+    subtreeW = w + SIBLING_GAP;
+  } else {
+    // Internal: slot = sum of children slots (gaps already baked in)
+    subtreeW = children.reduce((s, c) => s + c.subtreeW, 0);
+    // Never narrower than the node itself
+    subtreeW = Math.max(subtreeW, w + SIBLING_GAP);
+  }
+
+  return { name: node.name, children, level, subtreeW, nodeW: w, nodeH: h, lines, x: 0, y: 0 };
+}
+
+/** Pass 2 — assign X/Y coordinates top-down. `startX` = left edge of this subtree's slot. */
+function placeNodes(node: LayoutNode, startX: number): void {
+  // Center this node horizontally over its subtree slot
+  node.x = startX + node.subtreeW / 2;
+  node.y = CANVAS_PAD + node.level * LEVEL_H;
+
+  // Place children left-to-right, each in their own slot
+  let childX = startX;
+  for (const child of node.children) {
+    placeNodes(child, childX);
+    childX += child.subtreeW;
+  }
+}
+
+/** Flatten the tree into arrays suitable for SVG rendering. */
+function flattenTree(node: LayoutNode, nodes: LayoutNode[], links: { sx: number; sy: number; tx: number; ty: number }[]) {
+  nodes.push(node);
+  for (const child of node.children) {
+    links.push({ sx: node.x, sy: node.y, tx: child.x, ty: child.y });
+    flattenTree(child, nodes, links);
+  }
+}
+
+// ─── Visual helpers ───────────────────────────────────────────────────────────
+
+const LEVEL_COLORS = [
+  { fill: "hsl(263 75% 58%)",  stroke: "none",                  text: "#fff" },           // 0 root
+  { fill: "hsl(263 35% 22%)",  stroke: "hsl(263 50% 40%)",      text: "hsl(263 80% 82%)" }, // 1
+  { fill: "hsl(220 22% 17%)",  stroke: "hsl(220 20% 32%)",      text: "hsl(220 15% 76%)" }, // 2
+  { fill: "hsl(200 22% 15%)",  stroke: "hsl(200 20% 30%)",      text: "hsl(200 15% 72%)" }, // 3+
+];
+const levelColor = (level: number) => LEVEL_COLORS[Math.min(level, LEVEL_COLORS.length - 1)];
+
+const LINK_COLORS = ["hsl(263 50% 46%)", "hsl(220 25% 38%)", "hsl(200 20% 34%)"];
+const linkColor = (level: number) => LINK_COLORS[Math.min(level, LINK_COLORS.length - 1)];
+
+function cn(...cls: (string | false | undefined)[]) { return cls.filter(Boolean).join(" "); }
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function InteractiveMindMap({ content, title }: InteractiveMindMapProps) {
-  const rootNode = parseContent(content);
-  const svgRef   = useRef<SVGSVGElement>(null);
-  const wrapRef  = useRef<HTMLDivElement>(null);
+  const svgWrapRef = useRef<HTMLDivElement>(null);
 
   const [pan,        setPan]        = useState({ x: 0, y: 0 });
   const [scale,      setScale]      = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart,  setDragStart]  = useState({ x: 0, y: 0 });
-  const [fitted,     setFitted]     = useState(false);
+  const [needsFit,   setNeedsFit]   = useState(true);
 
-  // ── Text wrapping ─────────────────────────────────────────────────────────
-  const wrapText = (text: string, maxChars = 18): string[] => {
-    const words = text.split(" ");
-    const lines: string[] = [];
-    let cur = "";
-    words.forEach(w => {
-      if ((cur + " " + w).trim().length <= maxChars) {
-        cur = (cur + " " + w).trim();
-      } else {
-        if (cur) lines.push(cur);
-        cur = w.length > maxChars ? w.slice(0, maxChars - 1) + "…" : w;
-      }
-    });
-    if (cur) lines.push(cur);
-    return lines.length > 0 ? lines : [text];
-  };
+  // ── Run layout algorithm ──────────────────────────────────────────────────
+  const rawRoot  = parseContent(content);
+  const laidRoot = measureSubtree(rawRoot, 0);
+  placeNodes(laidRoot, CANVAS_PAD / 2);
 
-  const getNodeDim = (label: string, level: number) => {
-    const maxChars = level === 0 ? 20 : level === 1 ? 18 : 16;
-    const lines = wrapText(label, maxChars);
-    const maxLen = Math.max(...lines.map(l => l.length), 1);
-    const width  = Math.max(level === 0 ? 140 : level === 1 ? 120 : 100, maxLen * 6.2 + 20);
-    const height = Math.max(34, lines.length * LINE_H + 14);
-    return { lines, width, height };
-  };
+  const allNodes: LayoutNode[] = [];
+  const allLinks: { sx: number; sy: number; tx: number; ty: number }[] = [];
+  flattenTree(laidRoot, allNodes, allLinks);
 
-  // ── Layout ────────────────────────────────────────────────────────────────
-  type ND = { id: string; label: string; lines: string[]; x: number; y: number; level: number; w: number; h: number };
-  type LK = { sx: number; sy: number; tx: number; ty: number };
+  // ── Canvas bounding box from actual node positions ────────────────────────
+  const maxX = Math.max(...allNodes.map(n => n.x + n.nodeW / 2)) + CANVAS_PAD / 2;
+  const maxY = Math.max(...allNodes.map(n => n.y + n.nodeH / 2)) + CANVAS_PAD;
+  const canvasW = Math.max(maxX, 400);
+  const canvasH = Math.max(maxY, 300);
 
-  const allNodes: ND[] = [];
-  const allLinks: LK[] = [];
-
-  // 1. Root node — preliminary (will be re-centered after leaves are placed)
-  const rootDim = getNodeDim(rootNode.name, 0);
-
-  // 2. Leaf nodes — measure first
-  interface LeafMeta { gIdx: number; lIdx: number; node: MindMapNode; w: number; h: number; lines: string[] }
-  const leafMeta: LeafMeta[] = [];
-  rootNode.children.forEach((g, gIdx) => {
-    g.children.forEach((leaf, lIdx) => {
-      const d = getNodeDim(leaf.name, 2);
-      leafMeta.push({ gIdx, lIdx, node: leaf, w: d.width, h: d.height, lines: d.lines });
-    });
-  });
-
-  const totalLeafW = leafMeta.reduce((s, l) => s + l.w, 0) + Math.max(0, leafMeta.length - 1) * LEAF_GAP;
-  const leafStartX = CANVAS_PAD + (leafMeta.length === 0 ? 0 : 0);
-
-  // 3. Place leaves left-to-right
-  const leafXMap: Record<string, number> = {};
-  let curX = leafStartX;
-  leafMeta.forEach(lm => {
-    const lx = curX + lm.w / 2;
-    const id = `l-${lm.gIdx}-${lm.lIdx}`;
-    leafXMap[id] = lx;
-    allNodes.push({ id, label: lm.node.name, lines: lm.lines, x: lx, y: LEAF_Y, level: 2, w: lm.w, h: lm.h });
-    curX += lm.w + LEAF_GAP;
-  });
-
-  // 4. Canvas width from actual leaf spread
-  const contentW = Math.max(rootDim.width + CANVAS_PAD * 2, totalLeafW + CANVAS_PAD * 2);
-  const cx = contentW / 2;
-
-  // 5. Place group nodes centered over their leaves (or evenly if no leaves)
-  const groupCount = rootNode.children.length;
-  rootNode.children.forEach((group, gIdx) => {
-    const gId  = `g-${gIdx}`;
-    const gDim = getNodeDim(group.name, 1);
-    let gx = cx;
-
-    if (group.children.length > 0) {
-      let sumX = 0;
-      group.children.forEach((_, lIdx) => {
-        sumX += leafXMap[`l-${gIdx}-${lIdx}`] ?? cx;
-      });
-      gx = sumX / group.children.length;
-    } else if (groupCount > 1) {
-      const spread = contentW - CANVAS_PAD * 2;
-      gx = CANVAS_PAD + (gIdx / (groupCount - 1)) * spread;
-    }
-
-    allNodes.push({ id: gId, label: group.name, lines: gDim.lines, x: gx, y: GROUP_Y, level: 1, w: gDim.width, h: gDim.height });
-
-    // Connect group → leaves
-    group.children.forEach((_, lIdx) => {
-      const lId = `l-${gIdx}-${lIdx}`;
-      const lx  = leafXMap[lId] ?? gx;
-      allLinks.push({ sx: gx, sy: GROUP_Y, tx: lx, ty: LEAF_Y });
-    });
-
-    // Root → group link (deferred until root position is known)
-    allLinks.push({ sx: cx, sy: ROOT_Y, tx: gx, ty: GROUP_Y });
-  });
-
-  // 6. Root node centered on canvas
-  allNodes.push({ id: "root", label: rootNode.name, lines: rootDim.lines, x: cx, y: ROOT_Y, level: 0, w: rootDim.width, h: rootDim.height });
-
-  // ── Canvas dimensions: enough for deepest node + padding ─────────────────
-  const deepestY = leafMeta.length > 0 ? LEAF_Y : GROUP_Y;
-  const maxNodeH = Math.max(...allNodes.map(n => n.h), 40);
-  const canvasH  = deepestY + maxNodeH / 2 + CANVAS_PAD;
-  const canvasW  = contentW;
-
-  // ── Auto-fit on first render (scale + center) ─────────────────────────────
+  // ── Auto-fit to container ─────────────────────────────────────────────────
   const fitToView = useCallback(() => {
-    const wrap = wrapRef.current;
+    const wrap = svgWrapRef.current;
     if (!wrap) return;
-    const { clientWidth: vw, clientHeight: vh } = wrap;
-    if (vw === 0 || vh === 0) return;
+    const vw = wrap.clientWidth;
+    const vh = wrap.clientHeight;
+    if (!vw || !vh) return;
 
     const scaleX = vw  / canvasW;
     const scaleY = vh  / canvasH;
-    const fit    = Math.min(scaleX, scaleY, 1) * 0.94; // never upscale beyond 100%
+    const fit    = Math.min(scaleX, scaleY) * 0.95; // 95% to leave breathing room
 
+    // Center the scaled canvas inside the viewport
     const panX = (vw  - canvasW  * fit) / 2;
     const panY = (vh  - canvasH  * fit) / 2;
 
@@ -212,47 +235,56 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
   }, [canvasW, canvasH]);
 
   useEffect(() => {
-    if (!fitted) {
-      fitToView();
-      setFitted(true);
-    }
-  }, [fitted, fitToView]);
+    if (needsFit) { fitToView(); setNeedsFit(false); }
+  }, [needsFit, fitToView]);
 
-  // Re-fit when container resizes
+  // Refit when container resizes
   useEffect(() => {
-    const wrap = wrapRef.current;
+    const wrap = svgWrapRef.current;
     if (!wrap) return;
-    const ro = new ResizeObserver(() => { setFitted(false); });
+    const ro = new ResizeObserver(() => setNeedsFit(true));
     ro.observe(wrap);
     return () => ro.disconnect();
   }, []);
 
   // ── Interaction ───────────────────────────────────────────────────────────
-  const handlePointerDown = (e: MouseEvent<SVGSVGElement>) => {
+  const handleMouseDown = (e: MouseEvent<SVGSVGElement>) => {
     setIsDragging(true);
     setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
   };
-  const handlePointerMove = (e: MouseEvent<SVGSVGElement>) => {
+  const handleMouseMove = (e: MouseEvent<SVGSVGElement>) => {
     if (!isDragging) return;
     setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
   };
-  const handlePointerUp = () => setIsDragging(false);
+  const handleMouseUp   = () => setIsDragging(false);
 
   const handleWheel = (e: WheelEvent<SVGSVGElement>) => {
     e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.06 : 0.94;
-    setScale(prev => Math.min(Math.max(prev * factor, 0.2), 3));
+    // Zoom towards mouse position
+    const wrap = svgWrapRef.current;
+    if (!wrap) return;
+    const rect   = wrap.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.08 : 0.93;
+    const next   = Math.min(Math.max(scale * factor, 0.15), 4);
+    // Adjust pan so point under cursor stays fixed
+    const dx = (mouseX - pan.x) * (next / scale - 1);
+    const dy = (mouseY - pan.y) * (next / scale - 1);
+    setScale(next);
+    setPan(p => ({ x: p.x - dx, y: p.y - dy }));
   };
 
-  const handleZoomIn  = () => setScale(p => Math.min(p + 0.12, 3));
-  const handleZoomOut = () => setScale(p => Math.max(p - 0.12, 0.2));
-  const handleRecenter = () => { setFitted(false); };
+  const handleZoomIn  = () => setScale(p => Math.min(p + 0.12, 4));
+  const handleZoomOut = () => setScale(p => Math.max(p - 0.12, 0.15));
+  const handleFit     = () => setNeedsFit(true);
 
   // ── Export ────────────────────────────────────────────────────────────────
+  const svgRef = useRef<SVGSVGElement>(null);
   const handleExport = () => {
-    const svgEl = svgRef.current;
-    if (!svgEl) return;
-    const clone = svgEl.cloneNode(true) as SVGSVGElement;
+    const el = svgRef.current;
+    if (!el) return;
+    const clone = el.cloneNode(true) as SVGSVGElement;
     clone.setAttribute("width",  String(canvasW));
     clone.setAttribute("height", String(canvasH));
     const bg = window.getComputedStyle(document.body).backgroundColor || "#0f172a";
@@ -260,95 +292,105 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
     bgRect.setAttribute("width", "100%"); bgRect.setAttribute("height", "100%"); bgRect.setAttribute("fill", bg);
     clone.insertBefore(bgRect, clone.firstChild);
     const src = new XMLSerializer().serializeToString(clone);
-    const a = document.createElement("a");
-    a.href = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(src);
-    a.download = `${title || "mindmap"}.svg`;
+    const a   = document.createElement("a");
+    a.href     = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(src);
+    a.download  = `${title || "mindmap"}.svg`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 
-  // ── Node colours ──────────────────────────────────────────────────────────
-  const nodeFill  = (level: number) =>
-    level === 0 ? "hsl(263 80% 60%)"
-    : level === 1 ? "hsl(263 40% 20%)"
-    : "hsl(220 20% 16%)";
-  const nodeStroke = (level: number) =>
-    level === 0 ? "none"
-    : level === 1 ? "hsl(263 50% 38%)"
-    : "hsl(220 20% 28%)";
-  const textFill = (level: number) =>
-    level === 0 ? "#fff" : level === 1 ? "hsl(263 80% 80%)" : "hsl(220 15% 75%)";
-  const linkColor = (targetLevel: number) =>
-    targetLevel === 1 ? "hsl(263 50% 45%)" : "hsl(220 20% 35%)";
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div
-      ref={wrapRef}
+      ref={svgWrapRef}
       className="flex flex-col border border-border bg-card rounded-2xl overflow-hidden shadow-sm relative group h-full min-h-[360px]"
     >
       {/* Toolbar */}
       <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10 bg-background/80 backdrop-blur-sm border border-border/60 p-1.5 rounded-xl shadow-xs">
-        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleZoomIn}    title="Zoom In"><ZoomIn  className="h-4 w-4" /></Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleZoomOut}   title="Zoom Out"><ZoomOut className="h-4 w-4" /></Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleRecenter}  title="Fit to frame"><Maximize2 className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleZoomIn}  title="Zoom In">
+          <ZoomIn className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleZoomOut} title="Zoom Out">
+          <ZoomOut className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleFit}     title="Fit to frame">
+          <Maximize2 className="h-4 w-4" />
+        </Button>
         <div className="w-[1px] h-4 bg-border/60 mx-1" />
-        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleExport}    title="Export SVG"><Download className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground" onClick={handleExport}  title="Export SVG">
+          <Download className="h-4 w-4" />
+        </Button>
       </div>
 
-      {/* SVG canvas — fills the wrapper, no fixed viewBox so CSS drives the size */}
+      {/* SVG — fills wrapper; pan+scale live in a child <g> */}
       <svg
         ref={svgRef}
         className={cn("w-full h-full bg-muted/5", isDragging ? "cursor-grabbing" : "cursor-grab")}
-        onMouseDown={handlePointerDown}
-        onMouseMove={handlePointerMove}
-        onMouseUp={handlePointerUp}
-        onMouseLeave={handlePointerUp}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
       >
-        {/* Translate + scale group; origin is top-left of canvas */}
-        <g transform={`translate(${pan.x}, ${pan.y}) scale(${scale})`}>
+        <g transform={`translate(${pan.x},${pan.y}) scale(${scale})`}>
 
-          {/* Links */}
-          {allLinks.map((lk, idx) => {
-            const level = lk.ty === LEAF_Y ? 2 : 1;
-            const my    = (lk.sy + lk.ty) / 2;
+          {/* Links — cubic Bézier, vertically oriented */}
+          {allLinks.map((lk, i) => {
+            // Determine depth of the target node for colour
+            const tNode  = allNodes.find(n => n.x === lk.tx && n.y === lk.ty);
+            const tLevel = tNode?.level ?? 1;
+            const my     = (lk.sy + lk.ty) / 2;
             return (
               <path
-                key={idx}
+                key={i}
                 d={`M ${lk.sx} ${lk.sy} C ${lk.sx} ${my}, ${lk.tx} ${my}, ${lk.tx} ${lk.ty}`}
                 fill="none"
-                stroke={linkColor(level)}
-                strokeWidth={level === 1 ? 1.5 : 1}
-                strokeOpacity={0.7}
+                stroke={linkColor(tLevel - 1)}
+                strokeWidth={tLevel === 1 ? 1.8 : 1.2}
+                strokeOpacity={0.65}
               />
             );
           })}
 
           {/* Nodes */}
-          {allNodes.map(nd => {
-            const rx = nd.level === 0 ? 12 : nd.level === 1 ? 10 : 8;
+          {allNodes.map((nd, i) => {
+            const { fill, stroke, text } = levelColor(nd.level);
+            const rx = nd.level === 0 ? 14 : nd.level === 1 ? 10 : 8;
             return (
-              <g key={nd.id} transform={`translate(${nd.x}, ${nd.y})`}>
+              <g key={i} transform={`translate(${nd.x},${nd.y})`}>
+                {/* Card */}
                 <rect
-                  x={-nd.w / 2} y={-nd.h / 2}
-                  width={nd.w}  height={nd.h}
+                  x={-nd.nodeW / 2} y={-nd.nodeH / 2}
+                  width={nd.nodeW}   height={nd.nodeH}
                   rx={rx}
-                  fill={nodeFill(nd.level)}
-                  stroke={nodeStroke(nd.level)}
+                  fill={fill}
+                  stroke={stroke}
                   strokeWidth={1.5}
                 />
+                {/* Optional subtle inner glow for root */}
+                {nd.level === 0 && (
+                  <rect
+                    x={-nd.nodeW / 2 + 2} y={-nd.nodeH / 2 + 2}
+                    width={nd.nodeW - 4}   height={nd.nodeH - 4}
+                    rx={rx - 2}
+                    fill="none"
+                    stroke="rgba(255,255,255,0.15)"
+                    strokeWidth={1}
+                  />
+                )}
+                {/* Text lines — vertically centred */}
                 {nd.lines.map((line, li) => {
                   const totalH = (nd.lines.length - 1) * LINE_H;
-                  const dy     = -totalH / 2 + li * LINE_H + 1;
+                  const dy     = -totalH / 2 + li * LINE_H;
                   return (
                     <text
                       key={li}
                       y={dy}
                       textAnchor="middle"
                       dominantBaseline="middle"
-                      fill={textFill(nd.level)}
-                      fontSize={nd.level === 0 ? 10 : 9}
+                      fill={text}
+                      fontSize={nd.level === 0 ? 10.5 : nd.level === 1 ? 9.5 : 9}
                       fontWeight={nd.level === 0 ? 700 : nd.level === 1 ? 600 : 500}
-                      style={{ fontFamily: "sans-serif", userSelect: "none", pointerEvents: "none" }}
+                      style={{ fontFamily: "ui-sans-serif,system-ui,sans-serif", userSelect: "none", pointerEvents: "none" }}
                     >
                       {line}
                     </text>
@@ -360,15 +402,11 @@ export default function InteractiveMindMap({ content, title }: InteractiveMindMa
         </g>
       </svg>
 
-      {/* Hint */}
+      {/* Hint bar */}
       <div className="absolute bottom-3 left-3 pointer-events-none flex items-center gap-1.5 text-[10px] text-muted-foreground/60 font-semibold bg-background/50 backdrop-blur-xs px-2 py-1 rounded-lg border border-border/40">
         <BrainCircuit className="h-3.5 w-3.5 text-primary" />
-        <span>Drag to pan · Scroll to zoom · ⊡ to fit</span>
+        <span>Drag · Scroll to zoom · ⊡ fit to frame</span>
       </div>
     </div>
   );
-}
-
-function cn(...classes: any[]) {
-  return classes.filter(Boolean).join(" ");
 }

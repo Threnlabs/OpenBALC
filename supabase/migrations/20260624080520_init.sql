@@ -295,6 +295,8 @@ CREATE TABLE modules (
     credits_value INTEGER NOT NULL DEFAULT 0 CHECK (credits_value >= 0),
     processing_pct INTEGER CHECK (processing_pct >= 0 AND processing_pct <= 100),
     tags TEXT[] NOT NULL DEFAULT '{}',
+    fields TEXT[] NOT NULL DEFAULT '{}',
+    domains TEXT[] NOT NULL DEFAULT '{}',
     
     -- Cached metric columns for fast UI loads and indexing
     chapter_count INTEGER NOT NULL DEFAULT 0 CHECK (chapter_count >= 0),
