@@ -248,6 +248,7 @@ async function extractPdfWithLlamaParse(
 }
 
 export async function extractPdfText(file: File): Promise<string> {
+  // @ts-ignore
   const pdfjs = await import(/* @vite-ignore */ "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs");
   pdfjs.GlobalWorkerOptions.workerSrc =
     "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
